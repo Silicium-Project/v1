@@ -1,0 +1,47 @@
+[package]
+name = "sil-node"
+description = "Nœud complet : assemble réseau, journal, contenu, workloads, coordination, règlement et API de contrôle. Aucune logique métier."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "silicium-node"
+path = "src/main.rs"
+
+[dependencies]
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-codec.workspace = true
+sil-config.workspace = true
+sil-telemetry.workspace = true
+sil-ledger.workspace = true
+sil-ledger-store.workspace = true
+sil-quota.workspace = true
+sil-attest.workspace = true
+sil-content.workspace = true
+sil-transfer.workspace = true
+sil-net.workspace = true
+sil-workload-api.workspace = true
+sil-wl-sha256.workspace = true
+sil-wl-render.workspace = true
+sil-sandbox.workspace = true
+sil-render-wasm.workspace = true
+sil-sampling.workspace = true
+sil-reputation.workspace = true
+sil-coordinator.workspace = true
+sil-chain-core.workspace = true
+sil-settlement.workspace = true
+sil-control-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+sil-settlement = { workspace = true, features = ["testing"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

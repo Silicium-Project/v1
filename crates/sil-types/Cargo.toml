@@ -1,0 +1,16 @@
+[package]
+name = "sil-types"
+description = "Identifiants et octets de taille fixe partagés (hash, clé publique, signature)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+ciborium.workspace = true
+
+[lints]
+workspace = true

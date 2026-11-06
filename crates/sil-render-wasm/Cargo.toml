@@ -1,0 +1,15 @@
+[package]
+name = "sil-render-wasm"
+description = "Moteur de rendu en WebAssembly (WASI preview 1) : mémoire, délai et sortie bornés, sans réseau ni fichiers, identique sur Windows, Linux et macOS."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-wl-render.workspace = true
+sil-workload-api.workspace = true
+wasmtime = "50"
+wasmtime-wasi = "50"
+
+[lints]
+workspace = true

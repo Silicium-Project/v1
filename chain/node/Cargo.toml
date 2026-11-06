@@ -1,0 +1,25 @@
+[package]
+name = "sil-node-solana"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "silicium-node avec la chaîne Solana : même démarrage que sil-node, règlement des jobs sur l'escrow."
+
+# Own workspace: excluded from the node workspace (Solana dependencies are heavy).
+[workspace]
+
+[[bin]]
+name = "silicium-node"
+path = "src/main.rs"
+
+[dependencies]
+sil-node = { path = "../../crates/sil-node" }
+sil-config = { path = "../../crates/sil-config" }
+sil-settlement = { path = "../../crates/sil-settlement" }
+sil-settlement-solana = { path = "../adapter" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing = "0.1"
+
+[lints.rust]
+unsafe_code = "forbid"

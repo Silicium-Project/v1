@@ -1,0 +1,18 @@
+[package]
+name = "sil-ledger-store"
+description = "Persistance du journal : segments append-only, checksums, réparation de fin de fichier, fsync configurable."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-ledger.workspace = true
+sil-crypto.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+sil-types.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

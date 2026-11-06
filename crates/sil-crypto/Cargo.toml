@@ -1,0 +1,22 @@
+[package]
+name = "sil-crypto"
+description = "Signatures à domaines, clés indépendantes par usage, fichier clé 0600, comparaison en temps constant."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+ed25519-dalek.workspace = true
+sha2.workspace = true
+hkdf.workspace = true
+zeroize.workspace = true
+subtle.workspace = true
+getrandom.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,26 @@
+[package]
+name = "sil-settlement-solana"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Adaptateur Solana de sil-settlement : lit l'escrow, soumet les règlements signés par le comité, suit les transactions."
+
+# Own workspace: the Solana client is large; the node reaches it through this crate later.
+[workspace]
+
+[dependencies]
+solana-client = "3.1"
+solana-sdk = "3"
+solana-commitment-config = "3"
+solana-ed25519-program = "3"
+solana-system-interface = "3"
+sil-chain-core = { path = "../../crates/sil-chain-core" }
+sil-settlement = { path = "../../crates/sil-settlement" }
+sil-types = { path = "../../crates/sil-types" }
+
+[dev-dependencies]
+sil-crypto = { path = "../../crates/sil-crypto" }
+
+[lints.rust]
+unsafe_code = "forbid"

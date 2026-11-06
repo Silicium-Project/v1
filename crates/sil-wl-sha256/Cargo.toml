@@ -1,0 +1,19 @@
+[package]
+name = "sil-wl-sha256"
+description = "Workload calcul/sha256 : hash par plages d'octets, vérifié par recalcul complet."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-workload-api.workspace = true
+sil-types.workspace = true
+sil-codec.workspace = true
+serde.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+sil-crypto.workspace = true
+
+[lints]
+workspace = true

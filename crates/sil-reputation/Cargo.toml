@@ -1,0 +1,12 @@
+[package]
+name = "sil-reputation"
+description = "Réputation des workers : scopée aux requesters de confiance, décroissante, sans auto-évaluation, à mémoire bornée."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,28 @@
+# Build et dépendances
+target/
+**/target/
+node_modules/
+dist/
+dist-desktop/
+gen/
+
+# Secrets et état local : ne jamais committer
+*.seed
+*.key
+*.pem
+*.token
+control.token
+keypair*.json
+payer*.json
+program.json
+.env
+.env.local
+.env.*.local
+data/
+render-work/
+
+# Journaux et éditeurs
+*.log
+.DS_Store
+.vscode/
+.idea/

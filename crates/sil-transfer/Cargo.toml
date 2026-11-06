@@ -1,0 +1,22 @@
+[package]
+name = "sil-transfer"
+description = "Colle réseau et stockage : sert le contenu aux pairs et le télécharge morceau par morceau, avec reprise."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-net.workspace = true
+sil-content.workspace = true
+sil-types.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+sil-crypto.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

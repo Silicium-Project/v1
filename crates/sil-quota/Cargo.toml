@@ -1,0 +1,9 @@
+[package]
+name = "sil-quota"
+description = "Bornes de ressources du journal et limiteurs de débit (seaux à jetons) bornés en mémoire."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

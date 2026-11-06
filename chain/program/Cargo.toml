@@ -1,0 +1,26 @@
+[package]
+name = "sil-escrow-program"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Programme Solana de l'escrow V1 : fine enveloppe autour de sil-chain-core (docs/technical/protocol/settlement.md)."
+
+# Own workspace: excluded from the node workspace (Solana dependencies are heavy and built with cargo build-sbf).
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = "3"
+solana-system-interface = { version = "2", features = ["bincode"] }
+sil-chain-core = { path = "../../crates/sil-chain-core" }
+sil-types = { path = "../../crates/sil-types" }
+
+[features]
+no-entrypoint = []
+
+[lints.rust]
+unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("custom-heap", "custom-panic"))', 'cfg(target_os, values("solana"))'] }

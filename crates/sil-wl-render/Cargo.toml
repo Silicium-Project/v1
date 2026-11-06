@@ -1,0 +1,20 @@
+[package]
+name = "sil-wl-render"
+description = "Workload rendu par blocs de lignes : engagement par bloc, vérification de cohérence et par échantillon."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-workload-api.workspace = true
+sil-sandbox.workspace = true
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-codec.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+sil-sampling.workspace = true
+
+[lints]
+workspace = true

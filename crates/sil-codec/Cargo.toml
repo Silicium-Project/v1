@@ -1,0 +1,14 @@
+[package]
+name = "sil-codec"
+description = "Encodage canonique (CBOR) pour tout ce qui est signé ou haché, avec limites de taille."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+ciborium.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

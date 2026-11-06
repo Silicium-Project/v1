@@ -1,0 +1,19 @@
+[package]
+name = "sil-content"
+description = "Stockage adressé par contenu : arbre de Merkle par morceaux, index mémoire, quotas, téléchargement reprenable."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-codec.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

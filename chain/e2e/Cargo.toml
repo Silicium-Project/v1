@@ -1,0 +1,34 @@
+[package]
+name = "sil-e2e-solana"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Flux complet sur validateur local : requérant, comité, vérificateur, règlement on-chain."
+
+# Own workspace: excluded from the node workspace (Solana dependencies are heavy).
+[workspace]
+
+[dev-dependencies]
+sil-chain-core = { path = "../../crates/sil-chain-core" }
+sil-content = { path = "../../crates/sil-content" }
+sil-crypto = { path = "../../crates/sil-crypto" }
+sil-ledger = { path = "../../crates/sil-ledger" }
+sil-net = { path = "../../crates/sil-net" }
+sil-node = { path = "../../crates/sil-node" }
+sil-settlement = { path = "../../crates/sil-settlement" }
+sil-render-wasm = { path = "../../crates/sil-render-wasm" }
+sil-sandbox = { path = "../../crates/sil-sandbox" }
+sil-settlement-solana = { path = "../adapter" }
+sil-telemetry = { path = "../../crates/sil-telemetry" }
+sil-types = { path = "../../crates/sil-types" }
+sil-wl-render = { path = "../../crates/sil-wl-render" }
+sil-wl-sha256 = { path = "../../crates/sil-wl-sha256" }
+sil-workload-api = { path = "../../crates/sil-workload-api" }
+solana-commitment-config = "3"
+solana-sdk = "3"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "io-util"] }
+
+[lints.rust]
+unsafe_code = "forbid"

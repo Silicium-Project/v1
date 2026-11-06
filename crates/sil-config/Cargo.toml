@@ -1,0 +1,14 @@
+[package]
+name = "sil-config"
+description = "Configuration typée du nœud : fichier TOML, surcharge par variables SIL_*, validation au démarrage."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "sil-control-api"
+description = "API HTTP de contrôle du nœud : jetons à scopes en temps constant, limites de débit, envoi de contenu par octets, OpenAPI généré."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-quota.workspace = true
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,28 @@
+[package]
+name = "sil-sandbox"
+description = "Exécution de programmes externes bornée et isolée : environnement nettoyé, délai, sortie plafonnée, chemins confinés, isolation noyau (Linux) ou arbre tué (Windows)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+libc = "0.2"
+nix = { version = "0.30", features = ["signal"] }
+rlimit = "0.11"
+seccompiler = "0.5"
+
+[target.'cfg(windows)'.dependencies]
+win32job = "2"
+
+[dev-dependencies]
+tempfile.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

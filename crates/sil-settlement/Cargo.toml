@@ -1,0 +1,26 @@
+[package]
+name = "sil-settlement"
+description = "Règlement des fragments finalisés : autorisation du comité, outbox idempotente et reprenable, garde d'escrow, chaîne simulée."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Expose `testing::FakeChain` (chaîne simulée avec injection de pannes) aux autres crates.
+testing = []
+
+[dependencies]
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-codec.workspace = true
+sil-ledger.workspace = true
+sil-chain-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,15 @@
+[package]
+name = "sil-chain-core"
+description = "Règles de l'escrow on-chain en Rust pur : dépôt, règlement unique par fragment, remboursement. Modèle de référence du programme."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+bincode = "1"
+
+[lints]
+workspace = true

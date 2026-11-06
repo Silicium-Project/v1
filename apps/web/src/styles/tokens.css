@@ -1,0 +1,33 @@
+/* Design tokens. Values mirror palette.ts (checked by contrast.test.ts). No gradients, no glass
+   effects, no shadows beyond a 1px border: flat surfaces, clear edges. */
+:root {
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, Consolas, 'Liberation Mono', monospace;
+
+  --color-bg: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-text: #0b1d3b;
+  --color-text-muted: #455c78;
+  --color-border: #c9d4e3;
+  --color-input-border: #6a7d96;
+
+  --color-accent: #155eb8;
+  --color-accent-strong: #0f4a94;
+  --color-accent-text: #ffffff;
+  --color-accent-soft: #eaf3ff;
+  --color-focus: #155eb8;
+
+  --color-danger: #b63d46;
+  --color-danger-soft: #fff0f1;
+  --color-success: #1b6a4a;
+  --color-success-soft: #eaf7ef;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #fff5e7;
+  --color-neutral: #455c78;
+  --color-neutral-soft: #edf2f8;
+
+  --radius: 0.5rem;
+  --max-width: 60rem;
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+  --touch-target: 44px;
+}

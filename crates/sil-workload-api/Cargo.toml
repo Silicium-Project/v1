@@ -1,0 +1,16 @@
+[package]
+name = "sil-workload-api"
+description = "Contrat d'un workload : découpe, exécution, vérification, politique de vérification, limites."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-codec.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

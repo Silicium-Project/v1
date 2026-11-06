@@ -1,0 +1,21 @@
+[package]
+name = "sil-net"
+description = "Réseau P2P : topics séparés, scoring de pairs, limites par pair, backfill et contenu en requête-réponse."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-types.workspace = true
+sil-crypto.workspace = true
+sil-codec.workspace = true
+sil-quota.workspace = true
+libp2p.workspace = true
+tokio.workspace = true
+futures.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

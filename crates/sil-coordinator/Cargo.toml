@@ -1,0 +1,19 @@
+[package]
+name = "sil-coordinator"
+description = "Automate d'un membre du comité : choisit les votes à émettre (claim, vérificateurs, finalisation) d'après le journal."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-ledger.workspace = true
+sil-reputation.workspace = true
+sil-attest.workspace = true
+sil-crypto.workspace = true
+sil-types.workspace = true
+
+[dev-dependencies]
+sil-quota.workspace = true
+
+[lints]
+workspace = true
