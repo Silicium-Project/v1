@@ -24,7 +24,7 @@ API HTTP locale par laquelle le service Go (ou un outil) pilote un nœud.
 | `GET /v1/jobs/{id}` | `read` | état dérivé d'un job |
 | `GET /v1/peers` | `read` | pairs connectés |
 | `GET /v1/settlements` | `read` | état des règlements |
-| `GET /v1/worker` | `read` | activité de ce nœud comme worker : événements par type, 50 récents, réputation, règlements vus, `payments: false` |
+| `GET /v1/worker` | `read` | activité de ce nœud comme worker : événements par type, 50 récents, réputation et ses succès/échecs, capacité, tâches en cours, historique (50), règlements vus, `payments: false` |
 
 Le nœud **ne signe rien pour le client** : le requester signe lui-même la publication du job
 (`JobPublished`) et ses annulations ; l'API ne fait que les transmettre.

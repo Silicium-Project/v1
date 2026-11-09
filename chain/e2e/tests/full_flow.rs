@@ -1,4 +1,4 @@
-//! Flux complet sur validateur local : un job `calcul/sha256` et un job `rendu/blocs`, de la
+//! Flux complet sur validateur local : un job `calcul/sha256` et un job `rendu/raytracer`, de la
 //! publication au règlement on-chain, par trois membres du comité et un vérificateur.
 //! Voir chain/e2e/README.md.
 
@@ -21,7 +21,7 @@ use support::{
 };
 
 const REQUESTER: u8 = 100;
-const COMMITTEE: [u8; 3] = [21, 22, 23];
+const WORKERS: [u8; 3] = [21, 22, 23];
 const VERIFIER: u8 = 24;
 
 fn registry() -> Registry {
@@ -53,16 +53,14 @@ async fn a_sha256_job_and_a_render_job_settle_on_chain_with_the_right_payouts() 
 
     // Chaque nœud : une clé de paiement séparée (les frais), et son adresse de ledger (les gains).
     let mut nodes: Vec<Running> = Vec::new();
-    for seed in COMMITTEE.iter().copied().chain([VERIFIER]) {
+    for seed in WORKERS.iter().copied().chain([VERIFIER]) {
         let roles = if seed == VERIFIER {
             Roles {
-                coordinator: false,
                 worker: false,
                 verifier: true,
             }
         } else {
             Roles {
-                coordinator: true,
                 worker: true,
                 verifier: false,
             }
@@ -86,10 +84,6 @@ async fn a_sha256_job_and_a_render_job_settle_on_chain_with_the_right_payouts() 
         requester_key,
         requester_chain,
         nodes,
-        committee: COMMITTEE
-            .iter()
-            .map(|s| ledger_identity(*s).public())
-            .collect(),
     };
     let sha = Case {
         workload: "calcul/sha256",
@@ -103,7 +97,7 @@ async fn a_sha256_job_and_a_render_job_settle_on_chain_with_the_right_payouts() 
     run(&world, &sha, 1).await;
 
     let render = Case {
-        workload: "rendu/blocs",
+        workload: "rendu/raytracer",
         input: render_input(64, 40),
         width: 64,
         height: 40,

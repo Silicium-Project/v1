@@ -69,7 +69,7 @@ système de fichiers. `win32job` n'expose pas les limites dures ; les poser dema
 refuse de lancer sous Windows (`strict_isolation_is_refused_on_windows`) : il faut `best-effort`
 (ou `off`) en connaissance de cause.
 
-## Moteur de rendu (`rendu/blocs`)
+## Moteur de rendu (`rendu/raytracer`)
 
 Le rendu est le seul workload qui exécute du code externe. Le moteur est un programme que
 l'opérateur installe et désigne dans `[render] engine` (voir `docs/user/configuration.md`). Le nœud

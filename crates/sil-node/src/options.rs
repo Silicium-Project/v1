@@ -5,8 +5,6 @@ use std::{net::SocketAddr, path::PathBuf};
 /// Ce que ce nœud fait pour le réseau.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Roles {
-    /// Vote au nom du comité des jobs dont il est membre, signe les règlements.
-    pub coordinator: bool,
     /// Réclame et exécute des fragments.
     pub worker: bool,
     /// Vérifie les résultats des autres.
@@ -26,6 +24,8 @@ pub struct NodeOptions {
     pub roles: Roles,
     pub listen: Vec<Multiaddr>,
     pub bootstrap: Vec<Multiaddr>,
+    /// Relais public : ce nœud doit être joignable directement.
+    pub relay_server: bool,
     pub control: Option<ControlOptions>,
     pub ledger_limits: LedgerLimits,
     pub net_limits: NetLimits,
@@ -33,10 +33,8 @@ pub struct NodeOptions {
     pub trusted_requesters: Vec<sil_types::PublicKey>,
     /// Période des boucles de décision.
     pub tick_ms: u64,
-    /// Fenêtre d'observation des claims avant de voter (voir `sil-coordinator`).
-    pub claim_window_ms: u64,
-    /// Attente du vote du chef de tour avant de voter soi-même (voir `sil-coordinator`).
-    pub leader_wait_ms: u64,
+    /// Mode de test : le worker calcule sans escrow vérifié. Jamais avec une chaîne (voir `sil-config`).
+    pub free_work: bool,
 }
 
 impl NodeOptions {
@@ -46,13 +44,13 @@ impl NodeOptions {
             roles: Roles::default(),
             listen: Vec::new(),
             bootstrap: Vec::new(),
+            relay_server: false,
             control: None,
             ledger_limits: LedgerLimits::default(),
             net_limits: NetLimits::default(),
             trusted_requesters: Vec::new(),
             tick_ms: 500,
-            claim_window_ms: 1_000,
-            leader_wait_ms: 3_000,
+            free_work: false,
         }
     }
 }

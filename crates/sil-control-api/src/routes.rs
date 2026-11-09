@@ -12,6 +12,12 @@ pub struct Route {
 
 pub const ROUTES: &[Route] = &[
     Route {
+        method: "post",
+        path: "/v1/settlements",
+        scope: Some(Scope::Submit),
+        summary: "Soumet un règlement signé par les approbateurs (CBOR) ; ce nœud paie les frais",
+    },
+    Route {
         method: "get",
         path: "/health",
         scope: None,
@@ -34,6 +40,18 @@ pub const ROUTES: &[Route] = &[
         path: "/v1/events",
         scope: Some(Scope::Submit),
         summary: "Envoie un événement signé (CBOR canonique)",
+    },
+    Route {
+        method: "get",
+        path: "/v1/jobs/{id}/outputs",
+        scope: Some(Scope::Read),
+        summary: "Résultat brut de chaque fragment d'un job final (hexadécimal, petits résultats)",
+    },
+    Route {
+        method: "get",
+        path: "/v1/jobs/{id}/image",
+        scope: Some(Scope::Read),
+        summary: "Image assemblée d'un job de rendu (octets RGB24, largeur et hauteur en en-têtes)",
     },
     Route {
         method: "get",

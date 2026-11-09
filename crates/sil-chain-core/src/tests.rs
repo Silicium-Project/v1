@@ -2,15 +2,13 @@ use crate::SETTLEMENT_FEE;
 use crate::*;
 use sil_types::{Hash32, JobId, PublicKey};
 
-fn key(n: u8) -> PublicKey {
+pub(super) fn key(n: u8) -> PublicKey {
     PublicKey::from_bytes([n; 32])
 }
 
-fn terms() -> EscrowTerms {
+pub(super) fn terms() -> EscrowTerms {
     EscrowTerms {
         requester: key(100),
-        committee: vec![key(10), key(11), key(12)],
-        threshold: 2,
         workload: "calcul/sha256".into(),
         input_size: 30,
         width: 0,
@@ -24,15 +22,15 @@ fn terms() -> EscrowTerms {
 }
 
 /// Un fragment de 10 unités : 10 × (10 + 2×1) de récompenses, plus les frais de règlement.
-const PER_FRAGMENT: u64 = 120 + SETTLEMENT_FEE;
+pub(super) const PER_FRAGMENT: u64 = 120 + SETTLEMENT_FEE;
 /// 3 fragments × (récompenses + frais) : le dépôt qui couvre tout.
-const BUDGET: u64 = 3 * PER_FRAGMENT;
+pub(super) const BUDGET: u64 = 3 * PER_FRAGMENT;
 
-fn escrow(deposit: u64) -> Escrow {
+pub(super) fn escrow(deposit: u64) -> Escrow {
     Escrow::open(JobId::from_bytes([1; 32]), terms(), deposit, &key(100)).unwrap()
 }
 
-fn args(fragment: u32) -> SettleArgs {
+pub(super) fn args(fragment: u32) -> SettleArgs {
     SettleArgs {
         fragment,
         attempt: 1,
@@ -42,14 +40,18 @@ fn args(fragment: u32) -> SettleArgs {
     }
 }
 
-const QUORUM: [fn() -> PublicKey; 2] = [|| key(10), || key(11)];
+/// Signataires d'un règlement de `args` : ses deux approbateurs.
+pub(super) fn signers() -> Vec<PublicKey> {
+    vec![key(70), key(71)]
+}
 
-fn signers() -> Vec<PublicKey> {
-    QUORUM.iter().map(|k| k()).collect()
+/// Score éligible pour chacun des deux approbateurs de `args`.
+pub(super) fn eligible() -> Vec<Option<i64>> {
+    vec![Some(reputation::VERIFIER_START); 2]
 }
 
 #[test]
-fn opening_requires_the_requester_a_valid_committee_and_full_funding() {
+fn opening_requires_the_requester_valid_terms_and_full_funding() {
     let job = JobId::from_bytes([1; 32]);
     assert_eq!(terms().max_payout().unwrap(), BUDGET);
     assert!(Escrow::open(job, terms(), BUDGET, &key(100)).is_ok());
@@ -64,18 +66,6 @@ fn opening_requires_the_requester_a_valid_committee_and_full_funding() {
         Escrow::open(job, terms(), BUDGET, &key(5)).unwrap_err(),
         RuleError::NotRequester
     );
-    let mut weak = terms();
-    weak.threshold = 1; // pas une majorité de 3
-    assert!(matches!(
-        Escrow::open(job, weak, BUDGET, &key(100)),
-        Err(RuleError::BadTerms(_))
-    ));
-    let mut duplicate = terms();
-    duplicate.committee = vec![key(10), key(10), key(11)];
-    assert!(matches!(
-        Escrow::open(job, duplicate, BUDGET, &key(100)),
-        Err(RuleError::BadTerms(_))
-    ));
     let mut huge = terms();
     huge.reward_per_unit = u64::MAX;
     assert_eq!(
@@ -87,7 +77,10 @@ fn opening_requires_the_requester_a_valid_committee_and_full_funding() {
 #[test]
 fn settling_pays_the_claimant_and_the_verifiers_once() {
     let mut e = escrow(BUDGET);
-    let payouts = e.settle(&args(0), &signers(), &key(200)).unwrap();
+    let payouts = e
+        .settle(&args(0), &signers(), &key(200), &eligible())
+        .unwrap()
+        .payouts;
     assert_eq!(payouts.iter().map(|p| p.amount).sum::<u64>(), PER_FRAGMENT);
     assert_eq!(
         payouts[0],
@@ -104,40 +97,42 @@ fn settling_pays_the_claimant_and_the_verifiers_once() {
 #[test]
 fn a_fragment_cannot_be_settled_twice_and_the_error_says_if_it_was_the_same() {
     let mut e = escrow(BUDGET);
-    e.settle(&args(1), &signers(), &key(200)).unwrap();
+    e.settle(&args(1), &signers(), &key(200), &eligible())
+        .unwrap();
     assert_eq!(
-        e.settle(&args(1), &signers(), &key(200)).unwrap_err(),
+        e.settle(&args(1), &signers(), &key(200), &eligible())
+            .unwrap_err(),
         RuleError::AlreadySettled { same: true }
     );
     let mut other = args(1);
     other.result = Hash32::from_bytes([8; 32]);
     assert_eq!(
-        e.settle(&other, &signers(), &key(200)).unwrap_err(),
+        e.settle(&other, &signers(), &key(200), &eligible())
+            .unwrap_err(),
         RuleError::AlreadySettled { same: false }
     );
     assert_eq!(e.paid(), PER_FRAGMENT, "aucun double paiement");
 }
 
 #[test]
-fn settlement_needs_distinct_committee_members_up_to_the_threshold() {
+fn settlement_needs_the_signature_of_every_approver() {
     let mut e = escrow(BUDGET);
-    let one = [key(10)];
+    let one = [key(70)];
     assert_eq!(
-        e.settle(&args(0), &one, &key(200)).unwrap_err(),
+        e.settle(&args(0), &one, &key(200), &eligible())
+            .unwrap_err(),
         RuleError::NotAuthorized { have: 1, need: 2 }
     );
-    let repeated = [key(10), key(10), key(10)];
-    assert_eq!(
-        e.settle(&args(0), &repeated, &key(200)).unwrap_err(),
-        RuleError::NotAuthorized { have: 1, need: 2 }
-    );
-    let outsiders = [key(10), key(90), key(91)];
+    let outsiders = [key(70), key(90)];
     assert!(matches!(
-        e.settle(&args(0), &outsiders, &key(200)),
+        e.settle(&args(0), &outsiders, &key(200), &eligible()),
         Err(RuleError::NotAuthorized { have: 1, .. })
     ));
     assert_eq!(e.paid(), 0);
-    assert!(e.settle(&args(0), &[key(11), key(12)], &key(200)).is_ok());
+    assert!(
+        e.settle(&args(0), &signers(), &key(200), &eligible())
+            .is_ok()
+    );
 }
 
 #[test]
@@ -146,29 +141,31 @@ fn approvers_are_exact_distinct_and_independent_of_the_claimant() {
     let mut few = args(0);
     few.approvers.pop();
     assert!(matches!(
-        e.settle(&few, &signers(), &key(200)),
+        e.settle(&few, &signers(), &key(200), &eligible()),
         Err(RuleError::BadApprovers("nombre"))
     ));
     let mut twice = args(0);
     twice.approvers = vec![key(70), key(70)];
     assert!(matches!(
-        e.settle(&twice, &signers(), &key(200)),
+        e.settle(&twice, &signers(), &key(200), &eligible()),
         Err(RuleError::BadApprovers("doublons"))
     ));
     let mut selfie = args(0);
     selfie.approvers = vec![key(60), key(71)];
     assert!(matches!(
-        e.settle(&selfie, &signers(), &key(200)),
+        e.settle(&selfie, &signers(), &key(200), &eligible()),
         Err(RuleError::BadApprovers(_))
     ));
     let mut bad_attempt = args(0);
     bad_attempt.attempt = 0;
     assert_eq!(
-        e.settle(&bad_attempt, &signers(), &key(200)).unwrap_err(),
+        e.settle(&bad_attempt, &signers(), &key(200), &eligible())
+            .unwrap_err(),
         RuleError::BadAttempt
     );
     assert_eq!(
-        e.settle(&args(3), &signers(), &key(200)).unwrap_err(),
+        e.settle(&args(3), &signers(), &key(200), &eligible())
+            .unwrap_err(),
         RuleError::UnknownFragment
     );
     assert_eq!(e.paid(), 0);
@@ -178,11 +175,13 @@ fn approvers_are_exact_distinct_and_independent_of_the_claimant() {
 fn all_fragments_together_exhaust_the_balance_exactly() {
     let mut e = escrow(BUDGET);
     for fragment in 0..3 {
-        e.settle(&args(fragment), &signers(), &key(200)).unwrap();
+        e.settle(&args(fragment), &signers(), &key(200), &eligible())
+            .unwrap();
     }
     assert_eq!(e.balance(), 0);
     assert_eq!(
-        e.settle(&args(0), &signers(), &key(200)).unwrap_err(),
+        e.settle(&args(0), &signers(), &key(200), &eligible())
+            .unwrap_err(),
         RuleError::AlreadySettled { same: true }
     );
 }
@@ -190,7 +189,8 @@ fn all_fragments_together_exhaust_the_balance_exactly() {
 #[test]
 fn refund_is_only_for_the_requester_after_expiry_and_grace() {
     let mut e = escrow(BUDGET + 40);
-    e.settle(&args(0), &signers(), &key(200)).unwrap();
+    e.settle(&args(0), &signers(), &key(200), &eligible())
+        .unwrap();
     let opens = 1_000_000 + REFUND_GRACE_MS;
     assert_eq!(
         e.refund(&key(60), opens).unwrap_err(),
@@ -219,7 +219,8 @@ fn nothing_is_settled_after_a_refund_and_top_up_stops() {
     let mut e = escrow(BUDGET);
     e.refund(&key(100), 1_000_000 + REFUND_GRACE_MS).unwrap();
     assert_eq!(
-        e.settle(&args(0), &signers(), &key(200)).unwrap_err(),
+        e.settle(&args(0), &signers(), &key(200), &eligible())
+            .unwrap_err(),
         RuleError::Refunded
     );
     assert_eq!(e.top_up(&key(100), 5).unwrap_err(), RuleError::Refunded);
@@ -235,62 +236,4 @@ fn top_up_is_requester_only_and_overflow_safe() {
         e.top_up(&key(100), u64::MAX).unwrap_err(),
         RuleError::Overflow
     );
-}
-
-/// Suite pseudo-aléatoire déterministe (xorshift).
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> u64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        self.0
-    }
-}
-
-#[test]
-fn random_operations_never_break_the_money_invariants() {
-    for seed in 1..=40u64 {
-        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
-        let mut e = escrow(BUDGET + rng.next() % 200);
-        let mut now = 0u64;
-        for _ in 0..300 {
-            now += rng.next() % 400_000;
-            match rng.next() % 5 {
-                0 | 1 => {
-                    let mut a = args((rng.next() % 5) as u32);
-                    a.attempt = (rng.next() % 18) as u32;
-                    a.result = Hash32::from_bytes([(rng.next() % 3) as u8; 32]);
-                    let members: Vec<PublicKey> = (0..(rng.next() % 5))
-                        .map(|_| key(10 + (rng.next() % 5) as u8))
-                        .collect();
-                    let _ = e.settle(&a, &members, &key(200));
-                }
-                2 => {
-                    let signer = if rng.next().is_multiple_of(4) {
-                        key(60)
-                    } else {
-                        key(100)
-                    };
-                    let _ = e.refund(&signer, now);
-                }
-                3 => {
-                    let _ = e.top_up(&key(100), rng.next() % 50);
-                }
-                _ => {}
-            }
-            assert!(e.paid() + e.refunded() <= e.deposited(), "graine {seed}");
-            assert_eq!(e.balance(), e.deposited() - e.paid() - e.refunded());
-            assert!(e.settled_count() <= 3);
-            assert_eq!(
-                e.paid(),
-                PER_FRAGMENT * e.settled_count() as u64,
-                "graine {seed}"
-            );
-            if e.is_closed() {
-                assert_eq!(e.balance(), 0);
-            }
-        }
-    }
 }

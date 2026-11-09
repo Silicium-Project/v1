@@ -2,20 +2,20 @@
 import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { fromHex, toHex } from './cbor'
-import { submitJob, type SubmitDeps } from './submit'
+import { submitJob, type SubmitDeps, type SubmitInput } from './submit'
 import { domainFrame } from './cbor'
 import { encodeJobSpec, type JobSpecInput } from './job'
-import { ONE_DAY_MS } from './submit'
 
 // A real Ed25519 key plays the wallet. Signatures are checked with node:crypto afterwards, so
 // the test proves the submission pipeline produces valid requester signatures, not just bytes.
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 const rawPublic = new Uint8Array(publicKey.export({ format: 'der', type: 'spki' }).subarray(-32))
-const committee = [1, 2, 3].map((n) => new Uint8Array(32).fill(n))
+const DAY_MS = 24 * 60 * 60 * 1000
 
 interface Recorded {
   messages: Array<{ bytes: Uint8Array; display: string; signature: Buffer }>
   published?: { jobId: string; event: Uint8Array }
+  deposited?: { jobId: string }
 }
 
 function fakes(recorded: Recorded) {
@@ -38,30 +38,43 @@ function fakes(recorded: Recorded) {
     async sha256(data) {
       return new Uint8Array(createHash('sha256').update(data).digest())
     },
+    async deposit(_spec, id) {
+      recorded.deposited = { jobId: id }
+    },
     now: () => 1_800_000_000_000,
     randomNonce: () => 42,
   }
   return { deps, jobIdOf: () => jobId }
 }
 
-const input = {
+// The terms the network sets (never chosen by the user).
+const terms = {
+  fragments: 2,
+  rewardPerUnit: 0,
+  verifierRewardPerUnit: 0,
+  verificationsRequired: 1,
+  leaseMs: 60_000,
+  maxAttempts: 3,
+  expiresInMs: DAY_MS,
+}
+
+const input: SubmitInput = {
   requester: rawPublic,
   data: new TextEncoder().encode('hello'),
   workload: 'calcul/sha256',
-  fragments: 2,
-  committee,
-  threshold: 2,
+  terms,
   label: 'mon calcul',
 }
 
 describe('submitJob', () => {
-  it('runs the four steps in order and returns the job id the node accepted', async () => {
+  it('runs the five steps in order and returns the job id the node accepted', async () => {
     const recorded: Recorded = { messages: [] }
     const { deps } = fakes(recorded)
     const result = await submitJob(input, deps)
-    expect(result.steps).toEqual(['upload', 'sign-spec', 'sign-event', 'publish'])
+    expect(result.steps).toEqual(['upload', 'sign-spec', 'deposit', 'sign-event', 'publish'])
     expect(result.jobId).toMatch(/^[0-9a-f]{64}$/)
     expect(recorded.published?.jobId).toBe(result.jobId)
+    expect(recorded.deposited?.jobId).toBe(result.jobId)
   })
 
   it('asks the wallet to sign exactly two framed messages, binary shown as hex', async () => {
@@ -70,7 +83,7 @@ describe('submitJob', () => {
     await submitJob(input, deps)
     expect(recorded.messages).toHaveLength(2)
     expect(recorded.messages.map((m) => m.display)).toEqual(['utf8', 'utf8'])
-    expect(new TextDecoder().decode(recorded.messages[0].bytes).startsWith('Silicium JobSpec v1\n')).toBe(true)
+    expect(new TextDecoder().decode(recorded.messages[0].bytes).startsWith('Silicium JobSpec v2\n')).toBe(true)
     expect(new TextDecoder().decode(recorded.messages[1].bytes).startsWith('Silicium Event v1\n')).toBe(true)
   })
 
@@ -97,14 +110,12 @@ describe('submitJob', () => {
       width: 0,
       height: 0,
       fragments: 2,
-      committee,
-      threshold: 2,
       verificationsRequired: 1,
       leaseMs: 60_000,
       maxAttempts: 3,
       rewardPerUnit: 0,
       verifierRewardPerUnit: 0,
-      expiresAtMs: 1_800_000_000_000 + ONE_DAY_MS,
+      expiresAtMs: 1_800_000_000_000 + DAY_MS,
     }
     const expected = createHash('sha256').update(domainFrame('sil/v1/job-id', encodeJobSpec(spec))).digest('hex')
     expect(result.jobId).toBe(expected)
@@ -119,7 +130,7 @@ describe('submitJob', () => {
       return { content_id: toHex(createHash('sha256').update(data).digest()) }
     }
     const scene = new TextEncoder().encode('scene')
-    await submitJob({ ...input, workload: 'rendu/blocs', data: scene, width: 640, height: 480 }, deps)
+    await submitJob({ ...input, workload: 'rendu/raytracer', data: scene, params: { width: 640, height: 480 } }, deps)
     // 640 et 480 en u32 little-endian, puis la scène telle quelle.
     expect(Array.from(stored.subarray(0, 8))).toEqual([128, 2, 0, 0, 224, 1, 0, 0])
     expect(Array.from(stored.subarray(8))).toEqual(Array.from(scene))
@@ -133,8 +144,8 @@ describe('submitJob', () => {
     const { deps } = fakes(recorded)
     const scene = new TextEncoder().encode('scene')
     await expect(
-      submitJob({ ...input, workload: 'rendu/blocs', data: scene, width: 0, height: 480 }, deps),
-    ).rejects.toThrow('image size')
+      submitJob({ ...input, workload: 'rendu/raytracer', data: scene, params: { width: 0, height: 480 } }, deps),
+    ).rejects.toThrow('parameters must be whole numbers')
     expect(recorded.messages).toHaveLength(0)
   })
 
@@ -154,5 +165,18 @@ describe('submitJob', () => {
     await expect(submitJob(input, deps)).rejects.toThrow('network')
     expect(recorded.messages).toHaveLength(0)
     expect(fromHex('00'.repeat(32))).toHaveLength(32)
+  })
+})
+
+describe('submitJob terms', () => {
+  it('puts the terms the network set in the spec the wallet signs', async () => {
+    const recorded: Recorded = { messages: [] }
+    const { deps } = fakes(recorded)
+    const network = { ...terms, rewardPerUnit: 100, verifierRewardPerUnit: 10 }
+    await submitJob({ ...input, terms: network }, deps)
+    const spec = new TextDecoder().decode(recorded.messages[0].bytes)
+    expect(spec).toContain('Reward per unit: 100')
+    expect(spec).toContain('Verifier reward per unit: 10')
+    expect(spec).toContain('Fragments: 2')
   })
 })

@@ -31,6 +31,16 @@ impl Chains {
             .map_or(1, |(sequence, _)| sequence + 1)
     }
 
+    /// Séquence et identifiant du dernier événement accepté de `author`.
+    pub(crate) fn head(&self, author: &PublicKey) -> Option<(u64, Hash32)> {
+        self.heads.get(author).copied()
+    }
+
+    /// Identifiant du dernier événement accepté de `author`.
+    pub(crate) fn head_id(&self, author: &PublicKey) -> Option<Hash32> {
+        self.heads.get(author).map(|(_, hash)| *hash)
+    }
+
     pub(crate) fn head_hash(&self, author: &PublicKey) -> Hash32 {
         self.heads
             .get(author)

@@ -2,7 +2,7 @@
 
 use crate::shared::{Shared, lock};
 use sil_ledger::TaskStatus;
-use sil_reputation::Outcome;
+use sil_reputation::{Outcome, verdict_outcome};
 use sil_settlement::terms_of;
 use sil_types::JobId;
 
@@ -12,14 +12,13 @@ use sil_types::JobId;
 ///
 /// Une réussite pèse la valeur de son fragment : unités × tarif par unité.
 ///
-/// Sans effet si ce nœud ne croit pas les journaux de ce requester, ou n'est pas du comité.
+/// Sans effet si ce nœud ne croit pas les journaux de ce requester.
 pub(crate) fn observe_outcomes(shared: &Shared, job: &JobId) {
     let now = shared.now_ms();
     let Some(spec) = lock(&shared.ledger).spec(job).map(|s| s.spec.clone()) else {
         return;
     };
-    if !spec.committee.contains(&shared.identity.public())
-        || !lock(&shared.reputation).trusts(&spec.requester)
+    if !lock(&shared.reputation).trusts(&spec.requester)
     {
         return;
     }
@@ -59,10 +58,26 @@ pub(crate) fn observe_outcomes(shared: &Shared, job: &JobId) {
                 lock(&shared.reputation).observe(
                     &spec.requester,
                     &attempt.claimant,
-                    &spec.committee,
+                    &[],
                     outcome,
                     now,
                 );
+            }
+            // Verdicts : un vérificateur a raison quand son verdict suit l'issue de la tentative.
+            for verifier in &attempt.verifiers {
+                let Some(approved) = verifier.verdict else {
+                    continue;
+                };
+                let key = (*job, fragment, attempt.attempt, verifier.verifier);
+                if lock(&shared.work).observed_verdicts.insert(key) {
+                    lock(&shared.verify_reputation).observe(
+                        &spec.requester,
+                        &verifier.verifier,
+                        &[],
+                        verdict_outcome(approved, won),
+                        now,
+                    );
+                }
             }
         }
     }

@@ -4,10 +4,8 @@ use serde::{Deserialize, Serialize};
 use sil_codec::encode;
 use sil_crypto::{Domain, SigningIdentity, sha256_domain, verify_raw};
 use sil_types::{Hash32, JobId, PublicKey, Signature};
-use std::collections::BTreeSet;
 
-pub const SPEC_VERSION: u8 = 1;
-pub const MAX_COMMITTEE: usize = 7;
+pub const SPEC_VERSION: u8 = 2;
 pub const MAX_FRAGMENTS: u32 = 1024;
 pub const MAX_VERIFICATIONS: u32 = 16;
 pub const MAX_SPEC_ATTEMPTS: u32 = 16;
@@ -25,15 +23,11 @@ pub struct JobSpec {
     pub input: Hash32,
     /// Taille du contenu d'entrée, en octets. Le workload en déduit les unités de travail.
     pub input_size: u64,
-    /// Largeur de l'image en pixels (`rendu/blocs`). 0 pour un workload sans image.
+    /// Largeur de l'image en pixels (`rendu/raytracer`). 0 pour un workload sans image.
     pub width: u32,
-    /// Hauteur de l'image en pixels (`rendu/blocs`). 0 pour un workload sans image.
+    /// Hauteur de l'image en pixels (`rendu/raytracer`). 0 pour un workload sans image.
     pub height: u32,
     pub fragments: u32,
-    /// Coordinateurs. Leurs votes forment les décisions.
-    pub committee: Vec<PublicKey>,
-    /// Votes identiques nécessaires : strictement plus que la moitié du comité.
-    pub threshold: u32,
     /// Approbations indépendantes nécessaires pour vérifier un résultat.
     pub verifications_required: u32,
     pub lease_ms: u64,
@@ -57,7 +51,7 @@ fn bad(reason: &'static str) -> LedgerError {
 }
 
 impl JobSpec {
-    /// Contrôles structurels (bornes, majorité stricte du comité).
+    /// Contrôles structurels (bornes et règles du job).
     pub fn validate(&self) -> Result<(), LedgerError> {
         if self.version != SPEC_VERSION {
             return Err(LedgerError::BadVersion);
@@ -73,15 +67,6 @@ impl JobSpec {
         }
         if self.fragments == 0 || self.fragments > MAX_FRAGMENTS {
             return Err(bad("fragments"));
-        }
-        let members = self.committee.len();
-        let distinct: BTreeSet<_> = self.committee.iter().collect();
-        if members == 0 || members > MAX_COMMITTEE || distinct.len() != members {
-            return Err(bad("comité"));
-        }
-        let threshold = usize::try_from(self.threshold).unwrap_or(usize::MAX);
-        if threshold * 2 <= members || threshold > members {
-            return Err(bad("seuil : majorité stricte du comité requise"));
         }
         if self.verifications_required == 0 || self.verifications_required > MAX_VERIFICATIONS {
             return Err(bad("verifications_required"));

@@ -25,7 +25,6 @@ Configuration (all optional except the node):
 | `SIL_API_SESSION_HOURS` | `24` | session lifetime, 1 to 720 |
 | `SIL_API_LOG_JSON` | `false` | JSON logs |
 | `SIL_API_WEB_DIR` | empty | built web app (`apps/web/dist`) served at `/`, same origin |
-| `SIL_API_COMMITTEE` | empty | coordinator keys given to new jobs (64 lower-case hex, 1 to 7, comma-separated); required to submit |
 | `SIL_API_CORS_ORIGINS` | empty | comma-separated origins allowed to call the API, e.g. `http://tauri.localhost,tauri://localhost` for the desktop shell |
 
 Technical doc: `../../docs/technical/api-service.md`. User doc: `../../docs/user/use-the-api.md`.

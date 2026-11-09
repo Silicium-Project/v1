@@ -6,7 +6,7 @@ use sil_types::Hash32;
 
 fn spec() -> JobSpec {
     JobSpec {
-        version: 1,
+        version: 2,
         requester: ident(100).public(),
         nonce: 1,
         workload: "calcul/sha256".into(),
@@ -15,8 +15,6 @@ fn spec() -> JobSpec {
         width: 0,
         height: 0,
         fragments: 2,
-        committee: (10..13).map(|n| ident(n).public()).collect(),
-        threshold: 2,
         verifications_required: 2,
         lease_ms: 60_000,
         max_attempts: 3,
@@ -60,14 +58,6 @@ fn an_escrow_of_another_job_or_with_other_terms_is_refused() {
         Err(GuardError::WrongJob)
     );
 
-    // Même job, mais l'escrow annonce un autre comité : les règlements dépendraient d'autres clés.
-    let mut escrow = escrow_for(&spec, budget(&spec));
-    escrow.terms.committee = vec![ident(90).public()];
-    escrow.terms.threshold = 1;
-    assert_eq!(
-        check_escrow(&spec, &escrow, 0, 0),
-        Err(GuardError::TermsMismatch("comité"))
-    );
     let mut cheaper = escrow_for(&spec, budget(&spec));
     cheaper.terms.reward_per_unit = 1;
     assert_eq!(
@@ -95,12 +85,13 @@ fn closed_or_too_late_escrows_are_refused() {
 
     // Un fragment déjà payé réduit le besoin de fonds restant.
     let mut partly = escrow_for(&spec, budget(&spec));
-    let signers = [ident(10).public(), ident(11).public()];
+    let signers = [ident(70).public(), ident(71).public()];
     partly
         .settle(
             &claim(0).args(),
             &signers,
             &sil_types::PublicKey::from_bytes([0xEE; 32]),
+            &[Some(sil_chain_core::reputation::VERIFIER_START); 2],
         )
         .unwrap();
     assert_eq!(

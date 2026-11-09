@@ -5,13 +5,15 @@ use crate::{
 };
 use sil_crypto::sha256;
 use sil_workload_api::{
-    FragmentSpec, InputReader, Limits, Output, Verdict, VerificationPolicy, Workload, WorkloadError,
+    FragmentSpec, InputReader, Limits, Output, Verdict, VerificationPolicy, Workload,
+    WorkloadError, limits_of, policy_of,
 };
+use sil_workload_spec::RENDU_RAYTRACER;
 
-/// Lignes par bloc vérifiable.
-pub const ROWS_PER_BLOCK: u32 = 8;
+/// Lignes par bloc vérifiable (descripteur `rendu/raytracer`).
+pub const ROWS_PER_BLOCK: u32 = RENDU_RAYTRACER.block_rows;
 const MAX_FRAGMENTS: u32 = 1024;
-const MAX_OUTPUT_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_OUTPUT_BYTES: u64 = RENDU_RAYTRACER.limits.output_bytes;
 
 pub struct RenderWorkload<R> {
     renderer: R,
@@ -39,22 +41,15 @@ pub(crate) fn blocks_in(band: Band) -> u32 {
 
 impl<R: BlockRenderer> Workload for RenderWorkload<R> {
     fn id(&self) -> &'static str {
-        "rendu/blocs"
+        RENDU_RAYTRACER.id
     }
 
     fn limits(&self) -> Limits {
-        Limits {
-            wall_ms: 600_000,
-            memory_bytes: 1024 * 1024 * 1024,
-            output_bytes: MAX_OUTPUT_BYTES,
-        }
+        limits_of(&RENDU_RAYTRACER)
     }
 
     fn policy(&self) -> VerificationPolicy {
-        VerificationPolicy::Sampling {
-            min_cheat_fraction: 0.2,
-            target_detection: 0.99,
-        }
+        policy_of(&RENDU_RAYTRACER)
     }
 
     fn split(

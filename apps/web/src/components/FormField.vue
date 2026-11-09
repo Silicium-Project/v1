@@ -13,6 +13,7 @@ const props = defineProps<{
   error?: string
   required?: boolean
   minlength?: number
+  maxlength?: number
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -34,6 +35,7 @@ const describedBy = computed(() => {
       :autocomplete="autocomplete"
       :required="required"
       :minlength="minlength"
+      :maxlength="maxlength"
       :aria-required="required ? 'true' : undefined"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="describedBy"

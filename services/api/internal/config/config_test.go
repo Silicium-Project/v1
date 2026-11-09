@@ -54,3 +54,17 @@ func TestTokenFileWithoutBothScopesIsRefused(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestPaymentsAreOffUnlessTheChainIsWired(t *testing.T) {
+	file := tokenFile(t, "read,submit:secret\n")
+	base := map[string]string{"SIL_API_NODE_URL": "http://127.0.0.1:8750", "SIL_API_NODE_TOKEN_FILE": file}
+	off, err := Load(env(base))
+	if err != nil || off.Payments {
+		t.Fatalf("par défaut sans paiement : %+v, %v", off, err)
+	}
+	base["SIL_API_PAYMENTS"] = "true"
+	on, err := Load(env(base))
+	if err != nil || !on.Payments {
+		t.Fatalf("SIL_API_PAYMENTS=true : %+v, %v", on, err)
+	}
+}

@@ -7,13 +7,13 @@ async fn peers_learn_each_others_roles_from_presence_messages() {
     let chain = Arc::new(FakeChain::new());
     let a = start(
         1,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         true,
     )
     .await;
-    let b = start(2, roles(false, false, true), sha_registry(), chain, false).await;
+    let b = start(2, roles(false, true), sha_registry(), chain, false).await;
     connect_all(&[&a, &b]).await;
 
     let api = a.api.unwrap();

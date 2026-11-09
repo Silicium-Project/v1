@@ -7,11 +7,11 @@ dans `chain/program` ; adaptateur dans `chain/adapter`. Spécification : `docs/t
 
 | Dossier | Contenu |
 |---|---|
-| `program/` | programme natif (`solana-program` 3), fine enveloppe autour de `sil-chain-core` : `open`, `top_up`, `settle` (précompilés Ed25519 du comité), `refund` |
+| `program/` | programme natif (`solana-program` 3), fine enveloppe autour de `sil-chain-core` : `open`, `top_up`, `settle` (précompilés Ed25519 des approbateurs), `refund` |
 | `adapter/` | `SolanaChain` : implémente `sil_settlement::Chain`, constructeurs de transactions, traduction des erreurs |
 | `scripts/localnet.sh` | compile le programme SBF, démarre `solana-test-validator`, lance les tests de l'adaptateur |
 | `node/` | `silicium-node` avec la chaîne Solana : même démarrage que `sil-node`, plus `[chain]` dans la configuration |
-| `e2e/` | flux complet sur validateur local : requérant, trois membres du comité, un vérificateur, règlement on-chain (voir `e2e/README.md`) |
+| `e2e/` | flux complet sur validateur local : requérant, trois workers, un vérificateur, règlement on-chain (voir `e2e/README.md`) |
 
 ## Lancer les tests sur un validateur local
 
@@ -32,7 +32,7 @@ bash chain/scripts/localnet.sh
 ```
 
 Résultat attendu : `5 passed` pour `chain/adapter` (voir `chain/adapter/README.md`), puis `1 passed` pour
-`chain/e2e` (flux complet : requérant, comité, vérificateur, règlement on-chain, voir `chain/e2e/README.md`).
+`chain/e2e` (flux complet : requérant, workers, vérificateur, règlement on-chain, voir `chain/e2e/README.md`).
 
 ## Choix faits (à relire)
 
@@ -53,7 +53,7 @@ Résultat attendu : `5 passed` pour `chain/adapter` (voir `chain/adapter/README.
 - **Clé d'autorité de mise à jour : celle du validateur local.** Le multisig prévu n'est pas en place.
 - **Pas de test sur un réseau public** (devnet/testnet).
 - Le binaire `sil-node` (sans chaîne) refuse une configuration qui demande Solana : utiliser `chain/node`.
-- Tarifs par unité : une unité = un octet pour `calcul/sha256`, un pixel pour `rendu/blocs`. Pas de bonus de qualité ni de malus de retard. Un autre workload est refusé à l'ouverture.
+- Tarifs par unité : une unité = un octet pour `calcul/sha256`, un pixel pour `rendu/raytracer`. Pas de bonus de qualité ni de malus de retard. Un autre workload est refusé à l'ouverture.
 - Non testé : 429 et délais réels, expiration de blockhash réelle, worker sans SOL (la logique est
   couverte par `FakeChain` dans `sil-settlement`).
 
@@ -61,7 +61,7 @@ Résultat attendu : `5 passed` pour `chain/adapter` (voir `chain/adapter/README.
 
 ```bash
 cd chain/node && cargo build
-./target/debug/silicium-node --config node.toml --roles coordinator
+./target/debug/silicium-node --config node.toml --roles worker,verifier
 ```
 
 Section à ajouter à `node.toml` (voir `docs/user/configuration.md`) :

@@ -1,7 +1,7 @@
 //! Démarrage et arrêt du nœud.
 
 use crate::{
-    NodeBackend, NodeError, NodeOptions, Roles, coordinator_loop, gossip_loop,
+    NodeBackend, NodeError, NodeOptions, Roles, finalize_loop, gossip_loop,
     providers::NodeLedgerProvider,
     settlement_loop,
     shared::{Shared, WorkBook},
@@ -69,14 +69,18 @@ impl Node {
                 ReputationConfig::default(),
                 options.trusted_requesters.clone(),
             )),
+            verify_reputation: Mutex::new(Reputation::new(
+                ReputationConfig::default(),
+                options.trusted_requesters.clone(),
+            )),
+            derived: Mutex::new(Default::default()),
             outbox: Mutex::new(outbox),
             outbox_file,
             chain,
             seed,
             identity,
             roles: options.roles,
-            claim_window_ms: options.claim_window_ms,
-            leader_wait_ms: options.leader_wait_ms,
+            free_work: options.free_work,
             net: OnceLock::new(),
             work: Mutex::new(WorkBook::default()),
             runtime: tokio::runtime::Handle::current(),
@@ -93,6 +97,7 @@ impl Node {
             NetConfig {
                 listen: options.listen.clone(),
                 bootstrap: options.bootstrap.clone(),
+                relay_server: options.relay_server,
                 limits: options.net_limits.clone(),
                 // Présence et annonces seulement : un fragment de jobs s'ajoute quand un job
                 // de ce fragment est connu (`Shared::follow_job`).
@@ -121,18 +126,13 @@ impl Node {
                 stop_rx.clone(),
             )),
         ];
-        let Roles {
-            coordinator,
-            worker,
-            verifier,
-        } = options.roles;
-        if coordinator {
-            tasks.push(tokio::spawn(coordinator_loop::run(
-                Arc::clone(&shared),
-                tick,
-                stop_rx.clone(),
-            )));
-        }
+        let Roles { worker, verifier } = options.roles;
+        // Finalisation : tout nœud (ADR 0005, phase 4 ; ADR 0007).
+        tasks.push(tokio::spawn(finalize_loop::run(
+            Arc::clone(&shared),
+            tick,
+            stop_rx.clone(),
+        )));
         if worker {
             tasks.push(tokio::spawn(worker_loop::run(
                 Arc::clone(&shared),

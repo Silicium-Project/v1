@@ -47,3 +47,8 @@ impl<'a> View<'a> {
         }
     }
 }
+
+/// Ordre total des événements : heure d'émission, puis identifiant.
+pub(super) fn by_time(events: &mut [Ev<'_>]) {
+    events.sort_by_key(|(id, event)| (event.issued_at_ms, **id));
+}

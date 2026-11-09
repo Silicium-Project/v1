@@ -62,6 +62,32 @@ func (s *Server) publishJob(w http.ResponseWriter, r *http.Request, userID, _ st
 	httpx.WriteJSON(w, http.StatusCreated, summary(job))
 }
 
+type eventRequest struct {
+	// Event is a signed event of the job (the cancellation), canonical CBOR, base64 standard.
+	Event string `json:"event"`
+}
+
+func (s *Server) jobEvent(w http.ResponseWriter, r *http.Request, userID, _ string) {
+	var in eventRequest
+	if err := httpx.ReadJSON(w, r, &in, maxJSONBody); err != nil {
+		badBody(w, err)
+		return
+	}
+	event, err := base64.StdEncoding.DecodeString(in.Event)
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_input", "event is not valid base64")
+		return
+	}
+	ctx, cancel := requestContext(r)
+	defer cancel()
+	receipt, err := s.jobs.Event(ctx, userID, r.PathValue("id"), event)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusAccepted, receipt)
+}
+
 func (s *Server) listJobs(w http.ResponseWriter, _ *http.Request, userID, _ string) {
 	list := []jobSummary{}
 	for _, j := range s.jobs.List(userID) {

@@ -21,7 +21,7 @@ pub(crate) fn spawn_execution(shared: Arc<Shared>, job: JobId, fragment: u32, at
         let lease_ms = lock(&shared.ledger)
             .spec(&job)
             .map_or(60_000, |signed| signed.spec.lease_ms);
-        // Tant que le calcul tourne, on prolonge le bail : sinon le comité accepterait un autre
+        // Tant que le calcul tourne, on prolonge le bail : sinon un autre worker pourrait réclamer le fragment
         // worker pour un travail déjà en cours.
         let _busy = crate::shared::Busy::enter(&shared);
         let renewer = tokio::spawn(renew_lease(

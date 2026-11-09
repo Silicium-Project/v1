@@ -1,7 +1,7 @@
 //! Règlement on-chain des fragments finalisés (docs/technical/protocol/settlement.md).
 //!
 //! Pipeline : un fragment `Finalized` dans le journal → [`SettlementClaim`] → signature par
-//! `threshold` membres du comité ([`Authorization`]) → [`Outbox`] → [`Chain::submit`].
+//! les signatures de chaque approbateur ([`Authorization`]) → [`Outbox`] → [`Chain::submit`].
 //!
 //! Garanties de l'outbox (testées contre une chaîne qui tombe en panne) :
 //! - **idempotente** : un même règlement a un identifiant unique, jamais deux entrées ;

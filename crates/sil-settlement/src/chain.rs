@@ -1,7 +1,7 @@
 use crate::Authorization;
 use serde::{Deserialize, Serialize};
 use sil_chain_core::Escrow;
-use sil_types::JobId;
+use sil_types::{JobId, PublicKey};
 use thiserror::Error;
 
 /// Identifiant d'une transaction sur la chaîne (signature Solana encodée).
@@ -42,9 +42,21 @@ pub trait Chain: Send + Sync {
     /// État de l'escrow du job (`None` s'il n'existe pas).
     fn escrow(&self, job: &JobId) -> Result<Option<Escrow>, ChainError>;
 
-    /// Soumet le règlement (avec les signatures du comité). `Ok` = acceptée par le réseau,
+    /// Soumet le règlement (avec les signatures des approbateurs). `Ok` = acceptée par le réseau,
     /// **pas** confirmée.
     fn submit(&self, authorization: &Authorization) -> Result<TxId, ChainError>;
 
     fn tx_status(&self, tx: &TxId) -> Result<TxStatus, ChainError>;
+
+    /// Réputation réseau d'un vérificateur, lue on-chain (ADR 0006). `None` : compte absent (pas
+    /// encore enregistré) ou chaîne non configurée.
+    fn verifier_standing(&self, _verifier: &PublicKey) -> Result<Option<i64>, ChainError> {
+        Ok(None)
+    }
+
+    /// `true` si ce nœud paie lui-même les frais de transaction. Seul un tel nœud peut relayer
+    /// les règlements d'autres nœuds (voir `POST /v1/settlements`).
+    fn pays_fees(&self) -> bool {
+        false
+    }
 }

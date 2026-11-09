@@ -9,6 +9,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+mod descriptor;
 mod error;
 mod evidence;
 mod input;
@@ -17,6 +18,7 @@ mod policy;
 mod registry;
 mod workload;
 
+pub use descriptor::{limits_of, policy_of};
 pub use error::WorkloadError;
 pub use evidence::{Evidence, Verdict};
 pub use input::{InputReader, MemoryInput};

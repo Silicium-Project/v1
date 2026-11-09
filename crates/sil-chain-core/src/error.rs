@@ -20,8 +20,13 @@ pub enum RuleError {
     BadAttempt,
     #[error("vérificateurs invalides : {0}")]
     BadApprovers(&'static str),
-    #[error("autorisation insuffisante : {have} signataires du comité sur {need}")]
+    #[error("autorisation insuffisante : {have} signatures d'approbateurs sur {need}")]
     NotAuthorized { have: usize, need: u32 },
+    /// Vérificateur sans compte de réputation (`None`) ou sous le seuil (`Some(score)`).
+    #[error("vérificateur sous le seuil de réputation : {have:?} < {need}")]
+    IneligibleVerifier { have: Option<i64>, need: i64 },
+    #[error("pénalité refusée : {0}")]
+    BadPenalty(&'static str),
     #[error("fonds insuffisants dans l'escrow")]
     Insufficient,
     #[error("remboursement trop tôt")]

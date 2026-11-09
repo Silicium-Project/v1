@@ -1,0 +1,90 @@
+/* Contenu des pages publiques : listes, notices, bloc de commande et questions. Même palette que
+   tokens.css ; voir site.css pour la mise en page. */
+
+.site-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-list li {
+  position: relative;
+  padding: 0.7rem 0 0.7rem 1.4rem;
+  border-bottom: 1px solid var(--color-border);
+  line-height: 1.5;
+}
+
+.site-list li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+  color: var(--color-accent);
+}
+
+.site-list--rules li {
+  padding-left: 0;
+}
+
+.site-list--rules li::before {
+  content: none;
+}
+
+.site-notice {
+  padding: 1.25rem 1.4rem;
+  border-left: 4px solid var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.site-notice h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.4rem;
+}
+
+.site-notice p {
+  margin: 0;
+  color: var(--color-text);
+  line-height: 1.55;
+}
+
+.site-page .code-display {
+  max-width: 100%;
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.site-faq details {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-faq details:first-child {
+  border-top: 1px solid var(--color-border);
+}
+
+.site-faq summary {
+  padding: 1rem 2rem 1rem 0;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  list-style: none;
+}
+
+.site-faq summary::after {
+  content: '+';
+  position: absolute;
+  right: 0.2rem;
+  top: 0.85rem;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+
+.site-faq details[open] summary::after {
+  content: '−';
+}
+
+.site-faq p {
+  margin: 0 0 1.1rem;
+  max-width: 44rem;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+

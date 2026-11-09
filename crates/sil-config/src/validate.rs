@@ -63,9 +63,28 @@ pub(crate) fn validate(config: &NodeConfig) -> Result<(), ConfigError> {
         if chain.program_id.trim().is_empty() {
             return Err(invalid("chain.program_id", "obligatoire"));
         }
-        if chain.payer_keypair.as_os_str().is_empty() {
-            return Err(invalid("chain.payer_keypair", "obligatoire"));
+        if let Some(payer) = &chain.payer_keypair {
+            if payer.as_os_str().is_empty() {
+                return Err(invalid("chain.payer_keypair", "chemin vide"));
+            }
         }
+        if let Some(relay) = &chain.relay_url {
+            if !(relay.starts_with("http://") || relay.starts_with("https://")) {
+                return Err(invalid("chain.relay_url", "http:// ou https:// attendu"));
+            }
+        }
+        if chain.payer_keypair.is_none() && chain.relay_url.is_none() {
+            return Err(invalid(
+                "chain",
+                "payer_keypair (ce nœud règle) ou relay_url (règlement par un relais) requis",
+            ));
+        }
+    }
+    if config.testnet.free_work && config.chain.is_some() {
+        return Err(invalid(
+            "testnet.free_work",
+            "interdit avec [chain] : le travail doit être payé dès qu'une chaîne existe",
+        ));
     }
     if let Some(render) = &config.render {
         if render.engine.as_os_str().is_empty() {

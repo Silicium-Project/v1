@@ -6,7 +6,42 @@ import { safeNext } from './safe-next'
 
 // Pages load on demand: the first screen only downloads what it shows.
 export const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/calculs' },
+  {
+    path: '/',
+    name: 'home',
+    component: () => import('@/pages/site/HomePage.vue'),
+    meta: { title: 'site.titles.home' },
+  },
+  {
+    path: '/produit',
+    name: 'product',
+    component: () => import('@/pages/site/ProductPage.vue'),
+    meta: { title: 'site.titles.product' },
+  },
+  {
+    path: '/blockchain',
+    name: 'chain',
+    component: () => import('@/pages/site/ChainPage.vue'),
+    meta: { title: 'site.titles.chain' },
+  },
+  {
+    path: '/installation',
+    name: 'install',
+    component: () => import('@/pages/site/InstallPage.vue'),
+    meta: { title: 'site.titles.install' },
+  },
+  {
+    path: '/a-propos',
+    name: 'about',
+    component: () => import('@/pages/site/AboutPage.vue'),
+    meta: { title: 'site.titles.about' },
+  },
+  {
+    path: '/reseau',
+    name: 'network',
+    component: () => import('@/pages/site/NetworkPage.vue'),
+    meta: { title: 'site.titles.network' },
+  },
   {
     path: '/connexion',
     name: 'login',
@@ -32,12 +67,6 @@ export const routes: RouteRecordRaw[] = [
     meta: { auth: true, title: 'job.title' },
   },
   {
-    path: '/travail',
-    name: 'worker',
-    component: () => import('@/pages/WorkerPage.vue'),
-    meta: { auth: true, title: 'worker.title' },
-  },
-  {
     path: '/machines',
     name: 'devices',
     component: () => import('@/pages/DevicesPage.vue'),
@@ -48,6 +77,18 @@ export const routes: RouteRecordRaw[] = [
     name: 'account',
     component: () => import('@/pages/AccountPage.vue'),
     meta: { auth: true, title: 'account.title' },
+  },
+  {
+    path: '/profil',
+    name: 'profile',
+    component: () => import('@/pages/ProfilePage.vue'),
+    meta: { auth: true, title: 'profile.title' },
+  },
+  {
+    path: '/parametres',
+    name: 'settings',
+    component: () => import('@/pages/SettingsPage.vue'),
+    meta: { auth: true, title: 'settings.title' },
   },
   {
     path: '/confidentialite',

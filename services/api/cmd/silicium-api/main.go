@@ -46,7 +46,7 @@ func run() error {
 		auth.New(data, authConfig, nil),
 		devices.New(data, nil),
 		jobs.New(data, node, nil),
-		server.Options{AllowRegistration: cfg.AllowRegistration, WebDir: cfg.WebDir, CORSOrigins: cfg.CORSOrigins, Committee: cfg.Committee, Log: log},
+		server.Options{AllowRegistration: cfg.AllowRegistration, WebDir: cfg.WebDir, ConnectSources: cfg.ConnectSources, Payments: cfg.Payments, CORSOrigins: cfg.CORSOrigins, Network: node, Log: log},
 	)
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,

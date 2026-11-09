@@ -1,11 +1,12 @@
 //! Adaptateur : implémente `sil_settlement::Chain` avec un client RPC bloquant.
 
 use crate::errors::{failure_text, map_client};
+use crate::topups::TopUps;
 use crate::tx;
 use sil_chain_core::wire::decode_state;
 use sil_chain_core::{Escrow, EscrowTerms};
 use sil_settlement::{Authorization, Chain, ChainError, TxId, TxStatus};
-use sil_types::JobId;
+use sil_types::{JobId, PublicKey};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
@@ -16,6 +17,7 @@ use solana_sdk::transaction::Transaction;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Mutex;
+use std::time::Instant;
 
 /// Longueur d'en-tête du compte d'escrow (voir `chain/program/src/state.rs`).
 const LEN_PREFIX: usize = 4;
@@ -43,6 +45,8 @@ pub struct SolanaChain {
     payer: Keypair,
     /// Dernier bloc valide de chaque transaction soumise : au-delà, elle ne peut plus atterrir.
     last_valid: Mutex<HashMap<String, u64>>,
+    /// Comptes approvisionnés en loyer depuis peu : pas de second transfert pendant la fenêtre.
+    top_ups: Mutex<TopUps>,
 }
 
 impl SolanaChain {
@@ -52,7 +56,14 @@ impl SolanaChain {
             program,
             payer,
             last_valid: Mutex::new(HashMap::new()),
+            top_ups: Mutex::new(TopUps::default()),
         }
+    }
+
+    /// Adaptateur en lecture seule : lit l'escrow, le statut et la réputation, ne paie rien. Un
+    /// nœud qui règle par relais n'a pas de clé de paiement.
+    pub fn read_only(url: &str, program: Pubkey) -> Self {
+        Self::new(url, program, Keypair::new())
     }
 
     pub fn rpc(&self) -> &RpcClient {
@@ -85,6 +96,66 @@ impl SolanaChain {
     pub fn refund(&self, requester: &Keypair, job: JobId) -> Result<TxId, ChainError> {
         let ix = tx::refund_ix(&self.program, &requester.pubkey(), job)?;
         self.send(vec![ix], requester, &[requester])
+    }
+
+    /// Loyer des bénéficiaires du règlement (claimant et vérificateurs) qui n'ont pas de quoi
+    /// recevoir leur part : le payeur du règlement le finance, une fois par compte et par fenêtre.
+    /// Retourne les transferts et les comptes approvisionnés par ces transferts.
+    fn rent_top_ups(
+        &self,
+        authorization: &Authorization,
+    ) -> Result<(Vec<Instruction>, Vec<Pubkey>), ChainError> {
+        let minimum = self
+            .rpc
+            .get_minimum_balance_for_rent_exemption(0)
+            .map_err(map_client)?;
+        let payer = self.payer.pubkey();
+        let now = Instant::now();
+        let mut payees = Vec::new();
+        let claimant = std::iter::once(&authorization.claim.claimant);
+        for key in claimant.chain(authorization.claim.approvers.iter()) {
+            let address = Pubkey::new_from_array(*key.as_bytes());
+            if address == payer || self.recently_topped(&address, now)? {
+                continue;
+            }
+            let balance = self.rpc.get_balance(&address).map_err(map_client)?;
+            payees.push((address, balance));
+        }
+        let topped = payees
+            .iter()
+            .filter(|(_, balance)| *balance < minimum)
+            .map(|(address, _)| *address)
+            .collect();
+        Ok((tx::rent_top_ups(&payer, minimum, &payees), topped))
+    }
+
+    /// Enregistrement (ADR 0006) des approbateurs qui n'ont pas encore de compte de réputation :
+    /// le payeur du règlement le crée, à `VERIFIER_START`, dans la même transaction. Sans cela, le
+    /// règlement serait refusé (`IneligibleVerifier`).
+    fn registrations(&self, authorization: &Authorization) -> Result<Vec<Instruction>, ChainError> {
+        let payer = self.payer.pubkey();
+        let mut out = Vec::new();
+        for approver in &authorization.claim.approvers {
+            let address = tx::verifier_address(&self.program, approver);
+            let account = self
+                .rpc
+                .get_account_with_commitment(&address, CommitmentConfig::confirmed())
+                .map_err(map_client)?
+                .value;
+            if account.is_none() {
+                out.push(tx::register_verifier_ix(&self.program, &payer, approver)?);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Vrai si ce compte a déjà été approvisionné dans la fenêtre (voir `topups`).
+    fn recently_topped(&self, address: &Pubkey, now: Instant) -> Result<bool, ChainError> {
+        let mut top_ups = self
+            .top_ups
+            .lock()
+            .map_err(|_| ChainError::Transient("verrou empoisonné".into()))?;
+        Ok(top_ups.is_recent(address, now))
     }
 
     /// Refuse d'envoyer si le payeur n'a pas de quoi payer les frais.
@@ -164,10 +235,47 @@ impl Chain for SolanaChain {
             .map_err(|e| ChainError::Rejected(format!("état illisible : {e}")))
     }
 
+    fn pays_fees(&self) -> bool {
+        true
+    }
+
+    fn verifier_standing(&self, verifier: &PublicKey) -> Result<Option<i64>, ChainError> {
+        let address = tx::verifier_address(&self.program, verifier);
+        let account = self
+            .rpc
+            .get_account_with_commitment(&address, CommitmentConfig::confirmed())
+            .map_err(map_client)?
+            .value;
+        let Some(account) = account else {
+            return Ok(None);
+        };
+        let bytes: [u8; 8] = account
+            .data
+            .get(..8)
+            .and_then(|head| head.try_into().ok())
+            .ok_or_else(|| ChainError::Rejected("compte de réputation tronqué".into()))?;
+        Ok(Some(i64::from_le_bytes(bytes)))
+    }
+
     fn submit(&self, authorization: &Authorization) -> Result<TxId, ChainError> {
         self.ensure_fee_funds()?;
-        let instructions =
-            tx::settle_instructions(&self.program, &self.payer.pubkey(), authorization)?;
+        let mut instructions = self.registrations(authorization)?;
+        let (top_ups, topped) = self.rent_top_ups(authorization)?;
+        instructions.extend(top_ups);
+        instructions.extend(tx::settle_instructions(
+            &self.program,
+            &self.payer.pubkey(),
+            authorization,
+        )?);
+        // Mémorisé avant l'envoi : une erreur réseau après envoi peut cacher une transaction
+        // partie. Si rien n'est parti, la fenêtre passe et le règlement se réessaie.
+        if !topped.is_empty() {
+            let mut top_ups = self
+                .top_ups
+                .lock()
+                .map_err(|_| ChainError::Transient("verrou empoisonné".into()))?;
+            top_ups.remember(&topped, Instant::now());
+        }
         self.send(instructions, &self.payer, &[&self.payer])
     }
 

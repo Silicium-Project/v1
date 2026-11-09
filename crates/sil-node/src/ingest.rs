@@ -8,9 +8,16 @@ use sil_ledger::{Event, EventBody, LedgerError, Receipt};
 use sil_net::Topic;
 use sil_types::JobId;
 
+/// Dérive d'horloge admise à la réception (ADR 0005, règle 1) : un événement daté de plus de
+/// cette durée dans le futur est refusé. Le journal ne lit l'heure que dans les événements.
+pub(crate) const MAX_SKEW_MS: u64 = 30_000;
+
 impl Shared {
     /// Reçoit un événement (réseau ou API), le persiste s'il est nouveau.
     pub(crate) fn ingest(&self, event: Event) -> Result<Receipt, LedgerError> {
+        if event.issued_at_ms > self.now_ms().saturating_add(MAX_SKEW_MS) {
+            return Err(LedgerError::InvalidEvent("événement daté dans le futur"));
+        }
         let receipt = lock(&self.ledger).receive(event)?;
         self.persist(&receipt.accepted);
         for accepted in &receipt.accepted {

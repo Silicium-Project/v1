@@ -3,8 +3,9 @@ use sha2::{Digest, Sha256};
 use sil_types::Hash32;
 use sil_workload_api::{
     Evidence, FragmentSpec, InputReader, Limits, Output, Verdict, VerificationPolicy, Workload,
-    WorkloadError,
+    WorkloadError, limits_of, policy_of,
 };
+use sil_workload_spec::CALCUL_SHA256;
 
 /// Lecture par morceaux de 1 Mio : mémoire constante quelle que soit la plage.
 const READ_STEP: u64 = 1024 * 1024;
@@ -26,19 +27,15 @@ fn digest_of(input: &dyn InputReader, range: Range) -> Result<Hash32, WorkloadEr
 
 impl Workload for Sha256Workload {
     fn id(&self) -> &'static str {
-        "calcul/sha256"
+        CALCUL_SHA256.id
     }
 
     fn limits(&self) -> Limits {
-        Limits {
-            wall_ms: 120_000,
-            memory_bytes: 64 * 1024 * 1024,
-            output_bytes: 32,
-        }
+        limits_of(&CALCUL_SHA256)
     }
 
     fn policy(&self) -> VerificationPolicy {
-        VerificationPolicy::Recompute
+        policy_of(&CALCUL_SHA256)
     }
 
     fn split(

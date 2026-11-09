@@ -1,0 +1,27 @@
+[package]
+name = "sil-devnet-job"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Outil de test : un job complet sur Solana devnet (escrow, soumission via l'API, règlement)."
+
+# Espace de travail propre : les dépendances Solana sont lourdes (comme chain/e2e).
+[workspace]
+
+[dependencies]
+sil-chain-core = { path = "../../crates/sil-chain-core" }
+sil-content = { path = "../../crates/sil-content" }
+sil-crypto = { path = "../../crates/sil-crypto" }
+sil-ledger = { path = "../../crates/sil-ledger" }
+sil-settlement = { path = "../../crates/sil-settlement" }
+sil-raytracer = { path = "../../crates/sil-raytracer" }
+sil-settlement-solana = { path = "../adapter" }
+sil-types = { path = "../../crates/sil-types" }
+base64 = "0.22"
+serde_json = "1"
+solana-sdk = "3"
+ureq = { version = "2", features = ["json"] }
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -3,16 +3,34 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { formatDateTime } from '@/i18n/format'
-import { listJobs, type JobSummary } from '@/api/endpoints'
+import { getJob, listJobs, type JobSummary } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { currentToken, endSession } from '@/state/session'
+import { normalizeState } from '@/status'
 import EmptyState from '@/components/EmptyState.vue'
 import Notice from '@/components/Notice.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 
 const router = useRouter()
 const jobs = ref<JobSummary[]>([])
 const loading = ref(true)
 const error = ref('')
+/** État de chaque calcul, lu sur le nœud (job id → état normalisé). */
+const states = ref<Record<string, string>>({})
+
+async function loadStates(token: string, list: JobSummary[]): Promise<void> {
+  const answers = await Promise.all(
+    list.map(async (job) => {
+      try {
+        const { status } = await getJob(token, job.id)
+        return [job.id, normalizeState(status.state)] as const
+      } catch {
+        return [job.id, 'unknown'] as const
+      }
+    }),
+  )
+  states.value = Object.fromEntries(answers)
+}
 
 async function load(): Promise<void> {
   const token = currentToken()
@@ -21,6 +39,7 @@ async function load(): Promise<void> {
   error.value = ''
   try {
     jobs.value = (await listJobs(token)).jobs
+    void loadStates(token, jobs.value)
   } catch (failure) {
     if (isSessionEnded(failure)) {
       await endSession(router)
@@ -57,6 +76,7 @@ onMounted(load)
           <RouterLink :to="{ name: 'job', params: { id: job.id } }" class="list__link">
             <span class="list__title">{{ job.label || t('jobs.noLabel') }}</span>
             <span class="list__meta">
+              <StatusBadge :state="states[job.id] ?? 'unknown'" />
               <time :datetime="job.created_at">{{ formatDateTime(job.created_at) }}</time>
             </span>
           </RouterLink>

@@ -15,6 +15,7 @@ type fakeNode struct {
 	submitErr, jobErr error
 	job               string
 	submitted         [][]byte
+	settled           [][]byte
 }
 
 func (f *fakeNode) PutContent(_ context.Context, d []byte) (nodeclient.ContentReceipt, error) {
@@ -28,8 +29,24 @@ func (f *fakeNode) SubmitEvent(_ context.Context, e []byte) (nodeclient.EventRec
 	return nodeclient.EventReceipt{Accepted: 1}, f.submitErr
 }
 
+func (f *fakeNode) SubmitSettlement(_ context.Context, s []byte) (json.RawMessage, error) {
+	if f.submitErr != nil {
+		return nil, f.submitErr
+	}
+	f.settled = append(f.settled, s)
+	return json.RawMessage(`{"tx":"fake-tx"}`), nil
+}
+
 func (f *fakeNode) Job(context.Context, string) (json.RawMessage, error) {
 	return json.RawMessage(f.job), f.jobErr
+}
+
+func (f *fakeNode) JobImage(context.Context, string) (nodeclient.Image, error) {
+	return nodeclient.Image{Width: 2, Height: 1, RGB: []byte{255, 0, 0, 0, 255, 0}}, nil
+}
+
+func (f *fakeNode) JobOutputs(context.Context, string) ([]nodeclient.Output, error) {
+	return []nodeclient.Output{{Fragment: 0, Bytes: []byte{0xab, 0xcd}}, {Fragment: 1, Bytes: []byte{0x01}}}, nil
 }
 
 var id = strings.Repeat("ab", 32)
@@ -63,6 +80,31 @@ func TestNothingIsRecordedWhenTheNodeFails(t *testing.T) {
 	}
 	if len(svc.List("u")) != 0 {
 		t.Fatal("job recorded although the node failed")
+	}
+}
+
+// Un événement (annulation) n'est relayé que pour un job du compte ; un autre compte reçoit
+// « introuvable » et le nœud ne voit rien.
+func TestEventIsForwardedOnlyForTheOwnersJob(t *testing.T) {
+	svc, node := setup()
+	if _, err := svc.Publish(context.Background(), "owner", id, []byte("e"), ""); err != nil {
+		t.Fatal(err)
+	}
+	node.submitted = nil
+	if _, err := svc.Event(context.Background(), "mallory", id, []byte("cancel")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("another account: got %v", err)
+	}
+	if len(node.submitted) != 0 {
+		t.Fatal("an event of another account reached the node")
+	}
+	if _, err := svc.Event(context.Background(), "owner", id, []byte("cancel")); err != nil {
+		t.Fatal(err)
+	}
+	if len(node.submitted) != 1 {
+		t.Fatalf("owner event not forwarded: %d", len(node.submitted))
+	}
+	if _, err := svc.Event(context.Background(), "owner", "ab", []byte("cancel")); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("bad id: got %v", err)
 	}
 }
 

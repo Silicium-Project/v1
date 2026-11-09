@@ -6,6 +6,7 @@
 
 pub mod client;
 pub mod errors;
+mod topups;
 pub mod tx;
 
 pub use client::{FEE_RESERVE, SolanaChain, parse_program_id, read_payer};

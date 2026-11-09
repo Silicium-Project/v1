@@ -16,7 +16,7 @@ pub enum Domain {
     Certificate,
     /// Graine d'échantillonnage d'un vérificateur.
     Sampling,
-    /// Autorisation de règlement d'un fragment (signée par le comité).
+    /// Autorisation de règlement d'un fragment (signée par chaque approbateur).
     Settlement,
     /// Présence d'un pair.
     Presence,

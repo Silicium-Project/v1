@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 /// Étape d'un règlement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {
-    /// À soumettre (ou en attente de signatures du comité).
+    /// À soumettre (ou en attente des signatures des approbateurs).
     Pending,
     Submitted {
         tx: TxId,
@@ -113,7 +113,7 @@ impl Outbox {
         Ok(id)
     }
 
-    /// Ajoute la signature d'un membre du comité à un règlement connu.
+    /// Ajoute la signature d'un approbateur à un règlement connu.
     pub fn add_signature(
         &mut self,
         id: &IntentId,

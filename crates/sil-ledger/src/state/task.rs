@@ -66,12 +66,13 @@ pub(super) fn derive_task(view: &View<'_>, fragment: u32, now_ms: u64) -> TaskSt
     let events = view.task_events(fragment);
     let mut attempts = Vec::new();
     for k in 1..=view.spec.max_attempts {
-        let Some(won) = attempt::accepted(view, events, k) else {
+        let Some(won) = attempt::accepted(view, events, k, &attempts) else {
             break;
         };
-        attempts.push(attempt::detail(view, events, k, &won));
+        let state = attempt::detail(view, events, k, &won);
+        attempts.push(state);
     }
-    let finalized = finalize::find(view, events, attempts.as_slice());
+    let finalized = finalize::find(view, events);
     let (status, next_attempt) = match &finalized {
         Some(_) => (TaskStatus::Finalized, None),
         None => status_of(view.spec, &attempts, view.cancelled, now_ms),

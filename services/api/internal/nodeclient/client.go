@@ -83,6 +83,13 @@ func (c *Client) Peers(ctx context.Context) (json.RawMessage, error) {
 	return out, err
 }
 
+// Worker returns the node's own report (raw JSON): its roles.
+func (c *Client) Worker(ctx context.Context) (json.RawMessage, error) {
+	var out json.RawMessage
+	err := c.do(ctx, http.MethodGet, "/v1/worker", nil, &out)
+	return out, err
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body []byte, out any) error {
 	request, err := http.NewRequestWithContext(ctx, method, c.base+path, bytes.NewReader(body))
 	if err != nil {

@@ -883,6 +883,7 @@ dependencies = [
  "bincode",
  "serde",
  "sil-types",
+ "sil-workload-spec",
  "thiserror",
 ]
 
@@ -903,6 +904,10 @@ dependencies = [
  "serde",
  "thiserror",
 ]
+
+[[package]]
+name = "sil-workload-spec"
+version = "0.1.0"
 
 [[package]]
 name = "smallvec"

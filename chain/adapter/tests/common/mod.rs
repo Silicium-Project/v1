@@ -1,9 +1,9 @@
 //! Helpers shared by the localnet scenarios (see chain/adapter/README.md).
 #![allow(dead_code)]
 
-use sil_chain_core::{EscrowTerms, REFUND_GRACE_MS, SETTLEMENT_FEE};
+use sil_chain_core::EscrowTerms;
 use sil_crypto::{MasterSeed, Purpose, SigningIdentity};
-use sil_settlement::{Authorization, Chain, ChainError, SettlementClaim, TxId, TxStatus};
+use sil_settlement::{Authorization, Chain, SettlementClaim, TxId, TxStatus};
 use sil_settlement_solana::SolanaChain;
 use sil_types::{Hash32, JobId, PublicKey};
 use solana_commitment_config::CommitmentConfig;
@@ -47,6 +47,28 @@ pub fn funded(chain: &SolanaChain, lamports: u64) -> Keypair {
     key
 }
 
+/// Compte Solana de l'approbateur : la clé de sa signature (les paiements vont à cette clé).
+pub fn approver_account(approver: &SigningIdentity) -> Pubkey {
+    Pubkey::new_from_array(*approver.public().as_bytes())
+}
+
+/// Identité d'approbateur financée : un compte Solana à l'adresse de sa clé de signature.
+pub fn funded_identity(chain: &SolanaChain, lamports: u64) -> SigningIdentity {
+    let seed: [u8; 32] = Keypair::new().to_bytes()[..32]
+        .try_into()
+        .expect("32 octets");
+    let identity = MasterSeed::from_bytes(seed).derive(Purpose::Ledger);
+    let signature = chain
+        .rpc()
+        .request_airdrop(&approver_account(&identity), lamports)
+        .expect("airdrop");
+    wait_for(
+        || chain.rpc().confirm_transaction(&signature).unwrap_or(false),
+        "airdrop",
+    );
+    identity
+}
+
 pub fn wait_for(mut done: impl FnMut() -> bool, what: &str) {
     for _ in 0..120 {
         if done() {
@@ -70,11 +92,9 @@ pub fn settle_status(chain: &SolanaChain, tx: &TxId) -> TxStatus {
     last
 }
 
-pub fn terms(requester: &Keypair, committee: &[PublicKey], expires_at_ms: u64) -> EscrowTerms {
+pub fn terms(requester: &Keypair, expires_at_ms: u64) -> EscrowTerms {
     EscrowTerms {
         requester: PublicKey::from_bytes(requester.pubkey().to_bytes()),
-        committee: committee.to_vec(),
-        threshold: 2,
         // 20 octets sur 2 fragments : 10 unités chacun. Claimant : 10 × 100 = 1 000 ;
         // vérificateur : 10 × 10 = 100.
         workload: "calcul/sha256".into(),
@@ -89,14 +109,19 @@ pub fn terms(requester: &Keypair, committee: &[PublicKey], expires_at_ms: u64) -
     }
 }
 
-pub fn claim(job: JobId, fragment: u32, claimant: &Keypair, approver: &Keypair) -> SettlementClaim {
+pub fn claim(
+    job: JobId,
+    fragment: u32,
+    claimant: &Keypair,
+    approver: &SigningIdentity,
+) -> SettlementClaim {
     SettlementClaim {
         job,
         fragment,
         attempt: 1,
         result: Hash32::from_bytes([7; 32]),
         claimant: PublicKey::from_bytes(claimant.pubkey().to_bytes()),
-        approvers: vec![PublicKey::from_bytes(approver.pubkey().to_bytes())],
+        approvers: vec![approver.public()],
     }
 }
 

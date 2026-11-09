@@ -141,6 +141,29 @@ fn a_chain_section_needs_an_http_rpc_a_program_and_a_payer() {
 }
 
 #[test]
+fn free_work_is_off_by_default_and_refused_with_a_chain() {
+    assert!(
+        !load_from_str("", &no_env).unwrap().testnet.free_work,
+        "désactivé par défaut"
+    );
+    let free = "[testnet]\nfree_work = true\n";
+    assert!(load_from_str(free, &no_env).unwrap().testnet.free_work);
+    let chain = "[chain]\nrpc_url = \"http://127.0.0.1:8899\"\nprogram_id = \"4nLifxCqFRnNiwnktuiLiH9gr2XvX1rpcQvNXgZgz4jB\"\npayer_keypair = \"payer.json\"\n";
+    assert!(matches!(
+        load_from_str(&format!("{free}{chain}"), &no_env),
+        Err(ConfigError::Invalid {
+            field: "testnet.free_work",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn the_solo_mode_is_gone_and_its_key_is_refused() {
+    assert!(load_from_str("[testnet]\nsolo_verify = true\n", &no_env).is_err(), "plus de mode solo (ADR 0007)");
+}
+
+#[test]
 fn a_render_section_needs_an_engine_and_a_sane_deadline() {
     let valid = "[render]\nengine = \"sil-render-reference\"\n";
     let config = load_from_str(valid, &no_env).unwrap();
@@ -163,6 +186,30 @@ fn a_render_section_needs_an_engine_and_a_sane_deadline() {
         load_from_str(&too_long, &no_env),
         Err(ConfigError::Invalid {
             field: "render.wall_ms",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn a_node_settles_with_its_own_payer_or_through_a_relay() {
+    let relay_only = "[chain]\nrpc_url = \"http://127.0.0.1:8899\"\nprogram_id = \"4nLifxCqFRnNiwnktuiLiH9gr2XvX1rpcQvNXgZgz4jB\"\nrelay_url = \"https://siliciumlabs.org\"\n";
+    let config = load_from_str(relay_only, &no_env).unwrap();
+    let chain = config.chain.unwrap();
+    assert!(chain.payer_keypair.is_none());
+    assert_eq!(chain.relay_url.as_deref(), Some("https://siliciumlabs.org"));
+
+    let neither = relay_only.replace("relay_url = \"https://siliciumlabs.org\"\n", "");
+    assert!(matches!(
+        load_from_str(&neither, &no_env),
+        Err(ConfigError::Invalid { field: "chain", .. })
+    ));
+
+    let bad_relay = relay_only.replace("https://siliciumlabs.org", "ftp://x");
+    assert!(matches!(
+        load_from_str(&bad_relay, &no_env),
+        Err(ConfigError::Invalid {
+            field: "chain.relay_url",
             ..
         })
     ));

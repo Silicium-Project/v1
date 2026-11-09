@@ -11,11 +11,9 @@ export interface JobSpecInput {
   workload: string // e.g. "calcul/sha256"
   input: Uint8Array // 32 bytes, content id of the input
   inputSize: number // bytes of the input: the workload turns it into units
-  width: number // image width in pixels (rendu/blocs), 0 for a workload without image
-  height: number // image height in pixels (rendu/blocs), 0 for a workload without image
+  width: number // image width in pixels (rendu/raytracer), 0 for a workload without image
+  height: number // image height in pixels (rendu/raytracer), 0 for a workload without image
   fragments: number
-  committee: Uint8Array[] // 32-byte keys, at most 7
-  threshold: number
   verificationsRequired: number
   leaseMs: number
   maxAttempts: number
@@ -35,7 +33,7 @@ export interface EventInput {
 /** Field order is the struct order in sil-ledger (JobSpec). Do not reorder. */
 export function encodeJobSpec(spec: JobSpecInput): Uint8Array {
   return cbor.map([
-    ['version', cbor.uint(1)],
+    ['version', cbor.uint(2)],
     ['requester', cbor.bytes(spec.requester)],
     ['nonce', cbor.uint(spec.nonce)],
     ['workload', cbor.text(spec.workload)],
@@ -44,8 +42,6 @@ export function encodeJobSpec(spec: JobSpecInput): Uint8Array {
     ['width', cbor.uint(spec.width)],
     ['height', cbor.uint(spec.height)],
     ['fragments', cbor.uint(spec.fragments)],
-    ['committee', cbor.array(spec.committee.map((key) => cbor.bytes(key)))],
-    ['threshold', cbor.uint(spec.threshold)],
     ['verifications_required', cbor.uint(spec.verificationsRequired)],
     ['lease_ms', cbor.uint(spec.leaseMs)],
     ['max_attempts', cbor.uint(spec.maxAttempts)],
@@ -58,7 +54,7 @@ export function encodeJobSpec(spec: JobSpecInput): Uint8Array {
 /** The text the requester signs for the spec: one line per field, fixed order. */
 export function specText(spec: JobSpecInput): string {
   return [
-    'Silicium JobSpec v1',
+    'Silicium JobSpec v2',
     `Requester: ${toHex(spec.requester)}`,
     `Nonce: ${spec.nonce}`,
     `Workload: ${spec.workload}`,
@@ -67,8 +63,6 @@ export function specText(spec: JobSpecInput): string {
     `Width: ${spec.width}`,
     `Height: ${spec.height}`,
     `Fragments: ${spec.fragments}`,
-    `Committee: ${spec.committee.map(toHex).join(',')}`,
-    `Threshold: ${spec.threshold}`,
     `Verifications: ${spec.verificationsRequired}`,
     `Lease ms: ${spec.leaseMs}`,
     `Max attempts: ${spec.maxAttempts}`,

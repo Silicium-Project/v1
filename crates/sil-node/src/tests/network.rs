@@ -10,7 +10,7 @@ use std::sync::Arc;
 async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
     let chain = Arc::new(FakeChain::new());
     let data = input_bytes();
-    let spec = job_spec(&committee_keys(), input_hash(&data));
+    let spec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
     // La chaîne est capricieuse : lectures limitées et envois qui échouent.
     chain.fail(Op::Escrow, ChainError::Transient("429".into()), 4);
@@ -18,7 +18,7 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
 
     let c1 = start(
         1,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         true,
@@ -26,7 +26,7 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
     .await;
     let c2 = start(
         2,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -34,7 +34,7 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
     .await;
     let c3 = start(
         3,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -42,7 +42,7 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
     .await;
     let v = start(
         4,
-        roles(false, false, true),
+        roles(false, true),
         sha_registry(),
         chain.clone(),
         false,
@@ -75,10 +75,7 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
             expected_digest(&data, fragment as usize),
             "fragment {fragment}"
         );
-        assert!(
-            committee_keys().contains(&claimant),
-            "un worker du réseau a calculé"
-        );
+        assert!(nodes.iter().any(|node| node.key == claimant), "un worker du réseau a calculé");
         let settled = chain.escrow_now(&job).unwrap();
         assert_eq!(
             settled.settled(fragment).unwrap().claimant,
@@ -107,12 +104,12 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     // L'honnête H ne voit l'escrow (donc ne réclame rien) qu'une fois le menteur écarté.
     let chain_h = Arc::new(FakeChain::new());
     let data = input_bytes();
-    let spec = job_spec(&committee_keys(), input_hash(&data));
+    let spec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
 
     let c1 = start(
         1,
-        roles(true, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         true,
@@ -120,7 +117,7 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     .await;
     let c2 = start(
         2,
-        roles(true, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -128,7 +125,7 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     .await;
     let c3 = start(
         3,
-        roles(true, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -136,7 +133,7 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     .await;
     let liar = start(
         5,
-        roles(false, true, false),
+        roles(true, false),
         liar_registry(),
         chain.clone(),
         false,
@@ -144,7 +141,7 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     .await;
     let honest = start(
         6,
-        roles(false, true, false),
+        roles(true, false),
         sha_registry(),
         chain_h.clone(),
         false,
@@ -152,7 +149,7 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     .await;
     let v = start(
         4,
-        roles(false, false, true),
+        roles(false, true),
         sha_registry(),
         chain.clone(),
         false,
@@ -228,15 +225,15 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_job_survives_the_loss_of_a_committee_member() {
+async fn the_job_survives_the_loss_of_a_worker_node() {
     let chain = Arc::new(FakeChain::new());
     let data = input_bytes();
-    let spec: JobSpec = job_spec(&committee_keys(), input_hash(&data));
+    let spec: JobSpec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
 
     let c1 = start(
         1,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         true,
@@ -244,7 +241,7 @@ async fn the_job_survives_the_loss_of_a_committee_member() {
     .await;
     let c2 = start(
         2,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -252,7 +249,7 @@ async fn the_job_survives_the_loss_of_a_committee_member() {
     .await;
     let c3 = start(
         3,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -260,7 +257,7 @@ async fn the_job_survives_the_loss_of_a_committee_member() {
     .await;
     let v = start(
         4,
-        roles(false, false, true),
+        roles(false, true),
         sha_registry(),
         chain.clone(),
         false,

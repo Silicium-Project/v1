@@ -3073,6 +3073,7 @@ dependencies = [
  "bincode",
  "serde",
  "sil-types",
+ "sil-workload-spec",
  "thiserror 2.0.21",
 ]
 
@@ -3152,6 +3153,10 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
 ]
+
+[[package]]
+name = "sil-workload-spec"
+version = "0.1.0"
 
 [[package]]
 name = "simd-adler32"

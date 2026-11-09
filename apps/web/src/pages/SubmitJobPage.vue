@@ -1,50 +1,70 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { profile } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
-import { committee as loadCommittee, publishJob, putContent, type CommitteeAnswer } from '@/api/wallet-endpoints'
+import { networkTerms, publishJob, putContent, type TermsAnswer } from '@/api/wallet-endpoints'
 import { currentToken, endSession } from '@/state/session'
+import { depositEscrow } from '@/chain/deposit'
+import { maxPayout, type EscrowSpec } from '@/chain/escrow'
 import { connectWallet, signWithWallet, WalletFailure } from '@/platform/wallet'
 import { encodeBase58 } from '@/signing/base58'
 import { fromHex } from '@/signing/cbor'
-import { isSide, RENDER_WORKLOAD, submitJob, type SubmitDeps } from '@/signing/submit'
+import { submitJob, type SubmitDeps, type SubmitInput } from '@/signing/submit'
+import { WORKLOADS } from '@/workloads/generated'
+import { findWorkload, isImageSide } from '@/workloads/find'
+import { sceneToCfg } from '@/scene/cfg'
+import { sceneTemplate } from '@/scene/templates'
+import type { SceneModel } from '@/scene/types'
+import { clearDraft, loadDraft, saveDraft } from '@/state/submit-draft'
+import { loadPreferences } from '@/state/preferences'
 import FormField from '@/components/FormField.vue'
 import Notice from '@/components/Notice.vue'
+import SceneEditor from '@/components/scene/SceneEditor.vue'
 
-// Upload limit of this page. The API accepts more; a job input this big is not practical yet.
-const MAX_BYTES = 8 * 1024 * 1024
-const MAX_FRAGMENTS = 16
-const STEP_KEYS = ['submit.stepUpload', 'submit.stepSignSpec', 'submit.stepSignEvent', 'submit.stepPublish']
+// Fallback upload limit, used only if the workload descriptor has none.
+const DEFAULT_MAX_BYTES = 8 * 1024 * 1024
+const STEP_KEYS = ['submit.stepUpload', 'submit.stepSignSpec', 'submit.stepDeposit', 'submit.stepSignEvent', 'submit.stepPublish']
 
 const router = useRouter()
-const info = ref<CommitteeAnswer | null>(null)
+const terms = ref<TermsAnswer | null>(null)
+const termsError = ref('')
 const accountAddress = ref('')
-const label = ref('')
-const workload = ref('calcul/sha256')
-const fragments = ref('1')
-const width = ref('')
-const height = ref('')
+const draft = loadDraft(WORKLOADS.map((item) => item.id))
+const label = ref(draft?.label ?? '')
+const workload = ref(draft?.workload ?? loadPreferences(WORKLOADS.map((item) => item.id)).defaultWorkload ?? WORKLOADS[0]?.id ?? '')
+const paramValues = reactive<Record<'width' | 'height', string>>({ width: '', height: '' })
 const sizeError = ref('')
 const file = ref<File | null>(null)
 const busy = ref(false)
 const stepText = ref('')
 const error = ref('')
 const fileError = ref('')
-const fragmentsError = ref('')
 const jobId = ref('')
+let termsRequest = 0
 
-const canSubmit = computed(() => info.value !== null && info.value.committee.length > 0)
-const isRender = computed(() => workload.value === RENDER_WORKLOAD)
+const spec = computed(() => findWorkload(workload.value))
+const params = computed(() => spec.value?.params ?? [])
+const maxBytes = computed(() => spec.value?.maxInputBytes ?? DEFAULT_MAX_BYTES)
+const canSubmit = computed(() => terms.value !== null && file.value !== null)
+/** Bytes the node stores as the input: the file, with each declared parameter (u32) in front. */
+const payloadSize = computed(() => (file.value ? file.value.size + 4 * params.value.length : 0))
+
+/** A declared parameter as a number, or undefined while the field is empty. */
+function numeric(name: 'width' | 'height'): number | undefined {
+  return paramValues[name] === '' ? undefined : Number(paramValues[name])
+}
+
+function numericParams(): Partial<Record<'width' | 'height', number>> {
+  return { width: numeric('width'), height: numeric('height') }
+}
 
 async function load(): Promise<void> {
   const token = currentToken()
   if (!token) return
   try {
-    const [committeeAnswer, account] = await Promise.all([loadCommittee(token), profile(token)])
-    info.value = committeeAnswer
-    accountAddress.value = account.address
+    accountAddress.value = (await profile(token)).address
   } catch (failure) {
     if (isSessionEnded(failure)) {
       await endSession(router)
@@ -56,17 +76,99 @@ async function load(): Promise<void> {
 
 function onFile(event: Event): void {
   const chosen = (event.target as HTMLInputElement).files?.[0] ?? null
-  fileError.value = chosen && chosen.size > MAX_BYTES ? t('submit.tooLarge') : ''
+  fileError.value = chosen && chosen.size > maxBytes.value ? t('submit.tooLarge') : ''
   file.value = fileError.value ? null : chosen
 }
 
-function validate(): boolean {
-  const count = Number(fragments.value)
-  fragmentsError.value = Number.isInteger(count) && count >= 1 && count <= MAX_FRAGMENTS ? '' : t('submit.fragmentsHint')
-  const sized = !isRender.value || (isSide(Number(width.value)) && isSide(Number(height.value)))
-  sizeError.value = sized ? '' : t('submit.imageSizeError')
-  if (!file.value && !fileError.value) fileError.value = t('submit.noFile')
-  return !fragmentsError.value && !sizeError.value && !fileError.value && file.value !== null
+/**
+ * A raytracing job's input is the scene the editor writes: its file is rebuilt from the model, and
+ * the image size is the scene's own resolution (the engine checks both agree).
+ */
+const sceneModel = reactive(draft?.scene ?? sceneTemplate('demo')) as SceneModel
+watch(
+  () => ({ workload: workload.value, label: label.value, scene: sceneModel }),
+  (value) => saveDraft(value),
+  { deep: true },
+)
+let sceneSync: ReturnType<typeof setTimeout> | undefined
+
+function syncScene(): void {
+  file.value = new File([sceneToCfg(sceneModel, label.value.trim())], 'scene.cfg', { type: 'text/plain' })
+  fileError.value = ''
+  paramValues.width = String(sceneModel.width)
+  paramValues.height = String(sceneModel.height)
+}
+
+watch(
+  sceneModel,
+  () => {
+    clearTimeout(sceneSync)
+    sceneSync = setTimeout(syncScene, 300)
+  },
+  { deep: true },
+)
+
+watch(workload, () => {
+  if (params.value.length > 0) syncScene()
+  else file.value = null
+})
+// Brouillon restauré : le fichier de scène se reconstruit depuis le modèle.
+if (params.value.length > 0) syncScene()
+
+/** Le réseau fixe fragments, tarifs, vérificateurs et comité : on les lit pour ce fichier. */
+async function loadTerms(): Promise<void> {
+  const request = ++termsRequest
+  const token = currentToken()
+  terms.value = null
+  termsError.value = ''
+  sizeError.value = ''
+  const current = spec.value
+  if (!current || !token || !file.value || payloadSize.value === 0) return
+  if (!current.params.every((name) => isImageSide(Number(paramValues[name]), current))) {
+    sizeError.value = t('submit.imageSizeError')
+    return
+  }
+  try {
+    const answer = await networkTerms(token, {
+      workload: workload.value,
+      size: payloadSize.value,
+      width: numeric('width'),
+      height: numeric('height'),
+    })
+    if (request === termsRequest) terms.value = answer
+  } catch (failure) {
+    if (request !== termsRequest) return
+    if (isSessionEnded(failure)) await endSession(router)
+    else termsError.value = t(errorMessageKey(failure))
+  }
+}
+
+watch([file, workload, paramValues], loadTerms, { deep: true })
+
+/** Dépôt estimé, lamports, sans le loyer du compte. Null pour les workloads sans dépôt sur le site. */
+const deposit = computed<bigint | null>(() => {
+  if (!terms.value || !spec.value?.depositSupported || payloadSize.value === 0) return null
+  try {
+    return maxPayout(escrowSpecOf(terms.value, payloadSize.value))
+  } catch {
+    return null
+  }
+})
+
+function escrowSpecOf(answer: TermsAnswer, size: number): EscrowSpec {
+  const values = answer.terms
+  return {
+    requester: new Uint8Array(32),
+    workload: workload.value,
+    inputSize: size,
+    width: numeric('width') ?? 0,
+    height: numeric('height') ?? 0,
+    fragments: values.fragments,
+    verificationsRequired: values.verifications_required,
+    rewardPerUnit: values.reward_per_unit,
+    verifierRewardPerUnit: values.verifier_reward_per_unit,
+    expiresAtMs: 0,
+  }
 }
 
 function randomNonce(): number {
@@ -80,11 +182,12 @@ function depsFor(token: string): SubmitDeps {
     putContent: (data) => putContent(token, data),
     sign: (message, display) => signWithWallet(message, display),
     publish: (id, event, name) => publishJob(token, id, event, name),
+    deposit: (spec, jobId) => depositEscrow(spec, fromHex(jobId)),
     sha256: async (data) => new Uint8Array(await crypto.subtle.digest('SHA-256', data as BufferSource)),
     now: () => Date.now(),
     randomNonce,
     progress: (step) => {
-      const index = ['upload', 'sign-spec', 'sign-event', 'publish'].indexOf(step)
+      const index = ['upload', 'sign-spec', 'deposit', 'sign-event', 'publish'].indexOf(step)
       stepText.value = t('submit.step', { step: index + 1, label: t(STEP_KEYS[index]) })
     },
   }
@@ -93,7 +196,7 @@ function depsFor(token: string): SubmitDeps {
 async function submit(): Promise<void> {
   error.value = ''
   jobId.value = ''
-  if (!validate() || !file.value || !info.value) return
+  if (!terms.value || !file.value || sizeError.value || fileError.value) return
   const token = currentToken()
   if (!token) return
   if (!accountAddress.value) {
@@ -108,21 +211,26 @@ async function submit(): Promise<void> {
       return
     }
     const data = new Uint8Array(await file.value.arrayBuffer())
-    const result = await submitJob(
-      {
-        requester: key,
-        data,
-        workload: workload.value,
-        fragments: Number(fragments.value),
-        width: Number(width.value),
-        height: Number(height.value),
-        committee: info.value.committee.map(fromHex),
-        threshold: info.value.threshold,
-        label: label.value.trim(),
+    const values = terms.value.terms
+    const input: SubmitInput = {
+      requester: key,
+      data,
+      workload: workload.value,
+      params: numericParams(),
+      label: label.value.trim(),
+      terms: {
+        fragments: values.fragments,
+        rewardPerUnit: values.reward_per_unit,
+        verifierRewardPerUnit: values.verifier_reward_per_unit,
+        verificationsRequired: values.verifications_required,
+        leaseMs: values.lease_ms,
+        maxAttempts: values.max_attempts,
+        expiresInMs: values.expires_in_ms,
       },
-      depsFor(token),
-    )
+    }
+    const result = await submitJob(input, depsFor(token))
     jobId.value = result.jobId
+    clearDraft()
     await router.push({ name: 'job', params: { id: result.jobId } })
   } catch (failure) {
     if (failure instanceof WalletFailure) error.value = t(`wallet.${failure.code}`)
@@ -134,7 +242,10 @@ async function submit(): Promise<void> {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  void loadTerms()
+})
 </script>
 
 <template>
@@ -142,8 +253,8 @@ onMounted(load)
     <h1 id="submit-title" tabindex="-1">{{ t('submit.title') }}</h1>
     <p>{{ t('submit.intro') }}</p>
 
-    <Notice kind="info" :message="info && info.payments === false ? t('submit.noPayment') : ''" />
-    <Notice kind="error" :message="info && !canSubmit ? t('submit.noCommittee') : ''" />
+    <Notice kind="info" :message="terms && terms.payments === false ? t('submit.noPayment') : ''" />
+    <Notice kind="error" :message="termsError" />
     <Notice kind="error" :message="error" />
 
     <form class="card stack" novalidate @submit.prevent="submit">
@@ -152,35 +263,17 @@ onMounted(load)
       <div class="field">
         <label for="workload">{{ t('submit.workload') }}</label>
         <select id="workload" v-model="workload" class="input">
-          <option value="calcul/sha256">{{ t('submit.workloadSha256') }}</option>
-          <option value="rendu/blocs">{{ t('submit.workloadRender') }}</option>
+          <option v-for="item in WORKLOADS" :key="item.id" :value="item.id">{{ t(item.labelKey) }}</option>
         </select>
       </div>
 
-      <FormField
-        id="fragments"
-        v-model="fragments"
-        type="number"
-        :label="t('submit.fragments')"
-        :hint="t('submit.fragmentsHint')"
-        :error="fragmentsError"
-        required
-      />
-
-      <div v-if="isRender" class="stack">
-        <FormField
-          id="image-width"
-          v-model="width"
-          type="number"
-          :label="t('submit.imageWidth')"
-          :hint="t('submit.imageHint')"
-          :error="sizeError"
-          required
-        />
-        <FormField id="image-height" v-model="height" type="number" :label="t('submit.imageHeight')" required />
+      <div v-if="params.length > 0" class="stack">
+        <p class="field__hint">{{ t('submit.imageHint') }}</p>
+        <SceneEditor :model="sceneModel" />
+        <p v-if="sizeError" class="field__error" role="alert">{{ sizeError }}</p>
       </div>
 
-      <div class="field">
+      <div v-else class="field">
         <label for="input-file">{{ t('submit.file') }}</label>
         <p id="file-hint" class="field__hint">{{ t('submit.fileHint') }}</p>
         <input
@@ -194,10 +287,28 @@ onMounted(load)
         <p v-if="fileError" class="field__error">{{ fileError }}</p>
       </div>
 
+      <p v-if="terms" class="muted" role="status">
+        {{
+          deposit !== null
+            ? t('submit.networkTerms', {
+                fragments: terms.terms.fragments,
+                reward: terms.terms.reward_per_unit,
+                verifier: terms.terms.verifier_reward_per_unit,
+                deposit: deposit.toString(),
+              })
+            : t('submit.networkTermsNoDeposit', {
+                fragments: terms.terms.fragments,
+                reward: terms.terms.reward_per_unit,
+                verifier: terms.terms.verifier_reward_per_unit,
+              })
+        }}
+      </p>
+
       <p class="muted">{{ t('submit.signTwice') }}</p>
 
       <div class="actions">
-        <button type="submit" class="btn btn-primary" :disabled="busy || !canSubmit">
+        <!-- type="button": Entrée dans un champ ne doit pas lancer la signature du wallet. -->
+        <button type="button" class="btn btn-primary" :disabled="busy || !canSubmit" @click="submit">
           {{ t('submit.submit') }}
         </button>
         <p v-if="busy" role="status" class="muted">{{ stepText || t('common.loading') }}</p>

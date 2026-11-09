@@ -32,35 +32,23 @@ fn escrow_lifecycle_on_a_local_validator() {
 
     let requester = funded(&chain, 5 * SOL);
     let claimant = funded(&chain, SOL);
-    let approver = funded(&chain, SOL);
+    let approver = funded_identity(&chain, SOL);
     let members = [sil_key(21), sil_key(22), sil_key(23)];
-    let committee: Vec<PublicKey> = members.iter().map(SigningIdentity::public).collect();
     let job = random_job();
     let expires = now_ms() + 3_600_000;
-    let deposit = terms(&requester, &committee, expires)
-        .max_payout()
-        .expect("budget");
+    let deposit = terms(&requester, expires).max_payout().expect("budget");
 
     // Ouverture : l'escrow existe avec le dépôt et les conditions voulues.
     let tx = chain
-        .open_escrow(
-            &requester,
-            job,
-            terms(&requester, &committee, expires),
-            deposit,
-        )
+        .open_escrow(&requester, job, terms(&requester, expires), deposit)
         .expect("open accepted");
     assert_eq!(settle_status(&chain, &tx), TxStatus::Confirmed);
     let escrow = chain.escrow(&job).expect("read").expect("escrow exists");
     assert_eq!(escrow.deposited(), deposit);
-    assert_eq!(escrow.terms.committee, committee);
 
     // Règlement d'un fragment avec deux signatures du comité : payé une fois.
     let before = confirmed_balance(&chain, &claimant.pubkey());
-    let auth = signed(
-        claim(job, 0, &claimant, &approver),
-        &[&members[0], &members[1]],
-    );
+    let auth = signed(claim(job, 0, &claimant, &approver), &[&approver]);
     let tx = chain.submit(&auth).expect("settlement accepted");
     assert_eq!(settle_status(&chain, &tx), TxStatus::Confirmed);
     let escrow = chain.escrow(&job).expect("read").expect("escrow exists");
@@ -68,7 +56,7 @@ fn escrow_lifecycle_on_a_local_validator() {
     assert_eq!(escrow.paid(), 1_100 + SETTLEMENT_FEE);
     let after = confirmed_balance(&chain, &claimant.pubkey());
     assert_eq!(after - before, 1_000, "the claimant got the reward");
-    let approver_before = confirmed_balance(&chain, &approver.pubkey());
+    let approver_before = confirmed_balance(&chain, &approver_account(&approver));
     assert!(approver_before > 0);
 
     // Même règlement une seconde fois : refusé par le programme (déjà réglé).
@@ -134,23 +122,12 @@ fn an_expired_escrow_refunds_its_balance_and_cannot_be_reopened() {
     );
 
     let requester = funded(&chain, 5 * SOL);
-    let committee: Vec<PublicKey> = [sil_key(31), sil_key(32), sil_key(33)]
-        .iter()
-        .map(SigningIdentity::public)
-        .collect();
     let job = random_job();
     // Expired more than the grace period ago: the refund is due now.
     let expires = now_ms().saturating_sub(REFUND_GRACE_MS + 3_600_000);
-    let deposit = terms(&requester, &committee, expires)
-        .max_payout()
-        .expect("budget");
+    let deposit = terms(&requester, expires).max_payout().expect("budget");
     let tx = chain
-        .open_escrow(
-            &requester,
-            job,
-            terms(&requester, &committee, expires),
-            deposit,
-        )
+        .open_escrow(&requester, job, terms(&requester, expires), deposit)
         .expect("open accepted");
     assert_eq!(settle_status(&chain, &tx), TxStatus::Confirmed);
 
@@ -174,12 +151,7 @@ fn an_expired_escrow_refunds_its_balance_and_cannot_be_reopened() {
     );
 
     // The same job cannot be opened again: the closed account stays.
-    match chain.open_escrow(
-        &requester,
-        job,
-        terms(&requester, &committee, expires),
-        deposit,
-    ) {
+    match chain.open_escrow(&requester, job, terms(&requester, expires), deposit) {
         Err(ChainError::Rejected(_)) => {}
         other => panic!("reopening a refunded job must fail, got {other:?}"),
     }

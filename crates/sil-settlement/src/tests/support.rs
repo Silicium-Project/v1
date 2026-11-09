@@ -18,8 +18,6 @@ pub fn job() -> JobId {
 pub fn terms() -> EscrowTerms {
     EscrowTerms {
         requester: ident(100).public(),
-        committee: (10..13).map(|n| ident(n).public()).collect(),
-        threshold: 2,
         workload: "calcul/sha256".into(),
         input_size: 20,
         width: 0,
@@ -53,11 +51,11 @@ pub fn claim(fragment: u32) -> SettlementClaim {
         attempt: 1,
         result: Hash32::from_bytes([7; 32]),
         claimant: key(60),
-        approvers: vec![key(70), key(71)],
+        approvers: vec![ident(70).public(), ident(71).public()],
     }
 }
 
-/// Règlement signé par les membres du comité `signers` (numéros d'identité 10..).
+/// Règlement signé par les approbateurs `signers` (identités 70 et 71).
 pub fn authorized(claim: SettlementClaim, signers: &[u8]) -> Authorization {
     let mut auth = Authorization::new(claim.clone());
     for n in signers {

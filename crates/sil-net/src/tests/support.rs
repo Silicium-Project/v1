@@ -21,7 +21,7 @@ pub fn plain_node(seed: u8) -> Network {
     start_node(seed, Providers::none(), NetLimits::default())
 }
 
-async fn first_listen_addr(handle: &NetworkHandle) -> Multiaddr {
+pub async fn first_listen_addr(handle: &NetworkHandle) -> Multiaddr {
     timeout(WAIT, async {
         loop {
             if let Some(address) = handle.listen_addrs().await.unwrap().first() {

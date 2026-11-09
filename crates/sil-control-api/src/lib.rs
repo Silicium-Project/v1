@@ -24,7 +24,7 @@ mod routes;
 mod server;
 
 pub use auth::{Principal, Scope, TokenError, TokenSet};
-pub use backend::{Backend, EventReceipt};
+pub use backend::{Backend, EventReceipt, FragmentOutput, JobImage};
 pub use error::ApiError;
 pub use router::{ApiLimits, router};
 pub use routes::{ROUTES, Route};

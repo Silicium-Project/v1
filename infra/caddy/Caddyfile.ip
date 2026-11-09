@@ -1,0 +1,12 @@
+# Accès HTTPS par IP, certificat auto-signé (`tls internal`) : pas de domaine. Le navigateur
+# affiche un avertissement tant que la racine interne de Caddy n'est pas importée :
+# /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt (sur le VPS, lecture root).
+# Pas de HSTS : un HSTS sur une IP avec certificat auto-signé resterait en cache dans le navigateur.
+https://213.32.68.67 {
+	tls internal
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+	header {
+		-Server
+	}
+}

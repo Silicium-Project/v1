@@ -1,10 +1,8 @@
 use crate::{RuleError, units};
 use serde::{Deserialize, Serialize};
 use sil_types::PublicKey;
-use std::collections::BTreeSet;
 
 pub const MAX_APPROVERS: usize = 16;
-const MAX_COMMITTEE: usize = 7;
 const MAX_FRAGMENTS: u32 = 1024;
 
 /// Délai de grâce entre l'échéance et le remboursement (24 h).
@@ -20,13 +18,11 @@ pub const SETTLEMENT_FEE: u64 = 10_000;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EscrowTerms {
     pub requester: PublicKey,
-    pub committee: Vec<PublicKey>,
-    pub threshold: u32,
     /// Workload : fixe la règle d'unités (voir `units`).
     pub workload: String,
     /// Taille de l'entrée, en octets.
     pub input_size: u64,
-    /// Image (`rendu/blocs`) : largeur et hauteur en pixels, 0 sinon.
+    /// Image (`rendu/raytracer`) : largeur et hauteur en pixels, 0 sinon.
     pub width: u32,
     pub height: u32,
     pub fragments: u32,
@@ -40,15 +36,6 @@ pub struct EscrowTerms {
 
 impl EscrowTerms {
     pub fn validate(&self) -> Result<(), RuleError> {
-        let members = self.committee.len();
-        let distinct: BTreeSet<_> = self.committee.iter().collect();
-        if members == 0 || members > MAX_COMMITTEE || distinct.len() != members {
-            return Err(RuleError::BadTerms("comité"));
-        }
-        let threshold = self.threshold as usize;
-        if threshold * 2 <= members || threshold > members {
-            return Err(RuleError::BadTerms("seuil : majorité stricte requise"));
-        }
         if self.fragments == 0 || self.fragments > MAX_FRAGMENTS {
             return Err(RuleError::BadTerms("fragments"));
         }

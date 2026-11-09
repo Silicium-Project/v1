@@ -4,29 +4,23 @@
 //! fragment rapporte donc `unités × tarif`. Les unités sont fixées par la spec signée (le
 //! workload, la taille de l'entrée et l'image), jamais par le comité ni par le worker.
 //!
-//! Les règles de découpage doivent rester identiques à celles des workloads (`sil-wl-sha256`,
-//! `sil-wl-render`) : `sil-node` contrôle cette égalité par des tests. Un workload sans règle
-//! connue ici ne peut pas être réglé on-chain : l'ouverture de l'escrow le refuse.
+//! Le type d'unité (`sil_workload_spec::Unit`) et la géométrie viennent du descripteur du workload
+//! (`contracts/workloads`). Ici : une règle par **type** d'unité, pas par workload. Un workload de
+//! type connu ne demande donc aucune modification on-chain ; un type nouveau en demande une.
+//! Les règles de découpage doivent rester celles des workloads : `sil-node` contrôle cette égalité
+//! par des tests. Un workload absent des descripteurs ne peut pas être réglé on-chain.
 
 use crate::RuleError;
-
-/// Workload `calcul/sha256` : une unité = un octet de l'entrée.
-pub const SHA256_WORKLOAD: &str = "calcul/sha256";
-/// Workload `rendu/blocs` : une unité = un pixel de la bande du fragment.
-pub const RENDER_WORKLOAD: &str = "rendu/blocs";
-/// Lignes par bloc de rendu (comme `sil-wl-render::ROWS_PER_BLOCK`).
-pub const ROWS_PER_BLOCK: u64 = 8;
-/// Côté maximal d'une image (comme `sil-wl-render`).
-const MAX_SIDE: u64 = 16_384;
+use sil_workload_spec::{Spec, Unit};
 
 /// Forme de l'entrée, telle que la spec la déclare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Shape {
     /// Taille de l'entrée, en octets.
     pub input_size: u64,
-    /// Largeur de l'image en pixels (`rendu/blocs`).
+    /// Largeur de l'image en pixels (`rendu/raytracer`).
     pub width: u32,
-    /// Hauteur de l'image en pixels (`rendu/blocs`).
+    /// Hauteur de l'image en pixels (`rendu/raytracer`).
     pub height: u32,
 }
 
@@ -40,17 +34,18 @@ pub fn fragment_units(
     if index >= fragments {
         return Err(RuleError::UnknownFragment);
     }
-    match workload {
-        SHA256_WORKLOAD => sha256_units(shape.input_size, fragments, index),
-        RENDER_WORKLOAD => render_units(shape.width, shape.height, fragments, index),
-        _ => Err(RuleError::BadTerms("workload sans règle d'unités")),
+    let spec = sil_workload_spec::find(workload)
+        .ok_or(RuleError::BadTerms("workload sans descripteur"))?;
+    match spec.unit {
+        Unit::BytesInput => bytes_units(shape.input_size, fragments, index),
+        Unit::PixelsBand => pixels_band_units(spec, shape, fragments, index),
     }
 }
 
 /// Découpage par plages d'octets, comme `sil-wl-sha256` : `count = min(fragments, max(len, 1))`,
 /// et les `len % count` premiers fragments ont un octet de plus.
 /// Un découpage plus fin que l'entrée ferait produire moins de fragments que prévu : refusé.
-fn sha256_units(input_size: u64, fragments: u32, index: u32) -> Result<u64, RuleError> {
+fn bytes_units(input_size: u64, fragments: u32, index: u32) -> Result<u64, RuleError> {
     let count = u64::from(fragments);
     if count > input_size.max(1) {
         return Err(RuleError::BadTerms(
@@ -62,15 +57,25 @@ fn sha256_units(input_size: u64, fragments: u32, index: u32) -> Result<u64, Rule
     Ok(base + u64::from(u64::from(index) < extra))
 }
 
-/// Découpage par bandes de blocs, comme `sil-wl-render` : les `blocks = ceil(hauteur / 8)` blocs
-/// sont répartis sur les fragments (les premiers ont un bloc de plus). Une bande vaut sa largeur
-/// fois ses lignes ; la dernière est coupée à la hauteur de l'image.
-fn render_units(width: u32, height: u32, fragments: u32, index: u32) -> Result<u64, RuleError> {
-    let (width, height) = (u64::from(width), u64::from(height));
-    if width == 0 || height == 0 || width > MAX_SIDE || height > MAX_SIDE {
+/// Découpage par bandes de blocs de lignes (`block_rows` du descripteur) : les
+/// `blocks = ceil(hauteur / block_rows)` blocs sont répartis sur les fragments (les premiers ont un
+/// bloc de plus). Une bande vaut sa largeur fois ses lignes ; la dernière est coupée à la hauteur.
+fn pixels_band_units(
+    spec: &Spec,
+    shape: Shape,
+    fragments: u32,
+    index: u32,
+) -> Result<u64, RuleError> {
+    let (width, height) = (u64::from(shape.width), u64::from(shape.height));
+    let block_rows = u64::from(spec.block_rows);
+    if width == 0
+        || height == 0
+        || width > u64::from(spec.max_side)
+        || height > u64::from(spec.max_side)
+    {
         return Err(RuleError::BadTerms("dimensions de l'image"));
     }
-    let blocks = height.div_ceil(ROWS_PER_BLOCK);
+    let blocks = height.div_ceil(block_rows);
     let count = u64::from(fragments);
     if count > blocks {
         return Err(RuleError::BadTerms(
@@ -81,14 +86,18 @@ fn render_units(width: u32, height: u32, fragments: u32, index: u32) -> Result<u
     let index = u64::from(index);
     let first = index * base + index.min(extra);
     let last = first + base + u64::from(index < extra);
-    let rows = (last * ROWS_PER_BLOCK).min(height) - first * ROWS_PER_BLOCK;
+    let rows = (last * block_rows).min(height) - first * block_rows;
     Ok(width * rows)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Escrow, EscrowTerms, Payout, SETTLEMENT_FEE, SettleArgs};
+    use sil_workload_spec::{CALCUL_SHA256, RENDU_RAYTRACER};
+
+    const SHA256_WORKLOAD: &str = CALCUL_SHA256.id;
+    const RENDER_WORKLOAD: &str = RENDU_RAYTRACER.id;
+    use crate::{Escrow, EscrowTerms, Payout, SETTLEMENT_FEE, SettleArgs, reputation};
     use sil_types::{Hash32, JobId, PublicKey};
 
     fn key(n: u8) -> PublicKey {
@@ -116,8 +125,6 @@ mod tests {
         // 31 octets sur 3 fragments : 11 + 10 + 10 unités. Le premier fragment paie 11 unités.
         let terms = EscrowTerms {
             requester: key(100),
-            committee: vec![key(10), key(11), key(12)],
-            threshold: 2,
             workload: SHA256_WORKLOAD.into(),
             input_size: 31,
             width: 0,
@@ -139,8 +146,14 @@ mod tests {
             approvers: vec![key(70), key(71)],
         };
         let payouts = escrow
-            .settle(&args, &[key(10), key(11)], &key(200))
-            .unwrap();
+            .settle(
+                &args,
+                &[key(70), key(71)],
+                &key(200),
+                &[Some(reputation::VERIFIER_START); 2],
+            )
+            .unwrap()
+            .payouts;
         assert_eq!(
             payouts[0],
             Payout {

@@ -1,26 +1,38 @@
-//! Une tentative : claim retenu par le comité, bail, résultat, vérificateurs, verdicts.
+//! Une tentative : claim retenu, bail, résultat, vérificateurs, verdicts.
+//!
+//! Sans vote (ADR 0005, phase 2) : la tentative `k` est retenue par le **premier claim valide**
+//! dans l'ordre total (heure d'émission, identifiant). Pour `k > 1`, un claim n'est valide que si
+//! la tentative `k-1` est libérée, rejetée, ou a un bail expiré avant l'émission du claim. Le
+//! bail ne s'étend que par des renouvellements émis avant son échéance. Tout se décide sur les
+//! heures des événements : aucune horloge locale n'intervient.
 
 use super::{
-    index::{Ev, View},
+    index::{Ev, View, by_time},
     types::{AttemptState, ResultState, VerifierState},
-    votes::{agreed_time, multi_winners, single_winner},
 };
-use crate::{Event, EventBody};
+use crate::{Event, EventBody, spec::JobSpec};
 use sil_types::{Hash32, PublicKey};
 use std::collections::BTreeSet;
 
 /// Renouvellements de bail pris en compte.
-const MAX_RENEWALS: usize = 10;
+const MAX_RENEWALS: u32 = 10;
 /// Vérificateurs acceptés au plus (2V-1 arbitrage compris, borné).
 const MAX_VERIFIERS: usize = 31;
 
 pub(super) struct Accepted<'a> {
     pub(super) claim_id: Hash32,
     pub(super) claim: &'a Event,
-    pub(super) accepted_at_ms: u64,
 }
 
-fn find<'a>(events: &[Ev<'a>], id: &Hash32) -> Option<&'a Event> {
+/// Bail d'une tentative, lu sur les seuls événements de son claimant pour cette tentative.
+pub(super) struct Lease {
+    pub(super) expires_at_ms: u64,
+    pub(super) renewals: u32,
+    pub(super) released: bool,
+    pub(super) result: Option<ResultState>,
+}
+
+pub(super) fn find<'a>(events: &[Ev<'a>], id: &Hash32) -> Option<&'a Event> {
     events
         .iter()
         .copied()
@@ -28,18 +40,111 @@ fn find<'a>(events: &[Ev<'a>], id: &Hash32) -> Option<&'a Event> {
         .map(|(_, event)| event)
 }
 
-/// Claim retenu pour la tentative `k`, s'il y en a un.
-pub(super) fn accepted<'a>(view: &View<'a>, events: &[Ev<'a>], k: u32) -> Option<Accepted<'a>> {
-    let winner = single_winner(events, view.spec, |event| match &event.body {
-        EventBody::Accept { attempt, claim, .. } if *attempt == k => Some(*claim),
+/// La tentative `prev` est-elle terminée à l'heure `at_ms` (émission d'un claim suivant) ?
+/// Libérée, rejetée par les vérificateurs, ou bail expiré sans résultat à cette heure.
+fn free_at(spec: &JobSpec, prev: &AttemptState, at_ms: u64) -> bool {
+    if prev.released {
+        return true;
+    }
+    if prev.result.is_some() {
+        let needed = usize::try_from(spec.verifications_required).unwrap_or(usize::MAX);
+        return prev.rejections() >= needed;
+    }
+    at_ms > prev.lease_expires_at_ms
+}
+
+/// Claim retenu pour la tentative `k` : le premier claim valide dans l'ordre total. `attempts`
+/// sont les tentatives `1..k-1`, déjà retenues. Un ancien claimant du fragment ne peut pas le
+/// reprendre : le réducteur le fait comme la politique de réclamation du nœud.
+pub(super) fn accepted<'a>(
+    view: &View<'a>,
+    events: &[Ev<'a>],
+    k: u32,
+    attempts: &[AttemptState],
+) -> Option<Accepted<'a>> {
+    let previous = attempts.last();
+    if k > 1 && previous.is_none() {
+        return None;
+    }
+    let claimants: BTreeSet<PublicKey> = attempts.iter().map(|a| a.claimant).collect();
+    let mut claims: Vec<Ev<'a>> = events
+        .iter()
+        .copied()
+        .filter(|(_, event)| matches!(event.body, EventBody::Claim { attempt, .. } if attempt == k))
+        .collect();
+    by_time(&mut claims);
+    claims
+        .into_iter()
+        .find(|(_, claim)| {
+            !claimants.contains(&claim.author)
+                && previous.is_none_or(|p| free_at(view.spec, p, claim.issued_at_ms))
+        })
+        .map(|(id, claim)| Accepted {
+            claim_id: *id,
+            claim,
+        })
+}
+
+/// Résultat désigné par un `Submit`, si l'événement en est un.
+pub(super) fn result_state(id: &Hash32, event: &Event) -> Option<ResultState> {
+    match &event.body {
+        EventBody::Submit {
+            result,
+            size,
+            milestones_root,
+            ..
+        } => Some(ResultState {
+            event: *id,
+            result: *result,
+            size: *size,
+            milestones_root: *milestones_root,
+            submitted_at_ms: event.issued_at_ms,
+        }),
         _ => None,
-    })?;
-    let claim = find(events, &winner.key)?;
-    matches!(claim.body, EventBody::Claim { attempt, .. } if attempt == k).then(|| Accepted {
-        claim_id: winner.key,
-        claim,
-        accepted_at_ms: agreed_time(&winner.votes, view.spec),
-    })
+    }
+}
+
+/// Bail de la tentative `k` du claimant, à partir de l'heure d'émission de son claim. Chaque
+/// renouvellement émis avant l'échéance l'étend d'une période ; ce qui arrive après n'a pas
+/// d'effet. Le premier `Submit` dans le bail est le résultat.
+pub(super) fn own_lease(
+    view: &View<'_>,
+    events: &[Ev<'_>],
+    k: u32,
+    claimant: PublicKey,
+    claimed_at_ms: u64,
+) -> Lease {
+    let lease_ms = view.spec.lease_ms;
+    let mut own: Vec<Ev<'_>> = events
+        .iter()
+        .copied()
+        .filter(|(_, e)| e.author == claimant && e.body.attempt() == Some(k))
+        .collect();
+    by_time(&mut own);
+    let mut expires = claimed_at_ms.saturating_add(lease_ms);
+    let mut renewals = 0;
+    let mut result = None;
+    let mut released = false;
+    for (id, e) in own {
+        if e.issued_at_ms > expires {
+            continue;
+        }
+        match &e.body {
+            EventBody::Renew { .. } if renewals < MAX_RENEWALS => {
+                renewals += 1;
+                expires = expires.saturating_add(lease_ms);
+            }
+            EventBody::Submit { .. } if result.is_none() => result = result_state(id, e),
+            EventBody::Release { .. } => released = true,
+            _ => {}
+        }
+    }
+    Lease {
+        expires_at_ms: expires,
+        renewals,
+        released,
+        result,
+    }
 }
 
 pub(super) fn detail(
@@ -49,76 +154,49 @@ pub(super) fn detail(
     won: &Accepted<'_>,
 ) -> AttemptState {
     let claimant = won.claim.author;
-    let own = || {
-        events
-            .iter()
-            .copied()
-            .filter(move |(_, e)| e.author == claimant && e.body.attempt() == Some(k))
-    };
-    let renewals = own()
-        .filter(|(_, e)| matches!(e.body, EventBody::Renew { .. }))
-        .count()
-        .min(MAX_RENEWALS);
-    let result = own()
-        .filter(|(_, e)| matches!(e.body, EventBody::Submit { .. }))
-        .min_by_key(|(_, e)| e.sequence)
-        .and_then(|(id, e)| match &e.body {
-            EventBody::Submit {
-                result,
-                size,
-                milestones_root,
-                ..
-            } => Some(ResultState {
-                event: *id,
-                result: *result,
-                size: *size,
-                milestones_root: *milestones_root,
-            }),
-            _ => None,
-        });
-    let renewals_u32 = u32::try_from(renewals).unwrap_or(u32::MAX);
-    let lease = view
-        .spec
-        .lease_ms
-        .saturating_mul(u64::from(renewals_u32) + 1);
+    let lease = own_lease(view, events, k, claimant, won.claim.issued_at_ms);
     AttemptState {
         attempt: k,
         claimant,
         claim_event: won.claim_id,
-        accepted_at_ms: won.accepted_at_ms,
-        renewals: renewals_u32,
-        lease_expires_at_ms: won.accepted_at_ms.saturating_add(lease),
-        released: own().any(|(_, e)| matches!(e.body, EventBody::Release { .. })),
-        verifiers: verifiers(view, events, k, claimant, result.as_ref()),
-        result,
+        accepted_at_ms: won.claim.issued_at_ms,
+        renewals: lease.renewals,
+        lease_expires_at_ms: lease.expires_at_ms,
+        released: lease.released,
+        verifiers: verifiers(view, events, k, claimant, lease.result.as_ref()),
+        result: lease.result,
     }
 }
 
-fn verifiers(
+/// Vérificateurs retenus pour la tentative `k` du claimant, et leur verdict sur `result`.
+pub(super) fn verifiers(
     view: &View<'_>,
     events: &[Ev<'_>],
     k: u32,
     claimant: PublicKey,
     result: Option<&ResultState>,
 ) -> Vec<VerifierState> {
-    let winners = multi_winners(events, view.spec, |event| match &event.body {
-        EventBody::VerifierAccept { attempt, offer, .. } if *attempt == k => Some(*offer),
-        _ => None,
-    });
     let mut chosen: Vec<(u64, Hash32, PublicKey)> = Vec::new();
-    for winner in winners {
-        let Some(offer) = find(events, &winner.key) else {
-            continue;
-        };
-        let valid = matches!(offer.body, EventBody::VerifyOffer { attempt, .. } if attempt == k)
-            && offer.author != claimant;
-        if valid {
-            chosen.push((
-                agreed_time(&winner.votes, view.spec),
-                winner.key,
-                offer.author,
-            ));
-        }
+    // Vérificateurs (ADR 0005, ADR 0006) : les k premières offres valides dans l'ordre total,
+    // d'auteurs distincts, jamais le claimant. Aucune liste blanche : la réputation on-chain est
+    // contrôlée au règlement. Aucun vote.
+    let wanted = usize::try_from(view.spec.verifications_required).unwrap_or(usize::MAX);
+    let mut offers: Vec<Ev<'_>> = events
+        .iter()
+        .copied()
+        .filter(|(_, e)| {
+            matches!(e.body, EventBody::VerifyOffer { attempt, .. } if attempt == k)
+                && e.author != claimant
+        })
+        .collect();
+    by_time(&mut offers);
+    let mut distinct = BTreeSet::new();
+    for (id, offer) in offers
+        .into_iter()
+        .filter(|(_, offer)| distinct.insert(offer.author))
+        .take(wanted)
+    {
+        chosen.push((offer.issued_at_ms, *id, offer.author));
     }
     chosen.sort();
     let mut seen = BTreeSet::new();

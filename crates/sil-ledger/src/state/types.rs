@@ -47,6 +47,8 @@ pub struct ResultState {
     pub result: Hash32,
     pub size: u64,
     pub milestones_root: Hash32,
+    /// Heure de publication du résultat (événement `Submit`).
+    pub submitted_at_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -63,7 +65,7 @@ pub struct AttemptState {
     pub attempt: u32,
     pub claimant: PublicKey,
     pub claim_event: Hash32,
-    /// Heure convenue du vote décisif du comité (le `threshold`-ième plus petit).
+    /// Heure d'émission du claim retenu (premier claim valide dans l'ordre total).
     pub accepted_at_ms: u64,
     pub renewals: u32,
     pub lease_expires_at_ms: u64,
@@ -122,7 +124,7 @@ pub struct JobState {
     pub tasks: Vec<TaskState>,
 }
 
-/// Offre (claim ou proposition de vérification) en attente de décision du comité.
+/// Offre (claim ou proposition de vérification) en attente de décision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OpenOffer {
     pub event: Hash32,

@@ -3,7 +3,7 @@
 ## Principe
 
 Un requester signe un `JobSpec` (wallet). Des workers calculent, des vérificateurs
-attestent, un comité de coordinateurs (n, seuil m) ordonne les décisions. La finalisation
+attestent, les décisions sont des règles sur le journal (sans comité, ADR 0007). La finalisation
 porte un **certificat** d'attestations que tout pair revalide. Le règlement on-chain est
 lié au même `job_id = H(JobSpec)`.
 
@@ -24,7 +24,7 @@ lié au même `job_id = H(JobSpec)`.
 `sil-types` → `sil-crypto`, `sil-codec`, `sil-config`, `sil-telemetry` →
 `sil-ledger` (+ `-store`, `sil-quota`, `sil-attest`) → `sil-content`, `sil-models`, `sil-net` → `sil-transfer` (colle réseau + stockage) →
 `sil-sampling`, `sil-workload-api` (+ `sil-wl-sha256`, `sil-wl-render`), `sil-sandbox`,
-`sil-reputation`, `sil-coordinator` → `sil-chain-core`, `sil-settlement` → `sil-control-api` → `sil-node` (voir [node.md](node.md)).
+`sil-reputation`, `sil-chain-core`, `sil-settlement` → `sil-control-api` → `sil-node` (voir [node.md](node.md)).
 
 Dépendances en DAG : un crate n'importe jamais un crate situé après lui.
 

@@ -1,0 +1,71 @@
+# Workloads : descripteurs et procédure
+
+Un workload (type de calcul) se décrit **une fois**, dans `contracts/workloads/<nom>.json`. Trois
+consommateurs lisent ce descripteur, générés par `tools/workloads/generate.mjs` :
+
+| Consommateur | Fichier généré | Ce qu'il en tire |
+|---|---|---|
+| Nœud et chaîne (Rust) | `crates/sil-workload-spec/src/generated.rs` | unité, limites, politique de vérification, découpage |
+| API (Go) | `services/api/internal/workloadspec/generated.go` | découpage, tarifs : `policy.For` |
+| Site (TypeScript) | `apps/web/src/workloads/generated.ts` | liste des workloads, champs du formulaire, dépôt |
+
+Les fichiers générés ne se modifient pas à la main. Le Go et le TypeScript ont un test de concordance
+avec les descripteurs (`workloadspec_test.go`, `workloads.test.ts`). Le Rust n'en a pas : sa
+concordance se vérifie par `node tools/workloads/generate.mjs --check`.
+
+## Ce qui est générique, ce qui reste du code
+
+- **Générique (descripteur)** : identifiant, unité, champs demandés à l'utilisateur, taille max
+  de l'entrée, découpage (`max_fragments`, `target_size`), tarifs, politique de vérification
+  (`recompute` ou `sampling`), limites d'exécution, possibilité de dépôt sur le site.
+- **Code (par workload)** : le découpage exact de l'entrée, l'exécution d'un fragment et la
+  vérification d'un résultat. Un descripteur ne peut pas décrire un calcul.
+- **Code (par type d'unité)** : `sil-chain-core/src/units.rs`, `escrow.ts` (`maxPayout`). Un type
+  connu (`bytes_input`, `pixels_band`) ne demande aucune modification on-chain.
+
+## Champs d'un descripteur
+
+```json
+{
+  "schema": "silicium.workload/v1",
+  "id": "rendu/raytracer",
+  "description": "Texte affiché dans la documentation générée.",
+  "unit": "pixels_band",
+  "label_key": "submit.workloadRender",
+  "input": { "params": ["width", "height"], "max_side": 4096, "max_input_bytes": 8388608 },
+  "geometry": { "block_rows": 8 },
+  "split": { "max_fragments": 16, "target_size": 32 },
+  "terms": { "reward_per_unit": 1, "verifier_reward_per_unit": 1 },
+  "verification": { "policy": "sampling", "min_cheat_fraction": 0.2, "target_detection": 0.99 },
+  "limits": { "wall_ms": 600000, "memory_bytes": 1073741824, "output_bytes": 268435456 },
+  "deposit": "unsupported"
+}
+```
+
+- `unit` : `bytes_input` (une unité = un octet de l'entrée) ou `pixels_band` (une unité = un pixel
+  d'une bande de blocs de lignes). `pixels_band` exige `params` = `["width", "height"]` et
+  `geometry.block_rows`, `input.max_side`.
+- `params` : seuls `width` et `height` sont connus de la spec du job. Ils sont envoyés en en-tête
+  de l'entrée, en u32 little-endian, dans l'ordre déclaré.
+- `split.target_size` : taille visée d'un fragment, dans l'unité de découpage (octets pour
+  `bytes_input`, blocs pour `pixels_band`).
+- `deposit` : `supported` seulement si le site sait calculer le dépôt (unité `bytes_input`).
+
+## Ajouter un workload
+
+1. Écrire `contracts/workloads/<nom>.json` (champs ci-dessus).
+2. `node tools/workloads/generate.mjs` : régénère les trois fichiers et valide le descripteur.
+3. Créer le crate `crates/sil-wl-<nom>` : implémenter `Workload` (`split`, `execute`,
+   `verify`, `combine`). Pour `id`, `limits` et `policy`, appeler `limits_of` et `policy_of` avec le
+   descripteur (`sil_workload_spec::<NOM>`).
+4. Enregistrer le workload dans `registry_for` (`crates/sil-node/src/cli.rs`).
+5. Si le type d'unité est nouveau : ajouter la règle dans `sil-chain-core/src/units.rs`, la
+   redéployer sur le programme, puis ajouter le calcul de dépôt dans `apps/web/src/chain/escrow.ts`.
+6. Ajouter les clés de libellé (`label_key`) dans `fr.ts` et `en.ts`.
+7. Lancer les tests : `cargo test --workspace`, `go test ./...` dans `services/api`,
+   `npx vitest run` dans `apps/web`, et `node tools/workloads/generate.mjs --check`.
+
+## Limite connue
+
+La spec signée du job garde les champs `width` et `height` (protocole). Un workload qui aurait
+besoin d'autres paramètres demande une évolution du format de la spec et des vecteurs de test.

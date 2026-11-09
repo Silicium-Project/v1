@@ -46,6 +46,7 @@ async fn scan_job(shared: &Arc<Shared>, job: &JobId) {
         };
         if let Some(attempt) = state.next_attempt
             && !state.attempts.iter().any(|a| a.claimant == me)
+            && open_claims(shared, &me, now) < max_parallel(shared, &me, now)
             && lock(&shared.work).claimed.insert((*job, fragment, attempt))
         {
             let ok = match escrow_checked {
@@ -85,6 +86,10 @@ async fn escrow_is_sound(
     spec: &sil_ledger::JobSpec,
     needed_ms: u64,
 ) -> bool {
+    // Mode de test : pas de paiement, donc pas d'escrow à vérifier (refusé avec une chaîne).
+    if shared.free_work {
+        return true;
+    }
     let now = shared.now_ms();
     if let Some((until, ok)) = lock(&shared.work).escrow_ok.get(job).copied()
         && now < until
@@ -103,4 +108,40 @@ async fn escrow_is_sound(
         .escrow_ok
         .insert(*job, (now + ESCROW_TTL_MS, ok));
     ok
+}
+
+/// Fragments que ce noeud tient maintenant : reclames, ni soumis ni finals. Le plafond de
+/// reputation (`max_parallel`) s'applique a ce compte, pas seulement a l'affichage.
+fn open_claims(shared: &Arc<Shared>, me: &sil_types::PublicKey, now: u64) -> usize {
+    let mut open = 0;
+    for job in shared.job_ids() {
+        let Some(fragments) = lock(&shared.ledger).spec(&job).map(|s| s.spec.fragments) else {
+            continue;
+        };
+        for fragment in 0..fragments {
+            let Some(state) = lock(&shared.ledger).task_state(&job, fragment, now) else {
+                continue;
+            };
+            if state.finalized.is_none()
+                && let Some(last) = state.attempts.last()
+                && last.claimant == *me
+                && last.result.is_none()
+                && !last.released
+            {
+                open += 1;
+            }
+        }
+    }
+    open
+}
+
+/// Taches simultanees de ce noeud : la reputation, bornee par les coeurs (un coeur reste libre pour
+/// le systeme et l'interface). Le rendu est mono-thread par tache.
+pub(crate) fn max_parallel(shared: &Shared, me: &sil_types::PublicKey, now: u64) -> usize {
+    let reputation = lock(&shared.reputation).max_parallel(me, now) as usize;
+    reputation.min(cpu_limit())
+}
+
+fn cpu_limit() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get().saturating_sub(1).max(1))
 }

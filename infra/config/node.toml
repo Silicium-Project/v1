@@ -1,0 +1,29 @@
+# Nœud du VPS (testnet) : point d'amorçage (sans comité, ADR 0007). Aucun secret dans ce fichier.
+# Copié vers /etc/silicium/node.toml par infra/vps/deploy.sh (ou à la main).
+
+data_dir = "/var/lib/silicium/node"
+
+[network]
+# TCP et QUIC sur le même port : le pare-feu ouvre 4001/tcp et 4001/udp.
+listen = ["/ip4/0.0.0.0/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic-v1"]
+# Premier nœud : pas d'amorçage. Les autres nœuds mettent ici /ip4/<VPS>/tcp/4001/p2p/<id>.
+bootstrap = []
+# Relais public : les nœuds derrière un NAT réservent un circuit auprès de ce nœud.
+relay_server = true
+enable_mdns = false
+
+[control]
+# API locale : jamais exposée. Seul le service API (même machine) s'y connecte.
+bind = "127.0.0.1"
+port = 8750
+
+[log]
+level = "info"
+json = true
+
+# Moteur raytracing (workload rendu/raytracer) : le binaire sil-raytracer-block et son lanceur
+# sil-sandbox-launch sont à côté de silicium-node. Décommenter sur un nœud qui fait du rendu.
+# [render]
+# engine = "/opt/silicium/bin/sil-raytracer-block"
+# wall_ms = 600000
+# isolation = "strict"

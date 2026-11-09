@@ -2,17 +2,23 @@ use super::{client::*, scenario::*, slow::slow_registry, support::*};
 use sil_settlement::testing::FakeChain;
 use std::sync::Arc;
 
+/// Vrai si les deux nœuds ont reçu les mêmes événements du job (mêmes têtes de chaîne).
+fn same_journal(a: &TestNode, b: &TestNode, job: &sil_types::JobId) -> bool {
+    let heads = |node: &TestNode| crate::shared::lock(&node.node.shared().ledger).heads(job);
+    heads(a) == heads(b)
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_long_computation_keeps_its_lease_alive() {
     let chain = Arc::new(FakeChain::new());
     let data = input_bytes();
-    let mut spec = job_spec(&committee_keys(), input_hash(&data));
+    let mut spec = job_spec(input_hash(&data));
     spec.lease_ms = 1_500; // le calcul dure 3 s : sans renouvellement le bail expire
     chain.insert_escrow(escrow_for(&spec));
 
     let c1 = start(
         1,
-        roles(true, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         true,
@@ -20,7 +26,7 @@ async fn a_long_computation_keeps_its_lease_alive() {
     .await;
     let c2 = start(
         2,
-        roles(true, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -28,17 +34,17 @@ async fn a_long_computation_keeps_its_lease_alive() {
     .await;
     let c3 = start(
         3,
-        roles(true, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         false,
     )
     .await;
     let slow = slow_registry(std::time::Duration::from_secs(3));
-    let worker = start(5, roles(false, true, false), slow, chain.clone(), false).await;
+    let worker = start(5, roles(true, false), slow, chain.clone(), false).await;
     let v = start(
         4,
-        roles(false, false, true),
+        roles(false, true),
         sha_registry(),
         chain.clone(),
         false,
@@ -78,12 +84,12 @@ async fn a_long_computation_keeps_its_lease_alive() {
 async fn a_node_joining_late_catches_up_through_sync() {
     let chain = Arc::new(FakeChain::new());
     let data = input_bytes();
-    let spec = job_spec(&committee_keys(), input_hash(&data));
+    let spec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
 
     let c1 = start(
         1,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         true,
@@ -91,7 +97,7 @@ async fn a_node_joining_late_catches_up_through_sync() {
     .await;
     let c2 = start(
         2,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -99,7 +105,7 @@ async fn a_node_joining_late_catches_up_through_sync() {
     .await;
     let c3 = start(
         3,
-        roles(true, true, false),
+        roles(true, false),
         sha_registry(),
         chain.clone(),
         false,
@@ -107,7 +113,7 @@ async fn a_node_joining_late_catches_up_through_sync() {
     .await;
     let v = start(
         4,
-        roles(false, false, true),
+        roles(false, true),
         sha_registry(),
         chain.clone(),
         false,
@@ -127,15 +133,17 @@ async fn a_node_joining_late_catches_up_through_sync() {
     // puis rattrape l'historique de tous les auteurs par curseur.
     let late = start(
         7,
-        roles(false, false, false),
+        roles(false, false),
         sha_registry(),
         chain.clone(),
         false,
     )
     .await;
     connect_new(&late, &nodes).await;
+    // Même journal (mêmes têtes de chaîne) avant de comparer : la phase 2 tranche les claims
+    // par ordre total, donc deux nœuds ne sont d'accord qu'une fois les mêmes événements reçus.
     wait_dump(60, "retardataire à jour", &[&late], &job, || {
-        finalized_everywhere(&[&late], &job)
+        finalized_everywhere(&[&late], &job) && same_journal(&late, &c1, &job)
     })
     .await;
 

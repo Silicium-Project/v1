@@ -8,7 +8,7 @@
 //! Invariants garantis (testés) :
 //! - `payé + remboursé ≤ déposé`, toujours ;
 //! - un fragment est réglé **au plus une fois** ;
-//! - un règlement exige `threshold` membres **distincts** du comité ;
+//! - un règlement exige la signature de **chaque** approbateur, éligible (ADR 0006, 0007) ;
 //! - après remboursement, plus aucun règlement ;
 //! - le remboursement n'est possible qu'après l'échéance **plus un délai de grâce**, pour
 //!   laisser atterrir les règlements en vol ;
@@ -18,7 +18,9 @@
 
 mod error;
 mod escrow;
+mod penalty;
 mod refund;
+pub mod reputation;
 mod settle;
 mod terms;
 pub mod units;
@@ -26,8 +28,15 @@ pub mod wire;
 
 pub use error::RuleError;
 pub use escrow::{Escrow, SettledFragment};
-pub use settle::{Payout, SettleArgs};
+pub use penalty::PenaltyArgs;
+pub use settle::{Payout, SettleArgs, Settlement};
 pub use terms::{EscrowTerms, MAX_APPROVERS, REFUND_GRACE_MS, SETTLEMENT_FEE};
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_random;
+#[cfg(test)]
+mod tests_reputation;
+#[cfg(test)]
+mod wire_vectors;

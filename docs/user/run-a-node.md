@@ -11,7 +11,7 @@ cargo build --release -p sil-node
 ./target/release/silicium-node --config node.toml --roles worker,verifier
 ```
 
-Rôles : `coordinator` (vote au nom du comité d'un job dont vous êtes membre), `worker` (calcule),
+Rôles : `worker` (calcule),
 `verifier` (vérifie les calculs des autres). Combinables, séparés par des virgules.
 
 ## Configuration minimale (`node.toml`)
@@ -33,6 +33,15 @@ Toutes les clés sont décrites dans [configuration.md](configuration.md). Au d�
 - la clé du nœud est créée dans `data/node.seed` (droits 0600 sous Unix, **à sauvegarder** : elle
   porte votre identité) ;
 - un jeton d'accès est créé dans `data/control.token` s'il n'existe pas.
+
+## Afficher la clé publique du nœud
+
+```bash
+./target/release/silicium-node --config node.toml --public-key
+```
+
+Affiche la clé publique du nœud (64 caractères hexadécimaux) puis s'arrête. Elle identifie le nœud ;
+aucune graine n'est créée ni affichée : sans `node.seed`, la commande échoue.
 
 ## Appeler l'API locale
 

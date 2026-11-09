@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { formatDateTime } from '@/i18n/format'
-import { deleteAccount, exportAccount, profile, type Profile } from '@/api/endpoints'
+import { deleteAccount, exportAccount, profile, setCredentials, type Profile } from '@/api/endpoints'
+import { credentialProblem, EMAIL_MAX, PASSWORD_MAX, PASSWORD_MIN } from '@/api/credential-limits'
+import FormField from '@/components/FormField.vue'
 import { deleteAccountWithWallet, deleteChallenge } from '@/api/wallet-endpoints'
 import { connectWallet, signWithWallet, WalletFailure } from '@/platform/wallet'
 import { encodeBase58 } from '@/signing/base58'
@@ -20,6 +22,15 @@ const exporting = ref(false)
 const password = ref('')
 const confirmed = ref(false)
 const deleting = ref(false)
+
+// Identifiants e-mail : un compte wallet n'en a pas encore ; un compte e-mail a déjà un mot de passe.
+const hasPassword = computed(() => !!account.value?.email)
+const credEmail = ref('')
+const credCurrent = ref('')
+const credNew = ref('')
+const credConfirm = ref('')
+const credError = ref('')
+const credSaving = ref(false)
 
 async function run(action: (token: string) => Promise<void>): Promise<void> {
   const token = currentToken()
@@ -39,7 +50,44 @@ async function run(action: (token: string) => Promise<void>): Promise<void> {
 async function load(): Promise<void> {
   await run(async (token) => {
     account.value = await profile(token)
+    credEmail.value = account.value.email
   })
+}
+
+// Un champ vide pour le nouveau mot de passe garde l'actuel (compte e-mail seulement).
+async function saveCredentials(): Promise<void> {
+  const problem = credentialProblem(
+    {
+      email: credEmail.value,
+      currentPassword: credCurrent.value,
+      newPassword: credNew.value,
+      confirmPassword: credConfirm.value,
+    },
+    hasPassword.value,
+  )
+  credError.value = problem ? t(problem) : ''
+  const token = currentToken()
+  if (problem || !token) return
+  credSaving.value = true
+  success.value = ''
+  const change: { email: string; current_password?: string; new_password?: string } = {
+    email: credEmail.value.trim(),
+  }
+  if (hasPassword.value) change.current_password = credCurrent.value
+  if (credNew.value !== '') change.new_password = credNew.value
+  try {
+    account.value = await setCredentials(token, change)
+    credEmail.value = account.value.email
+    credCurrent.value = ''
+    credNew.value = ''
+    credConfirm.value = ''
+    success.value = t('account.credentialsSaved')
+  } catch (failure) {
+    if (isSessionEnded(failure)) await endSession(router)
+    else credError.value = t(errorMessageKey(failure))
+  } finally {
+    credSaving.value = false
+  }
 }
 
 async function downloadExport(): Promise<void> {
@@ -122,6 +170,56 @@ onMounted(load)
       <dt>{{ t('account.created') }}</dt>
       <dd><time :datetime="account.created_at">{{ formatDateTime(account.created_at) }}</time></dd>
     </dl>
+
+    <section class="card stack" aria-labelledby="credentials-title">
+      <h2 id="credentials-title">{{ t('account.credentialsTitle') }}</h2>
+      <p>{{ t('account.credentialsText') }}</p>
+      <form class="stack" novalidate @submit.prevent="saveCredentials">
+        <FormField
+          id="cred-email"
+          v-model="credEmail"
+          :label="t('account.email')"
+          type="email"
+          autocomplete="email"
+          :maxlength="EMAIL_MAX"
+          required
+        />
+        <FormField
+          v-if="hasPassword"
+          id="cred-current"
+          v-model="credCurrent"
+          :label="t('account.currentPassword')"
+          type="password"
+          autocomplete="current-password"
+          :maxlength="PASSWORD_MAX"
+        />
+        <FormField
+          id="cred-new"
+          v-model="credNew"
+          :label="t('account.newPassword')"
+          type="password"
+          autocomplete="new-password"
+          :maxlength="PASSWORD_MAX"
+          :minlength="PASSWORD_MIN"
+          :required="!hasPassword"
+          :hint="hasPassword ? t('account.passwordOptional') : t('account.passwordRequired')"
+        />
+        <p class="field__hint">{{ t('account.passwordCount', { count: credNew.length }) }}</p>
+        <FormField
+          id="cred-confirm"
+          v-model="credConfirm"
+          :label="t('account.confirmPassword')"
+          type="password"
+          autocomplete="new-password"
+          :maxlength="PASSWORD_MAX"
+          :required="!hasPassword"
+        />
+        <Notice kind="error" :message="credError" />
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" :disabled="credSaving">{{ t('account.credentialsSave') }}</button>
+        </div>
+      </form>
+    </section>
 
     <section class="card stack" aria-labelledby="export-title">
       <h2 id="export-title">{{ t('account.exportTitle') }}</h2>

@@ -10,19 +10,25 @@ fn completed(p: Params) -> (World, sil_types::Hash32, sil_crypto::SigningIdentit
     (world, result, worker)
 }
 
+/// Phase 3 : les k = 2 premières offres sont retenues. Un saboteur qui propose en dernier n'est
+/// pas retenu, donc son rejet ne compte pas.
 #[test]
-fn one_sybil_rejection_cannot_kill_a_result_that_needs_two_approvals() {
+fn a_late_sybil_rejection_cannot_kill_a_result_that_needs_two_approvals() {
     let (mut world, result, _) = completed(Params {
         verifications: 2,
         ..Params::default()
     });
     let (griefer, honest_a, honest_b) = (ident(61), ident(62), ident(63));
-    for verifier in [&griefer, &honest_a, &honest_b] {
+    for verifier in [&honest_a, &honest_b, &griefer] {
         world.accept_verifier(verifier, 1);
     }
     world.attest(&griefer, 1, result, false);
-    assert_eq!(world.status(), TaskStatus::Completed, "1 rejet < 2 requis");
     world.attest(&honest_a, 1, result, true);
+    assert_eq!(
+        world.status(),
+        TaskStatus::Completed,
+        "1 approbation < 2 requises"
+    );
     world.attest(&honest_b, 1, result, true);
     assert_eq!(world.status(), TaskStatus::Verified);
 }
@@ -38,22 +44,18 @@ fn enough_rejections_reject_the_attempt_and_open_the_next() {
     assert_eq!(task.next_attempt, Some(2));
 }
 
+/// Phase 3 : avec k = 1, seule la première offre est retenue. Un verdict d'une offre suivante est
+/// ignoré, même contraire.
 #[test]
-fn conflicting_verdicts_that_both_reach_the_threshold_are_disputed() {
+fn a_verdict_from_an_unchosen_verifier_is_ignored() {
     let (mut world, result, _) = completed(Params::default());
     let (yes, no) = (ident(61), ident(62));
     world.accept_verifier(&yes, 1);
     world.accept_verifier(&no, 1);
     world.attest(&yes, 1, result, true);
     world.attest(&no, 1, result, false);
-    assert_eq!(world.status(), TaskStatus::Disputed);
-    assert_eq!(
-        world
-            .ledger
-            .verification_slots_open(&world.job, 0, world.now),
-        0,
-        "2V-1 = 1 place, déjà prise par 2 vérificateurs"
-    );
+    assert_eq!(world.status(), TaskStatus::Verified);
+    assert_eq!(world.task().attempts[0].verifiers.len(), 1);
 }
 
 #[test]
@@ -66,7 +68,7 @@ fn the_claimant_cannot_be_its_own_verifier() {
 }
 
 #[test]
-fn a_verdict_from_a_verifier_the_committee_never_accepted_is_ignored() {
+fn a_verdict_from_a_verifier_never_chosen_is_ignored() {
     let (mut world, result, _) = completed(Params::default());
     let stranger = ident(66);
     world.attest(&stranger, 1, result, true);
@@ -110,11 +112,20 @@ fn open_verifications_exclude_claimant_and_accepted_verifiers() {
             attempt: 1,
         },
     );
-    let offers = world.ledger.open_verifications(&world.job, 0, world.now);
-    let authors: Vec<_> = offers.iter().map(|o| o.author).collect();
-    assert_eq!(offers.len(), 2);
-    assert!(authors.contains(&v1.public()) && authors.contains(&v2.public()));
-    assert!(!authors.contains(&worker.public()));
+    // Phase 3 : v1 et v2 sont les deux premières offres : retenues, donc plus « ouvertes ».
+    let verifiers: Vec<_> = world.task().attempts[0]
+        .verifiers
+        .iter()
+        .map(|v| v.verifier)
+        .collect();
+    assert_eq!(verifiers, vec![v1.public(), v2.public()]);
+    assert!(
+        world
+            .ledger
+            .open_verifications(&world.job, 0, world.now)
+            .is_empty()
+    );
+    assert!(!verifiers.contains(&worker.public()));
 }
 
 #[test]

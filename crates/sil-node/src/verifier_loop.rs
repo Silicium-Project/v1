@@ -41,6 +41,9 @@ fn awaiting_verification(state: &TaskState) -> bool {
 
 fn scan_job(shared: &Arc<Shared>, job: &JobId) {
     let now = shared.now_ms();
+    let me = shared.identity.public();
+    // Tout nœud qui connaît le workload propose de vérifier (ADR 0006). La réputation on-chain
+    // décide au règlement, pas ici.
     let (workload_known, fragments) = {
         let ledger = lock(&shared.ledger);
         match ledger.spec(job) {
@@ -54,7 +57,6 @@ fn scan_job(shared: &Arc<Shared>, job: &JobId) {
     if !workload_known {
         return;
     }
-    let me = shared.identity.public();
     for fragment in 0..fragments {
         let Some(state) = lock(&shared.ledger).task_state(job, fragment, now) else {
             continue;
@@ -62,11 +64,15 @@ fn scan_job(shared: &Arc<Shared>, job: &JobId) {
         let Some(attempt) = state.attempts.last() else {
             continue;
         };
-        if !awaiting_verification(&state) || attempt.claimant == me || attempt.result.is_none() {
+        if !awaiting_verification(&state) || attempt.result.is_none() {
             continue;
         }
         let key = (*job, fragment, attempt.attempt);
         let mine = attempt.verifiers.iter().find(|v| v.verifier == me);
+        // Le claimant ne vérifie jamais son propre calcul (ADR 0007).
+        if attempt.claimant == me {
+            continue;
+        }
         match mine {
             None => {
                 if lock(&shared.work).offered.insert(key) {
@@ -166,6 +172,10 @@ async fn verify(
             (false, Some(evidence.hash()))
         }
     };
+    let claimant = lock(&shared.ledger)
+        .task_state(job, fragment, now)
+        .and_then(|s| s.attempts.get(attempt as usize - 1).map(|a| a.claimant))
+        .ok_or("claimant inconnu")?;
     let attestation = Attestation::sign(
         &shared.identity,
         AttestationBody {
@@ -177,6 +187,17 @@ async fn verify(
         },
     )
     .map_err(|e| e.to_string())?;
+    // ADR 0007 : une approbation porte la signature de règlement du vérificateur.
+    let settlement = sil_settlement::SettlementClaim {
+        job: *job,
+        fragment,
+        attempt,
+        result: submitted.result,
+        claimant,
+        approvers: Vec::new(),
+    }
+    .bytes();
+    let attestation = attestation.with_settlement(&shared.identity, &settlement);
     Ok(EventBody::Attest { attestation })
 }
 

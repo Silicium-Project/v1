@@ -9,6 +9,7 @@ license.workspace = true
 sil-types.workspace = true
 sil-crypto.workspace = true
 sil-codec.workspace = true
+sil-workload-spec.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 

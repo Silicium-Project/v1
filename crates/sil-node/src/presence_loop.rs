@@ -1,7 +1,7 @@
 //! Présence : annonce périodique, minimale, des rôles et de la charge de ce nœud.
 
 use crate::shared::{Shared, lock};
-use sil_net::{PeerId, Presence, PresenceGate, ROLE_COMPUTE, ROLE_COORDINATOR, ROLE_VERIFY, Topic};
+use sil_net::{PeerId, Presence, PresenceGate, ROLE_COMPUTE, ROLE_VERIFY, Topic};
 use std::{sync::Arc, sync::atomic::Ordering, time::Duration};
 use tokio::{sync::watch, time::interval};
 
@@ -16,12 +16,7 @@ const MAX_LEN: usize = 512;
 fn local_presence(shared: &Shared) -> Presence {
     let roles = &shared.roles;
     let mask = (if roles.worker { ROLE_COMPUTE } else { 0 })
-        | (if roles.verifier { ROLE_VERIFY } else { 0 })
-        | (if roles.coordinator {
-            ROLE_COORDINATOR
-        } else {
-            0
-        });
+        | (if roles.verifier { ROLE_VERIFY } else { 0 });
     let active = shared.active.load(Ordering::Relaxed);
     let mut workloads: Vec<String> = shared
         .registry

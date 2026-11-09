@@ -6,7 +6,7 @@
 use crate::{ControlOptions, Node, NodeOptions, Roles};
 use sil_chain_core::Escrow;
 use sil_config::{ChainConfig, IsolationMode, NodeConfig};
-use sil_crypto::keyfile;
+use sil_crypto::{Purpose, keyfile};
 use sil_net::Multiaddr;
 use sil_render_wasm::WasmRenderer;
 use sil_sandbox::{Isolation, Level};
@@ -48,22 +48,27 @@ pub fn without_chain(_: &ChainConfig) -> Result<Arc<dyn Chain>, String> {
 struct Args {
     config: Option<PathBuf>,
     roles: Roles,
+    public_key: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
     let mut args = Args {
         config: None,
         roles: Roles::default(),
+        public_key: false,
     };
     let mut iter = std::env::args().skip(1);
     while let Some(flag) = iter.next() {
+        if flag == "--public-key" {
+            args.public_key = true;
+            continue;
+        }
         let value = iter.next().ok_or(format!("{flag} attend une valeur"))?;
         match flag.as_str() {
             "--config" => args.config = Some(value.into()),
             "--roles" => {
                 for role in value.split(',') {
                     match role.trim() {
-                        "coordinator" => args.roles.coordinator = true,
                         "worker" => args.roles.worker = true,
                         "verifier" => args.roles.verifier = true,
                         other => return Err(format!("rôle inconnu : {other}")),
@@ -85,8 +90,10 @@ fn addresses(list: &[String]) -> Result<Vec<Multiaddr>, String> {
 fn options(config: &NodeConfig, roles: Roles) -> Result<NodeOptions, String> {
     let mut options = NodeOptions::new(&config.data_dir);
     options.roles = roles;
+    options.free_work = config.testnet.free_work;
     options.listen = addresses(&config.network.listen)?;
     options.bootstrap = addresses(&config.network.bootstrap)?;
+    options.relay_server = config.network.relay_server;
     options.control = Some(ControlOptions {
         bind: SocketAddr::new(config.control.bind, config.control.port),
         token_file: config
@@ -185,15 +192,29 @@ fn registry_for(config: &NodeConfig) -> Result<Registry, String> {
     Ok(registry)
 }
 
+/// Affiche la clé publique du nœud (identité de signature, utile au diagnostic).
+/// Ne crée jamais de graine : sans `node.seed`, c'est une erreur. Seule la clé publique sort.
+fn print_public_key(config: &NodeConfig) -> Result<(), String> {
+    let seed = keyfile::load(&config.data_dir.join("node.seed")).map_err(|e| e.to_string())?;
+    println!("{}", seed.derive(Purpose::Ledger).public().to_hex());
+    Ok(())
+}
+
 async fn run(factory: ChainFactory) -> Result<(), String> {
     let args = parse_args()?;
     let config = sil_config::load(args.config.as_deref(), &|key| std::env::var(key).ok())
         .map_err(|e| e.to_string())?;
+    if args.public_key {
+        return print_public_key(&config);
+    }
     sil_telemetry::init(&TelemetryConfig {
         level: config.log.level.clone(),
         json: config.log.json,
     })
     .map_err(|e| e.to_string())?;
+    if config.testnet.free_work {
+        tracing::warn!("mode testnet : travail sans paiement, réseau de test seulement");
+    }
     let seed =
         keyfile::load_or_create(&config.data_dir.join("node.seed")).map_err(|e| e.to_string())?;
     let registry = registry_for(&config)?;

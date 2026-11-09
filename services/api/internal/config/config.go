@@ -24,8 +24,9 @@ type Config struct {
 	SessionTTL        time.Duration
 	LogJSON           bool
 	WebDir            string   // built web app to serve (empty: API only)
+	ConnectSources    []string // extra origins the web app may call (Solana RPC for the deposit)
+	Payments          bool     // jobs are settled on a chain (SIL_API_PAYMENTS=true)
 	CORSOrigins       []string // origins allowed to call the API (desktop shell); empty: none
-	Committee         []string // coordinator keys (64 lower-case hex) given to new jobs
 }
 
 // Load reads SIL_API_* variables through getenv (os.Getenv in production).
@@ -39,8 +40,9 @@ func Load(getenv func(string) string) (Config, error) {
 		SessionTTL:        24 * time.Hour,
 		LogJSON:           getenv("SIL_API_LOG_JSON") == "true",
 		WebDir:            strings.TrimSpace(getenv("SIL_API_WEB_DIR")),
+		ConnectSources:    splitList(getenv("SIL_API_CONNECT_SRC")),
+		Payments:          getenv("SIL_API_PAYMENTS") == "true",
 		CORSOrigins:       splitList(getenv("SIL_API_CORS_ORIGINS")),
-		Committee:         splitList(getenv("SIL_API_COMMITTEE")),
 	}
 	var problems []error
 	if v := getenv("SIL_API_ALLOW_REGISTRATION"); v != "" {
@@ -66,7 +68,6 @@ func Load(getenv func(string) string) (Config, error) {
 		problems = append(problems, err)
 	}
 	cfg.NodeToken = token
-	problems = append(problems, validateCommittee(cfg.Committee)...)
 	return cfg, errors.Join(problems...)
 }
 
@@ -116,25 +117,6 @@ func splitList(value string) []string {
 	return out
 }
 
-// validateCommittee checks the keys the way sil-ledger does: 1 to 7 distinct 32-byte keys.
-func validateCommittee(keys []string) []error {
-	var problems []error
-	if len(keys) > 7 {
-		problems = append(problems, errors.New("SIL_API_COMMITTEE: at most 7 coordinators"))
-	}
-	seen := map[string]bool{}
-	for _, key := range keys {
-		if len(key) != 64 || strings.ToLower(key) != key || !isHex(key) {
-			problems = append(problems, fmt.Errorf("SIL_API_COMMITTEE: %q is not a 64-character lower-case hex key", key))
-			continue
-		}
-		if seen[key] {
-			problems = append(problems, fmt.Errorf("SIL_API_COMMITTEE: %q is listed twice", key))
-		}
-		seen[key] = true
-	}
-	return problems
-}
 
 func isHex(text string) bool {
 	for _, c := range text {

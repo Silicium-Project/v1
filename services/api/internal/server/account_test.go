@@ -86,3 +86,26 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+func TestCredentialsChangeNeedsTheCurrentPassword(t *testing.T) {
+	e := newEnv(t, true)
+	token := e.login(t, "dave@example.com")
+	_ = e.login(t, "erin@example.com") // the e-mail that must stay taken
+	const password = "correct horse battery"
+
+	change := func(token string, body map[string]string) (int, map[string]any) {
+		return e.call(t, "PUT", "/v1/account/credentials", token, body)
+	}
+	if status, out := change(token, map[string]string{"email": "dave@example.com", "current_password": "wrong password here"}); status != 403 {
+		t.Fatalf("wrong current password: %d %v", status, out)
+	}
+	if status, _ := change(token, map[string]string{"email": "erin@example.com", "current_password": password}); status != 409 {
+		t.Fatalf("taken e-mail: %d", status)
+	}
+	if status, out := change(token, map[string]string{"email": "dave.new@example.com", "current_password": password}); status != 200 || out["email"] != "dave.new@example.com" {
+		t.Fatalf("change e-mail: %d %v", status, out)
+	}
+	if status, _ := e.call(t, "POST", "/v1/auth/login", "", map[string]string{"email": "dave.new@example.com", "password": password}); status != 200 {
+		t.Fatalf("login with the new e-mail: %d", status)
+	}
+}

@@ -1,0 +1,9 @@
+{
+  "build": {
+    "beforeBuildCommand": "node scripts/prepare-sidecars.mjs",
+    "beforeBundleCommand": null
+  },
+  "bundle": {
+    "targets": ["appimage", "deb"]
+  }
+}

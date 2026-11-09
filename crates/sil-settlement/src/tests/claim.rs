@@ -34,10 +34,10 @@ fn the_identifier_changes_with_any_parameter() {
 }
 
 #[test]
-fn only_valid_distinct_committee_signatures_count() {
+fn only_valid_distinct_approver_signatures_count() {
     let c = claim(0);
     let mut auth = Authorization::new(c.clone());
-    let signer = ident(10);
+    let signer = ident(70);
     assert!(auth.add(signer.public(), c.sign(&signer)).unwrap());
     assert!(
         !auth.add(signer.public(), c.sign(&signer)).unwrap(),
@@ -45,17 +45,16 @@ fn only_valid_distinct_committee_signatures_count() {
     );
 
     // Signature d'un autre règlement : refusée.
-    let wrong = claim(1).sign(&ident(11));
+    let wrong = claim(1).sign(&ident(71));
     assert!(matches!(
-        auth.add(ident(11).public(), wrong),
+        auth.add(ident(71).public(), wrong),
         Err(SettlementError::BadSignature)
     ));
 
-    // Une signature valide d'un étranger au comité existe mais ne compte pas.
+    // Une signature valide d'un non-approbateur existe mais ne compte pas.
     let outsider = ident(90);
     assert!(auth.add(outsider.public(), c.sign(&outsider)).unwrap());
-    let committee: Vec<_> = (10..13).map(|n| ident(n).public()).collect();
-    assert_eq!(auth.committee_signers(&committee), vec![signer.public()]);
+    assert_eq!(auth.approver_signers(), vec![signer.public()]);
 }
 
 #[test]
@@ -76,12 +75,10 @@ fn a_claim_is_compared_with_what_the_chain_recorded() {
 fn the_signed_message_has_a_fixed_layout_a_program_can_rebuild() {
     let c = claim(3);
     let bytes = c.bytes();
-    assert_eq!(bytes.len(), 32 + 4 + 4 + 32 + 32 + 1 + 2 * 32);
+    assert_eq!(bytes.len(), 32 + 4 + 4 + 32 + 32);
     assert_eq!(&bytes[..32], c.job.as_bytes());
     assert_eq!(&bytes[32..36], &3u32.to_le_bytes());
     assert_eq!(&bytes[36..40], &1u32.to_le_bytes());
     assert_eq!(&bytes[40..72], c.result.as_bytes());
     assert_eq!(&bytes[72..104], c.claimant.as_bytes());
-    assert_eq!(bytes[104], 2);
-    assert_eq!(&bytes[105..137], c.approvers[0].as_bytes());
 }

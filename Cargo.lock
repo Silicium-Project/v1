@@ -1875,6 +1875,7 @@ dependencies = [
  "libp2p-allow-block-list",
  "libp2p-connection-limits",
  "libp2p-core",
+ "libp2p-dcutr",
  "libp2p-dns",
  "libp2p-gossipsub",
  "libp2p-identify",
@@ -1884,6 +1885,7 @@ dependencies = [
  "libp2p-metrics",
  "libp2p-noise",
  "libp2p-quic",
+ "libp2p-relay",
  "libp2p-request-response",
  "libp2p-swarm",
  "libp2p-tcp",
@@ -1939,6 +1941,28 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "unsigned-varint 0.8.0",
+ "web-time",
+]
+
+[[package]]
+name = "libp2p-dcutr"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b4107305e12158af3e66960b6181789c547394c9c9a8696f721521602bfc73a"
+dependencies = [
+ "asynchronous-codec",
+ "either",
+ "futures",
+ "futures-bounded",
+ "futures-timer",
+ "hashlink 0.10.0",
+ "libp2p-core",
+ "libp2p-identity",
+ "libp2p-swarm",
+ "quick-protobuf",
+ "quick-protobuf-codec",
+ "thiserror 2.0.21",
+ "tracing",
  "web-time",
 ]
 
@@ -2081,10 +2105,12 @@ checksum = "805a555148522cb3414493a5153451910cb1a146c53ffbf4385708349baf62b7"
 dependencies = [
  "futures",
  "libp2p-core",
+ "libp2p-dcutr",
  "libp2p-gossipsub",
  "libp2p-identify",
  "libp2p-identity",
  "libp2p-kad",
+ "libp2p-relay",
  "libp2p-swarm",
  "pin-project",
  "prometheus-client",
@@ -2135,6 +2161,30 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "libp2p-relay"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8b9b0392ed623243ad298326b9f806d51191829ac7585cc825c54c6c67b04d9"
+dependencies = [
+ "asynchronous-codec",
+ "bytes",
+ "either",
+ "futures",
+ "futures-bounded",
+ "futures-timer",
+ "libp2p-core",
+ "libp2p-identity",
+ "libp2p-swarm",
+ "quick-protobuf",
+ "quick-protobuf-codec",
+ "rand 0.8.8",
+ "static_assertions",
+ "thiserror 2.0.21",
+ "tracing",
+ "web-time",
 ]
 
 [[package]]
@@ -3474,6 +3524,7 @@ dependencies = [
  "bincode",
  "serde",
  "sil-types",
+ "sil-workload-spec",
  "thiserror 2.0.21",
 ]
 
@@ -3522,18 +3573,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tower",
-]
-
-[[package]]
-name = "sil-coordinator"
-version = "0.1.0"
-dependencies = [
- "sil-attest",
- "sil-crypto",
- "sil-ledger",
- "sil-quota",
- "sil-reputation",
- "sil-types",
 ]
 
 [[package]]
@@ -3616,7 +3655,6 @@ dependencies = [
  "sil-config",
  "sil-content",
  "sil-control-api",
- "sil-coordinator",
  "sil-crypto",
  "sil-ledger",
  "sil-ledger-store",
@@ -3633,6 +3671,7 @@ dependencies = [
  "sil-wl-render",
  "sil-wl-sha256",
  "sil-workload-api",
+ "sil-workload-spec",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -3642,6 +3681,16 @@ dependencies = [
 [[package]]
 name = "sil-quota"
 version = "0.1.0"
+
+[[package]]
+name = "sil-raytracer"
+version = "0.1.0"
+dependencies = [
+ "libm",
+ "serde",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "sil-render-wasm"
@@ -3740,10 +3789,12 @@ dependencies = [
  "serde",
  "sil-codec",
  "sil-crypto",
+ "sil-raytracer",
  "sil-sampling",
  "sil-sandbox",
  "sil-types",
  "sil-workload-api",
+ "sil-workload-spec",
 ]
 
 [[package]]
@@ -3756,6 +3807,7 @@ dependencies = [
  "sil-crypto",
  "sil-types",
  "sil-workload-api",
+ "sil-workload-spec",
 ]
 
 [[package]]
@@ -3766,8 +3818,13 @@ dependencies = [
  "sil-codec",
  "sil-crypto",
  "sil-types",
+ "sil-workload-spec",
  "thiserror 2.0.21",
 ]
+
+[[package]]
+name = "sil-workload-spec"
+version = "0.1.0"
 
 [[package]]
 name = "simdutf8"

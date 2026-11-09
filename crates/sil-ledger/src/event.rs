@@ -1,4 +1,4 @@
-use crate::wallet_text::job_published_text;
+use crate::wallet_text::{cancel_text, job_published_text};
 use crate::{EventBody, LedgerError};
 use serde::{Deserialize, Serialize};
 use sil_codec::{decode, encode};
@@ -109,6 +109,13 @@ impl Event {
                 &self.previous,
                 self.issued_at_ms,
                 &spec.signature,
+            )),
+            EventBody::Cancel => Some(cancel_text(
+                &self.author,
+                &self.job,
+                self.sequence,
+                &self.previous,
+                self.issued_at_ms,
             )),
             _ => None,
         }

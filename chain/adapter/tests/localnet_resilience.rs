@@ -20,10 +20,8 @@ fn a_payer_without_sol_is_refused_before_sending() {
     let (url, program) = config();
     let chain = SolanaChain::new(&url, program, Keypair::new());
     let requester = funded(&chain, 5 * SOL);
-    let members = [sil_key(41), sil_key(42), sil_key(43)];
-    let committee: Vec<PublicKey> = members.iter().map(SigningIdentity::public).collect();
     let job = random_job();
-    let open_terms = terms(&requester, &committee, now_ms() + 3_600_000);
+    let open_terms = terms(&requester, now_ms() + 3_600_000);
     let budget = open_terms.max_payout().expect("budget");
     let tx = chain
         .open_escrow(&requester, job, open_terms, budget)
@@ -31,11 +29,8 @@ fn a_payer_without_sol_is_refused_before_sending() {
     assert_eq!(settle_status(&chain, &tx), TxStatus::Confirmed);
 
     let claimant = funded(&chain, SOL);
-    let approver = funded(&chain, SOL);
-    let auth = signed(
-        claim(job, 0, &claimant, &approver),
-        &[&members[0], &members[1]],
-    );
+    let approver = funded_identity(&chain, SOL);
+    let auth = signed(claim(job, 0, &claimant, &approver), &[&approver]);
     // A chain client whose payer has never been funded.
     let broke = SolanaChain::new(&url, program, Keypair::new());
     assert_eq!(broke.submit(&auth).unwrap_err(), ChainError::NoFunds);
@@ -64,10 +59,8 @@ fn two_nodes_racing_to_settle_pay_exactly_once() {
     }
 
     let requester = funded(&chain_a, 5 * SOL);
-    let members = [sil_key(51), sil_key(52), sil_key(53)];
-    let committee: Vec<PublicKey> = members.iter().map(SigningIdentity::public).collect();
     let job = random_job();
-    let open_terms = terms(&requester, &committee, now_ms() + 3_600_000);
+    let open_terms = terms(&requester, now_ms() + 3_600_000);
     let budget = open_terms.max_payout().expect("budget");
     let tx = chain_a
         .open_escrow(&requester, job, open_terms, budget)
@@ -75,11 +68,8 @@ fn two_nodes_racing_to_settle_pay_exactly_once() {
     assert_eq!(settle_status(&chain_a, &tx), TxStatus::Confirmed);
 
     let claimant = funded(&chain_a, SOL);
-    let approver = funded(&chain_a, SOL);
-    let auth = signed(
-        claim(job, 0, &claimant, &approver),
-        &[&members[0], &members[1]],
-    );
+    let approver = funded_identity(&chain_a, SOL);
+    let auth = signed(claim(job, 0, &claimant, &approver), &[&approver]);
     let mut outbox_a = Outbox::new(OutboxConfig::default());
     let mut outbox_b = Outbox::new(OutboxConfig::default());
     let id = outbox_a.enqueue(auth.clone()).expect("queued");

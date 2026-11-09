@@ -1,10 +1,11 @@
-//! Règlement d'un fragment. Le comité signe le message de règlement hors chaîne ; chaque
+//! Règlement d'un fragment. Chaque approbateur signe le message de règlement hors chaîne ; chaque
 //! signature est vérifiée par le précompilé Ed25519 dans la même transaction. Le programme ne
 //! fait que relire ces instructions : il reconstruit le message attendu et ne compte que les
 //! signataires dont le précompilé porte exactement ce message.
 
 use crate::process::{invalid, rule};
 use crate::state::{load, store};
+use crate::verifier;
 use sil_chain_core::SettleArgs;
 use sil_chain_core::wire::settlement_frame;
 use sil_types::PublicKey;
@@ -22,7 +23,9 @@ const SAME_INSTRUCTION: u16 = u16::MAX;
 const OFFSET_ENTRY: usize = 14;
 
 /// Comptes : `[payeur (signataire, inscriptible), escrow, sysvar instructions, claimant,
-/// approbateurs...]`. Le payeur reçoit les frais de règlement ; les autres reçoivent leur part.
+/// approbateurs..., comptes de réputation des approbateurs...]`. Le payeur reçoit les frais de
+/// règlement ; les autres reçoivent leur part. Chaque approbateur doit avoir un compte de
+/// réputation éligible (ADR 0006) : le compte est lu, puis crédité en écriture.
 pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -> ProgramResult {
     let mut iter = accounts.iter();
     let payer = next_account_info(&mut iter)?;
@@ -45,8 +48,19 @@ pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -
         .collect();
     let submitter = PublicKey::from_bytes(payer.key.to_bytes());
 
-    let payouts = escrow.settle(&args, &signers, &submitter).map_err(rule)?;
-    for payout in payouts {
+    let standing = args
+        .approvers
+        .iter()
+        .map(|approver| verifier::standing(program_id, accounts, approver))
+        .collect::<Result<Vec<_>, ProgramError>>()?;
+    let settlement = escrow
+        .settle(&args, &signers, &submitter, &standing)
+        .map_err(rule)?;
+    for (approver, score) in &settlement.credited {
+        let account = verifier::find(program_id, accounts, approver).ok_or(invalid())?;
+        verifier::write(&account, *score)?;
+    }
+    for payout in settlement.payouts {
         let key = Pubkey::new_from_array(*payout.to.as_bytes());
         let payee = accounts
             .iter()
@@ -67,7 +81,10 @@ pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -
 }
 
 /// Clés dont le précompilé Ed25519 de cette transaction a vérifié **ce** message.
-fn verified_signers(ix_sysvar: &AccountInfo, expected: &[u8]) -> Result<Vec<Pubkey>, ProgramError> {
+pub(crate) fn verified_signers(
+    ix_sysvar: &AccountInfo,
+    expected: &[u8],
+) -> Result<Vec<Pubkey>, ProgramError> {
     let count = {
         let data = ix_sysvar.try_borrow_data()?;
         let head: [u8; 2] = data

@@ -9,7 +9,6 @@ pub mod render;
 use nodes::Running;
 use sil_crypto::SigningIdentity;
 use sil_settlement_solana::SolanaChain;
-use sil_types::PublicKey;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 
@@ -19,7 +18,6 @@ pub struct World {
     pub requester: SigningIdentity,
     pub requester_key: Keypair,
     pub requester_chain: SolanaChain,
-    /// Trois membres du comité, puis le vérificateur.
+    /// Les workers, puis le vérificateur.
     pub nodes: Vec<Running>,
-    pub committee: Vec<PublicKey>,
 }

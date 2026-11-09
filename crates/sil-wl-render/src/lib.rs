@@ -1,4 +1,4 @@
-//! Workload de rendu par blocs de lignes (`rendu/blocs`).
+//! Workload de rendu par blocs de lignes (`rendu/raytracer`).
 //!
 //! Le moteur de rendu lui-même est injecté ([`BlockRenderer`]) : ce crate porte la logique
 //! de **découpe, d'engagement et de vérification**, pas un lanceur de rayons. En production le

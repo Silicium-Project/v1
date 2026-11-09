@@ -30,12 +30,15 @@ impl AttestationBody {
     }
 }
 
-/// Verdict signé d'un vérificateur.
+/// Verdict signé d'un vérificateur. Une approbation porte en plus la signature de règlement du
+/// vérificateur (ADR 0007) : elle autorise le paiement on-chain du fragment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attestation {
     pub body: AttestationBody,
     pub verifier: PublicKey,
     pub signature: Signature,
+    /// Signature `Domain::Settlement` du message de règlement, pour une approbation.
+    pub settlement: Option<Signature>,
 }
 
 impl Attestation {
@@ -47,10 +50,20 @@ impl Attestation {
             body,
             verifier: identity.public(),
             signature,
+            settlement: None,
         })
     }
 
-    /// Vérifie la forme et la signature.
+    /// Ajoute la signature de règlement d'une approbation. `message` : job ‖ fragment ‖ tentative
+    /// ‖ résultat ‖ claimant (voir `sil-chain-core`). Sans effet sur un rejet.
+    pub fn with_settlement(mut self, identity: &SigningIdentity, message: &[u8]) -> Self {
+        if self.body.approved {
+            self.settlement = Some(identity.sign(Domain::Settlement, message));
+        }
+        self
+    }
+
+    /// Vérifie la forme et la signature du verdict.
     pub fn verify(&self) -> Result<(), AttestError> {
         self.body.check_shape()?;
         verify(
@@ -60,5 +73,12 @@ impl Attestation {
             &self.signature,
         )
         .map_err(|_| AttestError::BadSignature)
+    }
+
+    /// Vérifie la signature de règlement contre `message`. Erreur si elle manque.
+    pub fn verify_settlement(&self, message: &[u8]) -> Result<(), AttestError> {
+        let signature = self.settlement.as_ref().ok_or(AttestError::BadSignature)?;
+        verify(&self.verifier, Domain::Settlement, message, signature)
+            .map_err(|_| AttestError::BadSignature)
     }
 }

@@ -1,6 +1,6 @@
 # ADR 0001 — Comité de coordination par job
 
-**Statut :** proposé.
+**Statut :** remplacé par ADR 0007 (comité supprimé).
 
 ## Contexte
 V0 : un publisher unique par tâche (point de défaillance, finalisation sans preuve de quorum).

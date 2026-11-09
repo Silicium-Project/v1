@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 sil-workload-api.workspace = true
 sil-types.workspace = true
+sil-workload-spec.workspace = true
 sil-codec.workspace = true
 serde.workspace = true
 sha2.workspace = true

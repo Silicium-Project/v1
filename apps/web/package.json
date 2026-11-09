@@ -9,11 +9,18 @@
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "build:desktop": "vue-tsc --noEmit && vite build --mode desktop --outDir dist-desktop --emptyOutDir"
+    "build:desktop": "vue-tsc --noEmit && vite build --config vite.desktop.config.ts --mode desktop",
+    "dev:desktop": "vite --config vite.desktop.config.ts --mode desktop",
+    "engine:copy": "node scripts/copy-engine.mjs",
+    "downloads:copy": "node scripts/copy-node-bundle.mjs"
   },
   "dependencies": {
+    "@bjorn3/browser_wasi_shim": "^0.4.2",
+    "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/geist": "^5.2.0",
     "@fontsource/geist-mono": "^5.2.0",
+    "@solana/web3.js": "^1.99.0",
+    "@tauri-apps/api": "^2.12.4",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

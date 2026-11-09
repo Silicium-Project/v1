@@ -1,7 +1,9 @@
 mod api;
 mod client;
+mod free_work;
 mod liar;
 mod network;
+mod no_coordinator;
 mod presence;
 mod resilience;
 mod scenario;

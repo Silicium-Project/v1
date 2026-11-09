@@ -1,20 +1,20 @@
 # chain/e2e — flux complet sur validateur local
 
-Un requérant, trois membres du comité, un vérificateur : de la publication d'un job au règlement
+Un requérant, trois workers, un vérificateur : de la publication d'un job au règlement
 on-chain. Les nœuds sont de vrais `sil_node::Node` (libp2p sur localhost, API de contrôle, moteur
-de rendu de test pour `rendu/blocs`), branchés sur le programme d'escrow Solana.
+de rendu de test pour `rendu/raytracer`), branchés sur le programme d'escrow Solana.
 
 Scénario (`tests/full_flow.rs`) :
 
 1. le requérant ouvre l'escrow, dépôt = budget total de la spec ;
 2. il publie la spec signée sur l'API d'un nœud ;
-3. le comité calcule, le vérificateur contrôle, le comité signe le règlement ;
+3. les workers calculent, le vérificateur contrôle et signe son approbation, le règlement est signé par les approbateurs ;
 4. chaque fragment est réglé on-chain.
 
 Contrôles après règlement : `paid` = dépôt ; le gain de chaque nœud = ses unités × tarif ; l'escrow
 ne perd que ce qu'il paie.
 
-Jobs : `calcul/sha256` (20 000 octets, 2 fragments) puis `rendu/blocs` (64 × 40 pixels, 3 fragments).
+Jobs : `calcul/sha256` (20 000 octets, 2 fragments) puis `rendu/raytracer` (64 × 40 pixels, 3 fragments).
 
 Le rendu passe par `sil-wl-render::ExternalRenderer` : le moteur de référence
 (`sil-render-reference`) est lancé dans `sil-sandbox`. `chain/scripts/localnet.sh` le construit et

@@ -63,3 +63,26 @@ func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request, userID, _
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// setCredentials attaches an e-mail and a password to the account, or changes them. Changing an
+// existing password needs the current one; the attempts share the sign-in rate limit.
+func (s *Server) setCredentials(w http.ResponseWriter, r *http.Request, userID, _ string) {
+	var in struct {
+		Email           string `json:"email"`
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := httpx.ReadJSON(w, r, &in, 4096); err != nil {
+		badBody(w, err)
+		return
+	}
+	if !s.loginEmail.Allow("credentials:"+userID, time.Now()) {
+		httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "too many attempts")
+		return
+	}
+	if err := s.auth.SetCredentials(userID, in.Email, in.CurrentPassword, in.NewPassword); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.profile(w, r, userID, "")
+}

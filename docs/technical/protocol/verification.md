@@ -13,7 +13,7 @@ raison) dont le hash va dans l'attestation de rejet.
 | Politique | Le vérificateur… | Quand |
 |---|---|---|
 | `Recompute` | refait tout le calcul | résultat court ou calcul peu coûteux (`calcul/sha256`) |
-| `Sampling { min_cheat_fraction, target_detection }` | refait un échantillon de blocs | calcul long découpé en blocs (`rendu/blocs`) |
+| `Sampling { min_cheat_fraction, target_detection }` | refait un échantillon de blocs | calcul long découpé en blocs (`rendu/raytracer`) |
 
 Avec V = 2 et `Recompute`, deux machines refont le calcul : c'est la **redondance**, sans
 mécanisme séparé (le journal retient un seul claimant par tentative).
@@ -25,7 +25,7 @@ hash de la signature est la graine. Ed25519 est déterministe :
 - le vérificateur **ne peut pas retirer** jusqu'à obtenir un tirage favorable ;
 - n'importe qui **revérifie** la graine avec sa clé publique ;
 - le worker ne peut pas l'**anticiper** (il faudrait la clé du vérificateur) ;
-- le comité choisit *qui* vérifie mais pas la graine de chacun.
+- personne ne choisit la graine de chacun : elle vient du vérificateur et du résultat.
 
 Chaque vérificateur tire son propre échantillon : les échantillons s'ajoutent. Pour passer
 inaperçu il faut contrôler **tous** les vérificateurs retenus. (V0 : graine = hash de

@@ -2,9 +2,8 @@
 
 ## Modèle
 
-Un **job** commence par un `SignedJobSpec` : le requester signe la description, le comité
-de coordinateurs (1 à 7 clés) et le seuil `threshold`, **strictement supérieur à la moitié**
-du comité. `job_id = SHA-256(domaine JobId, spec canonique)`.
+Un **job** commence par un `SignedJobSpec` : le requester signe la description (sans comité ni seuil, ADR 0007).
+`job_id = SHA-256(domaine JobId, spec canonique)`.
 
 Chaque auteur a une **chaîne par job** : `sequence` (1, 2, 3…) et `previous` (hash de son
 événement précédent). Les jobs sont indépendants : rattrapage, quotas et stockage sont par job.
@@ -16,44 +15,45 @@ Le premier événement du requester est `JobPublished` (séquence 1).
 |---|---|---|
 | `JobPublished` | requester | crée le job |
 | `Claim` | tout pair | offre de calculer (fragment, tentative) |
-| `Accept` | comité (vote) | retient un claim |
 | `Renew` / `Release` | claimant | prolonge le bail / abandonne |
 | `Submit` | claimant | publie le hash du résultat |
 | `VerifyOffer` | tout pair sauf claimant | offre de vérifier |
-| `VerifierAccept` | comité (vote) | retient un vérificateur |
 | `Attest` | vérificateur retenu | verdict signé (approbation, ou rejet avec preuve) |
-| `Finalize` | comité (vote) | finalise, avec un certificat d'approbations |
+| `Finalize` | tout pair | certifie un résultat : désigne son claim, son `Submit`, les offres des vérificateurs qui approuvent, avec le certificat (ADR 0005, phases 3-4) |
 | `Cancel` | requester | annule le job |
 
-## Décisions par vote
+## Décisions sans vote
 
-Une décision (claim retenu, vérificateur retenu, finalisation) existe quand `threshold`
-membres **distincts** du comité ont émis le même vote. Seul le **premier** vote de chaque
-membre sur un emplacement unique compte. Comme `threshold > n/2`, deux décisions
-contradictoires sur un même emplacement sont impossibles. Avec un comité de 1 et un seuil de 1,
-on retrouve le publisher unique de V0, mais c'est un choix explicite du requester.
-
-L'heure d'acceptation est le `threshold`-ième plus petit `issued_at_ms` des votes décisifs :
-elle se déduit des événements, sans horloge partagée.
+Aucun vote de coordinateur (ADR 0005, ADR 0007). Le claim retenu est le premier claim valide dans
+l'ordre total `(horodatage, identifiant)`. Les vérificateurs retenus sont les `k` premières offres valides
+d'auteurs distincts du claimant. Chaque nœud dérive le même résultat à partir du même journal.
 
 ## Vérification
 
-- `verifications_required` (V) approbations de vérificateurs retenus par le comité,
+- `verifications_required` (V) approbations de vérificateurs retenus (premières offres valides, ADR 0005),
   distincts du claimant, font passer à `Verified`.
 - V rejets font passer à `Rejected` : un vérificateur isolé ne peut pas tuer un résultat
   (V0 : un seul rejet suffisait).
-- V approbations **et** V rejets : `Disputed` ; le comité peut retenir jusqu'à `2V-1`
-  vérificateurs, et `Finalize` reste impossible tant que V rejets existent.
+- V approbations **et** V rejets : `Disputed` ; les vérificateurs retenus peuvent aller jusqu'à `2V-1`
+  vérificateurs. Un rejet postérieur à une certification ouvre un litige, il ne défait pas la
+  finalisation (phase 3 : sinon la validité ne serait pas monotone).
 - Un rejet porte `evidence` (hash de preuve) ; une approbation n'en porte pas.
 
 ## Finalisation (ADR 0002)
 
-`Finalize` embarque un `Certificate`. Il est contrôlé deux fois :
+`Finalize` embarque un `Certificate`, ainsi que le `claim` et le `submit` qu'il certifie (ADR 0005,
+phase 3). Il est contrôlé deux fois :
 1. **À l'insertion** : signatures de toutes les attestations, au moins V distinctes.
-2. **À la dérivation** : au moins V approbateurs du certificat sont des vérificateurs
-   que le comité a retenus et qui ont réellement approuvé ce résultat ; moins de V rejets.
+2. **À la dérivation** : le claim et le `Submit` désignés existent, sont du même auteur, et le
+   `Submit` tombe dans le bail du claim ; au moins V approbateurs du certificat sont des
+   vérificateurs retenus pour ce claimant, qui ont approuvé ce résultat.
 
-Un comité complice ne peut donc pas finaliser avec un certificat fabriqué.
+La validité ne lit que les événements désignés : elle ne dépend ni du vainqueur de la course aux
+claims, ni des rejets postérieurs. Un claim antérieur reçu tard ne défait donc pas une
+finalisation. Entre plusieurs `Finalize` valides, le premier dans l'ordre total l'emporte ; le
+claimant certifié est celui du `Submit` désigné.
+
+Un ensemble de vérificateurs complices ne peut donc pas finaliser avec un certificat fabriqué sans signatures valides.
 
 ## État dérivé
 
@@ -90,5 +90,5 @@ erreur typée. Valeurs par défaut dans `limits.rs`.
 - Un job publié par un requester quelconque est admis : la protection économique est le
   trait `Admission` (escrow vérifié en phase 5). Sans lui, seuls les quotas protègent.
 - Un auteur qui équivoque n'est ignoré que par les pairs qui ont vu les deux versions.
-- Pas de rotation de comité ni de coordinateur de secours : la liveness exige `threshold`
+- Pas de comité ni de coordinateur : la vivacité exige un worker et `V` vérificateurs éligibles en ligne.
   membres joignables (en partition, l'attente est sûre, jamais de finalisation forcée).

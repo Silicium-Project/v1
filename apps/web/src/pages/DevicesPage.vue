@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { formatDateTime, formatTime } from '@/i18n/format'
-import { listDevices, newLinkCode, revokeDevice, type Device, type LinkCode } from '@/api/endpoints'
+import { listDevices, newLinkCode, purgeDevice, revokeDevice, type Device, type LinkCode } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { currentToken, endSession } from '@/state/session'
 import EmptyState from '@/components/EmptyState.vue'
-import DesktopLinkForm from '@/components/DesktopLinkForm.vue'
-import { isDesktop } from '@/platform/desktop'
+import { desktopLinkUrl } from '@/platform/desktop-link'
 import Notice from '@/components/Notice.vue'
 
 const router = useRouter()
@@ -18,9 +17,10 @@ const error = ref('')
 const success = ref('')
 const code = ref<LinkCode | null>(null)
 const generating = ref(false)
-const codeRef = ref<HTMLElement | null>(null)
 const pendingRevoke = ref('')
 const revoking = ref('')
+const pendingPurge = ref('')
+const purging = ref('')
 
 async function run(action: (token: string) => Promise<void>): Promise<void> {
   const token = currentToken()
@@ -45,15 +45,30 @@ async function load(): Promise<void> {
   loading.value = false
 }
 
-async function generate(): Promise<void> {
+// One click: issue a code, then open the desktop application on it. The code stays on the page
+// as a fallback for typing it into the application. The link opens within the click, so the
+// browser accepts it.
+async function linkHere(): Promise<void> {
   generating.value = true
   success.value = ''
   await run(async (token) => {
-    code.value = await newLinkCode(token)
-    await nextTick()
-    codeRef.value?.focus()
+    const issued = await newLinkCode(token)
+    code.value = issued
+    window.location.href = desktopLinkUrl(issued.code)
   })
   generating.value = false
+}
+
+async function purge(id: string): Promise<void> {
+  purging.value = id
+  success.value = ''
+  await run(async (token) => {
+    await purgeDevice(token, id)
+    pendingPurge.value = ''
+    success.value = t('devices.purgeDone')
+    devices.value = (await listDevices(token)).devices
+  })
+  purging.value = ''
 }
 
 async function revoke(id: string): Promise<void> {
@@ -86,18 +101,19 @@ onMounted(load)
       <h2>{{ t('devices.linkTitle') }}</h2>
       <p>{{ t('devices.linkText') }}</p>
       <div class="actions">
-        <button type="button" class="btn btn-primary" :disabled="generating" @click="generate">
-          {{ t('devices.generate') }}
+        <button type="button" class="btn btn-primary" :disabled="generating" @click="linkHere">
+          {{ t('desktop.openDesktop') }}
         </button>
       </div>
       <div v-if="code">
-        <p id="code-label">{{ t('devices.codeLabel') }}</p>
-        <code ref="codeRef" tabindex="-1" class="code-display" aria-labelledby="code-label">{{ code.code }}</code>
+        <p id="code-label">{{ t('desktop.fallbackCode') }}</p>
+        <code class="code-display" aria-labelledby="code-label">{{ code.code }}</code>
         <p class="muted">{{ t('devices.codeExpires', { time: formatTime(code.expires_at) }) }}</p>
+        <p class="muted">
+          {{ t('desktop.notOpened') }} <RouterLink to="/installation">{{ t('desktop.installNode') }}</RouterLink>
+        </p>
       </div>
     </div>
-
-    <DesktopLinkForm v-if="isDesktop()" @linked="load" />
 
     <p v-if="loading" role="status" class="muted">{{ t('common.loading') }}</p>
 
@@ -134,6 +150,25 @@ onMounted(load)
               </button>
               <button type="button" class="btn" @click="pendingRevoke = ''">{{ t('common.cancel') }}</button>
             </template>
+          </div>
+          <div v-else class="stack">
+            <p class="muted">{{ t('devices.purgeHint') }}</p>
+            <div class="actions">
+              <button
+                v-if="pendingPurge !== device.id"
+                type="button"
+                class="btn"
+                @click="pendingPurge = device.id"
+              >
+                {{ t('devices.purge') }}
+              </button>
+              <template v-else>
+                <button type="button" class="btn btn-danger" :disabled="purging === device.id" @click="purge(device.id)">
+                  {{ t('devices.purgeConfirm') }}
+                </button>
+                <button type="button" class="btn" @click="pendingPurge = ''">{{ t('common.cancel') }}</button>
+              </template>
+            </div>
           </div>
         </div>
       </li>

@@ -13,6 +13,7 @@ import (
 	"sil/api/internal/devices"
 	"sil/api/internal/httpx"
 	"sil/api/internal/jobs"
+	"sil/api/internal/network"
 	"sil/api/internal/nodeclient"
 	"sil/api/internal/store"
 	"sil/api/internal/wallet"
@@ -29,11 +30,15 @@ type Options struct {
 	AllowRegistration bool
 	// WebDir is the built web app served at "/" (empty: API only).
 	WebDir string
+	// ConnectSources are the extra origins the web app may call (the Solana RPC).
+	ConnectSources []string
+	// Payments tells the web app that jobs are settled on a chain (the escrow is real).
+	Payments bool
 	// CORSOrigins lists the origins allowed to call the API (empty: none).
 	CORSOrigins []string
-	// Committee is given to new jobs (coordinator keys, hex).
-	Committee []string
-	Log       *slog.Logger
+	// Network is the node the public status page asks (nil: the page says the node is unreachable).
+	Network network.Source
+	Log     *slog.Logger
 }
 
 // Server holds the services and the limiters.
@@ -45,9 +50,11 @@ type Server struct {
 	log     *slog.Logger
 	opts    Options
 
+	relay      *httpx.Limiter // settlement relay: per client address, 12 a minute
 	general    *httpx.Limiter // every request, per client address
 	sensitive  *httpx.Limiter // register, login, device link: per client address
 	loginEmail *httpx.Limiter // login attempts per e-mail, slow refill
+	status     *network.Cache // public network summary, refreshed at most every 10 s
 }
 
 // New builds the server.
@@ -57,9 +64,11 @@ func New(data *store.Store, a *auth.Service, d *devices.Service, j *jobs.Service
 	}
 	return &Server{
 		store: data, auth: a, devices: d, jobs: j, log: opts.Log, opts: opts,
+		relay:      httpx.NewLimiter(0.2, 10, 10_000),
 		general:    httpx.NewLimiter(30, 90, 10_000),
 		sensitive:  httpx.NewLimiter(1, 10, 10_000),
 		loginEmail: httpx.NewLimiter(1.0/180, 5, 10_000),
+		status:     network.NewCache(10*time.Second, nil),
 	}
 }
 
@@ -69,6 +78,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	mux.Handle("POST /v1/settlements", httpx.RateLimit(s.relay)(http.HandlerFunc(s.submitSettlement)))
 	mux.Handle("POST /v1/auth/register", s.limited(s.register))
 	mux.Handle("POST /v1/auth/login", s.limited(s.login))
 	mux.HandleFunc("POST /v1/auth/logout", s.authed(s.logout))
@@ -77,16 +87,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/account/delete-challenge", s.authed(s.deleteChallenge))
 	mux.HandleFunc("POST /v1/devices/link-codes", s.authed(s.newLinkCode))
 	mux.Handle("POST /v1/devices/link", s.limited(s.linkDevice))
+	mux.Handle("GET /v1/devices/link-codes/{code}", s.limited(s.previewLinkCode))
 	mux.HandleFunc("GET /v1/devices", s.authed(s.listDevices))
 	mux.HandleFunc("DELETE /v1/devices/{id}", s.authed(s.revokeDevice))
-	mux.HandleFunc("GET /v1/network/committee", s.authed(s.committee))
+	mux.HandleFunc("DELETE /v1/devices/{id}/purge", s.authed(s.purgeDevice))
+	mux.HandleFunc("GET /v1/network/status", s.networkStatus)
+	mux.HandleFunc("GET /v1/network/terms", s.authed(s.networkTerms))
 	mux.HandleFunc("GET /v1/account", s.authed(s.profile))
 	mux.HandleFunc("GET /v1/account/export", s.authed(s.exportAccount))
 	mux.HandleFunc("DELETE /v1/account", s.authed(s.deleteAccount))
+	mux.HandleFunc("PUT /v1/account/credentials", s.authed(s.setCredentials))
 	mux.HandleFunc("PUT /v1/content", s.authed(s.uploadContent))
 	mux.HandleFunc("POST /v1/jobs", s.authed(s.publishJob))
+	mux.HandleFunc("POST /v1/jobs/{id}/events", s.authed(s.jobEvent))
 	mux.HandleFunc("GET /v1/jobs", s.authed(s.listJobs))
 	mux.HandleFunc("GET /v1/jobs/{id}", s.authed(s.getJob))
+	mux.HandleFunc("GET /v1/jobs/{id}/result", s.authed(s.result))
 	mux.Handle("/v1/", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "unknown route")
 	}))
@@ -97,7 +113,7 @@ func (s *Server) Handler() http.Handler {
 		httpx.Recover(s.log),
 		httpx.AccessLog(s.log),
 		httpx.CORS(s.opts.CORSOrigins),
-		httpx.SecurityHeaders,
+		httpx.SecurityHeaders(s.opts.ConnectSources),
 		httpx.RateLimit(s.general),
 	)
 }
@@ -139,6 +155,7 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 		{devices.ErrInvalidInput, 400, "invalid_input"},
 		{jobs.ErrInvalidInput, 400, "invalid_input"},
 		{auth.ErrEmailTaken, 409, "email_taken"},
+		{auth.ErrWrongPassword, 403, "wrong_password"},
 		{auth.ErrInvalidCredentials, 401, "invalid_credentials"},
 		{devices.ErrInvalidProof, 400, "invalid_proof"},
 		{devices.ErrBadCode, 400, "bad_link_code"},
@@ -152,6 +169,7 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 		{jobs.ErrNotFound, 404, "not_found"},
 		{wallet.ErrFull, 503, "busy"},
 		{store.ErrNotFound, 404, "not_found"},
+		{store.ErrNotRevoked, 409, "device_active"},
 		{nodeclient.ErrNotFound, 404, "not_found"},
 	} {
 		if errors.Is(err, m.target) {

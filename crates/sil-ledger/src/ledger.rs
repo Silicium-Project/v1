@@ -9,12 +9,16 @@ use sil_quota::LedgerLimits;
 use sil_types::{Hash32, JobId, PublicKey};
 use std::collections::BTreeMap;
 
+mod clock;
+
 /// Tous les jobs connus du nœud.
 pub struct Ledger {
     limits: LedgerLimits,
     admission: Box<dyn Admission>,
     jobs: BTreeMap<JobId, JobLedger>,
     per_requester: BTreeMap<PublicKey, usize>,
+    /// Nombre d'événements acceptés depuis l'ouverture : ne change qu'à l'ajout d'un événement.
+    version: u64,
 }
 
 impl Ledger {
@@ -24,6 +28,7 @@ impl Ledger {
             admission,
             jobs: BTreeMap::new(),
             per_requester: BTreeMap::new(),
+            version: 0,
         }
     }
 
@@ -53,7 +58,8 @@ impl Ledger {
         let job_id = event.job;
         let pending = event.sequence > job.chains.next_sequence(&event.author);
         let ids = job.receive(event, id, len, &self.limits)?;
-        Ok(Self::receipt(&self.jobs, &job_id, ids, pending))
+        self.version += ids.len() as u64;
+        Ok(Receipt::of(&self.jobs, &job_id, ids, pending))
     }
 
     fn receive_new_job(
@@ -80,29 +86,10 @@ impl Ledger {
         }
         let mut job = JobLedger::new(job_id, spec);
         let ids = job.receive(event, id, len, &self.limits)?;
+        self.version += ids.len() as u64;
         self.jobs.insert(job_id, job);
         *self.per_requester.entry(requester).or_default() += 1;
-        Ok(Self::receipt(&self.jobs, &job_id, ids, false))
-    }
-
-    fn receipt(
-        jobs: &BTreeMap<JobId, JobLedger>,
-        job: &JobId,
-        ids: Vec<Hash32>,
-        pending: bool,
-    ) -> Receipt {
-        let accepted = jobs
-            .get(job)
-            .map(|ledger| {
-                ids.iter()
-                    .filter_map(|id| ledger.events.get(id).cloned())
-                    .collect()
-            })
-            .unwrap_or_default();
-        Receipt {
-            accepted,
-            pending: pending && ids.is_empty(),
-        }
+        Ok(Receipt::of(&self.jobs, &job_id, ids, false))
     }
 
     /// Publie un nouveau job (événement local du requester).
@@ -204,20 +191,6 @@ impl Ledger {
             .get(job)
             .filter(|ledger| fragment < ledger.signed_spec.spec.fragments)
             .map(|ledger| ledger.parts().approvals(fragment, attempt, now_ms))
-            .unwrap_or_default()
-    }
-
-    /// Votes des membres du comité pour retenir un claim (fragment, tentative).
-    pub fn claim_votes(
-        &self,
-        job: &JobId,
-        fragment: u32,
-        attempt: u32,
-    ) -> Vec<(PublicKey, Hash32)> {
-        self.jobs
-            .get(job)
-            .filter(|ledger| fragment < ledger.signed_spec.spec.fragments)
-            .map(|ledger| ledger.parts().claim_votes(fragment, attempt))
             .unwrap_or_default()
     }
 

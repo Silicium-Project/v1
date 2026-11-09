@@ -1,79 +1,137 @@
-//! Finalisation : vote du comité + certificat d'approbations recoupé avec le journal.
+//! Finalisation (ADR 0005, phases 3-4) : un `Finalize` certifie un résultat, sans vote.
 //!
-//! Les signatures du certificat sont vérifiées une fois, à l'insertion (`job.rs`).
-//! Ici on vérifie qu'il est cohérent avec ce que le journal sait : résultat, vérificateurs
-//! acceptés par le comité, absence de rejets suffisants.
+//! Un `Finalize` ne lit que ce qu'il désigne : son claim, son résultat (`Submit`), les offres des
+//! vérificateurs qui approuvent (`verifiers`) et leurs attestations. Le bail se lit sur le claim
+//! désigné. Rien ne dépend de l'ordre des offres ni du vainqueur de la course aux claims : une
+//! offre plus ancienne reçue tard ne défait pas une finalisation.
+//!
+//! Validité monotone : une fois valide, elle le reste quand d'autres événements arrivent. Un rejet
+//! postérieur ouvre un litige, il ne défait pas la finalisation. Entre plusieurs `Finalize` valides,
+//! le premier dans l'ordre total l'emporte.
 
 use super::{
-    index::{Ev, View},
-    types::{AttemptState, Finalized},
-    votes::single_winner,
+    attempt,
+    index::{Ev, View, by_time},
+    types::Finalized,
 };
 use crate::EventBody;
 use sil_attest::Certificate;
-use sil_types::PublicKey;
+use sil_types::{Hash32, PublicKey};
 use std::collections::BTreeSet;
 
-fn certificate_holds(
-    required: usize,
-    attempts: &[AttemptState],
-    attempt: u32,
-    certificate: &Certificate,
-) -> bool {
-    let Some(state) = attempt
-        .checked_sub(1)
-        .and_then(|index| attempts.get(index as usize))
-    else {
-        return false;
-    };
-    let Some(result) = &state.result else {
-        return false;
-    };
-    if result.result != certificate.result || state.rejections() >= required {
-        return false;
-    }
-    let approving: BTreeSet<&PublicKey> = state
-        .verifiers
+pub(super) fn find(view: &View<'_>, events: &[Ev<'_>]) -> Option<Finalized> {
+    let required = usize::try_from(view.spec.verifications_required).unwrap_or(usize::MAX);
+    let mut finals: Vec<Ev<'_>> = events
         .iter()
-        .filter(|v| v.verdict == Some(true))
-        .map(|v| &v.verifier)
+        .copied()
+        .filter(|(_, e)| matches!(e.body, EventBody::Finalize { .. }))
         .collect();
-    let backed: BTreeSet<&PublicKey> = certificate
-        .approvals
-        .iter()
-        .map(|a| &a.verifier)
-        .filter(|verifier| approving.contains(verifier))
-        .collect();
-    backed.len() >= required
+    by_time(&mut finals);
+    finals.into_iter().find_map(|(_, event)| match &event.body {
+        EventBody::Finalize {
+            fragment,
+            attempt,
+            claim,
+            submit,
+            verifiers,
+            certificate,
+        } => certified(
+            view,
+            events,
+            Designated {
+                fragment: *fragment,
+                attempt: *attempt,
+                claim: *claim,
+                submit: *submit,
+                verifiers,
+            },
+            certificate,
+            required,
+        ),
+        _ => None,
+    })
 }
 
-pub(super) fn find(
+/// Ce que désigne un `Finalize`.
+struct Designated<'a> {
+    fragment: u32,
+    attempt: u32,
+    claim: Hash32,
+    submit: Hash32,
+    verifiers: &'a [Hash32],
+}
+
+/// Le certificat tient-il sur les événements désignés ?
+fn certified(
     view: &View<'_>,
     events: &[Ev<'_>],
-    attempts: &[AttemptState],
+    designated: Designated<'_>,
+    certificate: &Certificate,
+    required: usize,
 ) -> Option<Finalized> {
-    let required = usize::try_from(view.spec.verifications_required).unwrap_or(usize::MAX);
-    let winner = single_winner(events, view.spec, |event| match &event.body {
-        EventBody::Finalize {
-            attempt,
-            certificate,
-            ..
-        } if certificate_holds(required, attempts, *attempt, certificate) => {
-            Some((*attempt, certificate.result))
-        }
-        _ => None,
-    })?;
-    let (attempt, result) = winner.key;
-    let state = attempts.get(attempt.checked_sub(1)? as usize)?;
-    Some(Finalized {
-        attempt,
+    let Designated {
+        fragment,
+        attempt: k,
+        claim: claim_id,
+        submit: submit_id,
+        verifiers: offer_ids,
+    } = designated;
+    let claim = attempt::find(events, &claim_id)?;
+    if !matches!(claim.body, EventBody::Claim { fragment: f, attempt: a } if f == fragment && a == k)
+    {
+        return None;
+    }
+    let submit = attempt::find(events, &submit_id)?;
+    let EventBody::Submit {
+        fragment: submitted_fragment,
+        attempt: submitted_attempt,
         result,
-        claimant: state.claimant,
-        approvers: state
-            .verifiers
-            .iter()
-            .filter(|v| v.verdict == Some(true))
-            .map(|v| v.verifier)
-            .collect(),
+        ..
+    } = &submit.body
+    else {
+        return None;
+    };
+    if *submitted_fragment != fragment
+        || *submitted_attempt != k
+        || *result != certificate.result
+        || submit.author != claim.author
+        || submit.issued_at_ms < claim.issued_at_ms
+    {
+        return None;
+    }
+    let claimant = claim.author;
+    let lease = attempt::own_lease(view, events, k, claimant, claim.issued_at_ms);
+    if submit.issued_at_ms > lease.expires_at_ms {
+        return None;
+    }
+    // Vérificateurs désignés : offres valides, pour cette tentative, hors claimant (ADR 0006 : pas
+    // de liste blanche). Une offre désignée qui ne tient pas est simplement sans effet.
+    attempt::result_state(&submit_id, submit)?;
+    let designated: BTreeSet<PublicKey> = offer_ids
+        .iter()
+        .filter_map(|id| attempt::find(events, id).map(|offer| (*id, offer)))
+        .filter(|(_, offer)| {
+            matches!(offer.body, EventBody::VerifyOffer { fragment: f, attempt: a } if f == fragment && a == k)
+                && offer.author != claimant
+        })
+        .map(|(_, offer)| offer.author)
+        .collect();
+    let approvers: BTreeSet<PublicKey> = certificate
+        .approvals
+        .iter()
+        .filter(|a| {
+            a.body.task.fragment == fragment
+                && a.body.attempt == k
+                && a.body.result == *result
+                && a.body.approved
+        })
+        .map(|a| a.verifier)
+        .filter(|verifier| designated.contains(verifier))
+        .collect();
+    (approvers.len() >= required).then(|| Finalized {
+        attempt: k,
+        result: *result,
+        claimant,
+        approvers: approvers.into_iter().collect(),
     })
 }

@@ -1,4 +1,4 @@
-# Workspace Rust de V1. Un crate = une responsabilité (voir docs/technical/architecture.md).
+# Workspace Rust de V1. Un crate = une responsabilitÃ© (voir docs/technical/architecture.md).
 [workspace]
 resolver = "3"
 members = ["crates/*"]
@@ -31,8 +31,9 @@ sil-wl-render = { path = "crates/sil-wl-render" }
 sil-sandbox = { path = "crates/sil-sandbox" }
 sil-render-wasm = { path = "crates/sil-render-wasm" }
 sil-reputation = { path = "crates/sil-reputation" }
-sil-coordinator = { path = "crates/sil-coordinator" }
 sil-chain-core = { path = "crates/sil-chain-core" }
+sil-raytracer = { path = "crates/sil-raytracer" }
+sil-workload-spec = { path = "crates/sil-workload-spec" }
 sil-settlement = { path = "crates/sil-settlement" }
 sil-control-api = { path = "crates/sil-control-api" }
 sil-node = { path = "crates/sil-node" }
@@ -49,7 +50,7 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tempfile = "3"
-libp2p = { version = "0.56", default-features = false, features = ["tokio", "tcp", "quic", "noise", "yamux", "gossipsub", "kad", "identify", "request-response", "cbor", "macros"] }
+libp2p = { version = "0.56", default-features = false, features = ["tokio", "tcp", "quic", "noise", "yamux", "gossipsub", "kad", "identify", "request-response", "cbor", "macros", "relay", "dcutr"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "signal", "net", "io-util"] }
 futures = "0.3"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query", "matched-path"] }

@@ -5,7 +5,7 @@
 //! score. Ici :
 //! - seules comptent les observations d'un **scope de confiance** (un requester que ce nœud
 //!   a choisi de croire) ;
-//! - les observations où le worker est **le requester ou un membre du comité** sont ignorées
+//! - les observations où le worker est **le requester ou un insider** sont ignorées
 //!   (auto-évaluation) ;
 //! - le poids d'un succès croît avec la **valeur** payée, mais est plafonné ;
 //! - tout **décroît** avec une demi-vie : une réputation se maintient, ne se capitalise pas ;
@@ -18,11 +18,13 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod config;
+mod derived;
 mod record;
 mod reputation;
 
 pub use config::ReputationConfig;
-pub use reputation::{Outcome, Reputation};
+pub use derived::{Observation, from_observations};
+pub use reputation::{Outcome, Reputation, verdict_outcome};
 
 #[cfg(test)]
 mod tests;

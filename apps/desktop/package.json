@@ -1,0 +1,15 @@
+{
+  "name": "silicium-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Application de bureau Silicium : installeur Windows qui embarque le nœud et son moteur de rendu.",
+  "scripts": {
+    "sidecars": "node scripts/prepare-sidecars.mjs",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

@@ -33,7 +33,7 @@ pub struct Case {
 pub async fn run(world: &World, case: &Case, nonce: u64) -> JobId {
     upload(&world.nodes[0], &case.input).await;
     let spec = JobSpec {
-        version: 1,
+        version: 2,
         requester: world.requester.public(),
         nonce,
         workload: case.workload.into(),
@@ -42,8 +42,6 @@ pub async fn run(world: &World, case: &Case, nonce: u64) -> JobId {
         width: case.width,
         height: case.height,
         fragments: case.fragments,
-        committee: world.committee.clone(),
-        threshold: 2,
         verifications_required: 1,
         lease_ms: 60_000,
         max_attempts: 3,

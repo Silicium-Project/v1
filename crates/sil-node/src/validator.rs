@@ -5,7 +5,6 @@
 //! c'est le journal qui l'écartera sans pénalité.
 
 use crate::wire::Envelope;
-use sil_crypto::{Domain, verify};
 use sil_net::{MessageValidator, Presence, Topic, Verdict};
 
 pub struct NodeValidator;
@@ -23,19 +22,6 @@ impl MessageValidator for NodeValidator {
             Topic::Announce | Topic::Jobs(_) => match Envelope::from_bytes(data) {
                 Ok(Envelope::Event(event)) => {
                     if event.verify_signature().is_ok() {
-                        Verdict::Accept
-                    } else {
-                        Verdict::Reject
-                    }
-                }
-                Ok(Envelope::SettlementSig {
-                    claim,
-                    signer,
-                    signature,
-                }) => {
-                    let valid =
-                        verify(&signer, Domain::Settlement, &claim.bytes(), &signature).is_ok();
-                    if valid {
                         Verdict::Accept
                     } else {
                         Verdict::Reject

@@ -4,11 +4,12 @@
 //! Régénérer après un changement voulu du format :
 //! `SIL_REGENERATE_VECTORS=1 cargo test -p sil-ledger vectors`.
 
+use crate::spec::SPEC_VERSION;
 use crate::wallet_text::spec_text;
 use crate::{Event, EventBody, Header, JobSpec, NO_PREVIOUS, SignedJobSpec};
 use serde_json::{Value, json};
 use sil_crypto::{MasterSeed, Purpose, SigningIdentity};
-use sil_types::{Hash32, PublicKey};
+use sil_types::Hash32;
 
 const VECTOR_FILE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -23,9 +24,9 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn sample_spec(requester: &SigningIdentity, committee: &[PublicKey]) -> JobSpec {
+fn sample_spec(requester: &SigningIdentity) -> JobSpec {
     JobSpec {
-        version: 1,
+        version: SPEC_VERSION,
         requester: requester.public(),
         nonce: 1,
         workload: "calcul/sha256".into(),
@@ -34,8 +35,6 @@ fn sample_spec(requester: &SigningIdentity, committee: &[PublicKey]) -> JobSpec 
         width: 0,
         height: 0,
         fragments: 2,
-        committee: committee.to_vec(),
-        threshold: 2,
         verifications_required: 1,
         lease_ms: 60_000,
         max_attempts: 3,
@@ -48,11 +47,7 @@ fn sample_spec(requester: &SigningIdentity, committee: &[PublicKey]) -> JobSpec 
 /// Calcule tous les champs du vecteur. Rien d'aléatoire : signatures Ed25519 déterministes.
 fn compute() -> Value {
     let requester = identity(7);
-    let committee: Vec<PublicKey> = [8u8, 9, 10]
-        .into_iter()
-        .map(|s| identity(s).public())
-        .collect();
-    let spec = sample_spec(&requester, &committee);
+    let spec = sample_spec(&requester);
     let spec_cbor = spec.bytes().expect("spec encodes");
     let spec_message = spec_text(&spec).into_bytes();
     let spec_signature = requester.sign_raw(&spec_message);
@@ -76,8 +71,6 @@ fn compute() -> Value {
 
     json!({
         "requester": hex(requester.public().as_bytes()),
-        "committee": committee.iter().map(|k| hex(k.as_bytes())).collect::<Vec<_>>(),
-        "threshold": 2,
         "spec_cbor": hex(&spec_cbor),
         "spec_message": hex(&spec_message),
         "spec_signature": hex(spec_signature.as_bytes()),
@@ -109,27 +102,19 @@ fn vectors_match_the_contract_file() {
 #[test]
 fn the_vector_spec_verifies_with_the_public_api() {
     let requester = identity(7);
-    let committee: Vec<PublicKey> = [8u8, 9, 10]
-        .into_iter()
-        .map(|s| identity(s).public())
-        .collect();
-    let signed =
-        SignedJobSpec::sign(&requester, sample_spec(&requester, &committee)).expect("spec signs");
+    let signed = SignedJobSpec::sign(&requester, sample_spec(&requester)).expect("spec signs");
     assert!(signed.verify().is_ok());
 }
 
 #[test]
 fn the_signed_texts_are_ascii_and_name_their_domain() {
     let requester = identity(7);
-    let committee: Vec<PublicKey> = [8u8, 9, 10]
-        .into_iter()
-        .map(|s| identity(s).public())
-        .collect();
-    let spec = sample_spec(&requester, &committee);
+    let spec = sample_spec(&requester);
     let text = spec_text(&spec);
     assert!(text.is_ascii(), "the wallet must show plain text");
-    assert!(text.starts_with("Silicium JobSpec v1\n"));
+    assert!(text.starts_with("Silicium JobSpec v2\n"));
     assert!(text.contains("\nWorkload: calcul/sha256\n"));
+    assert!(!text.contains("Committee:"), "plus de comité (ADR 0007)");
     let signed = SignedJobSpec::sign(&requester, spec).expect("spec signs");
     let event = Event::sign(
         &requester,

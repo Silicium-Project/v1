@@ -33,9 +33,10 @@ pub(crate) struct WorkBook {
     pub(crate) running: BTreeSet<(JobId, u32, u32)>,
     pub(crate) offered: BTreeSet<(JobId, u32, u32)>,
     pub(crate) verifying: BTreeSet<(JobId, u32, u32)>,
-    pub(crate) signed: BTreeSet<IntentId>,
     /// Tentatives déjà comptées dans la réputation (job, fragment, tentative).
     pub(crate) observed: BTreeSet<(JobId, u32, u32)>,
+    /// Verdicts déjà comptés dans la réputation de vérificateur (job, fragment, tentative, pair).
+    pub(crate) observed_verdicts: BTreeSet<(JobId, u32, u32, sil_types::PublicKey)>,
     /// Résultat de la garde d'escrow par job : (jusqu'à quand, accepté).
     /// Position de synchronisation par (job, pair).
     pub(crate) sync: BTreeMap<(JobId, sil_net::PeerId), SyncState>,
@@ -44,6 +45,8 @@ pub(crate) struct WorkBook {
     /// Fragments de topics de jobs auxquels ce nœud est abonné.
     pub(crate) subscribed: BTreeSet<u8>,
     pub(crate) escrow_ok: BTreeMap<JobId, (u64, bool)>,
+    /// Escrow lu sur la chaîne pour les gains : (jusqu'à quand, escrow). Évite un RPC par rafraîchissement.
+    pub(crate) escrow_seen: BTreeMap<JobId, (u64, Option<sil_chain_core::Escrow>)>,
     /// Un verrou par contenu en cours de téléchargement : les demandeurs suivants attendent.
     pub(crate) fetching: BTreeMap<sil_types::ContentId, Arc<tokio::sync::Mutex<()>>>,
 }
@@ -55,14 +58,18 @@ pub struct Shared {
     pub(crate) store: ContentStore,
     pub(crate) registry: Registry,
     pub(crate) reputation: Mutex<Reputation>,
+    /// Réputation de vérificateur : fondée sur les verdicts, elle classe les offres de vérification.
+    pub(crate) verify_reputation: Mutex<Reputation>,
+    /// Réputation relue dans le journal (ADR 0005, phase 1b), gardée tant que le journal ne change pas.
+    pub(crate) derived: Mutex<crate::derived_reputation::Cache>,
     pub(crate) outbox: Mutex<Outbox>,
     pub(crate) outbox_file: OutboxFile,
     pub(crate) chain: Arc<dyn Chain>,
     pub(crate) seed: MasterSeed,
     pub(crate) identity: SigningIdentity,
     pub(crate) roles: Roles,
-    pub(crate) claim_window_ms: u64,
-    pub(crate) leader_wait_ms: u64,
+    /// Mode de test : pas de vérification d'escrow avant de réclamer (voir `NodeOptions`).
+    pub(crate) free_work: bool,
     pub(crate) net: OnceLock<NetworkHandle>,
     pub(crate) work: Mutex<WorkBook>,
     pub(crate) runtime: tokio::runtime::Handle,

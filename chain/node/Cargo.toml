@@ -18,6 +18,11 @@ sil-node = { path = "../../crates/sil-node" }
 sil-config = { path = "../../crates/sil-config" }
 sil-settlement = { path = "../../crates/sil-settlement" }
 sil-settlement-solana = { path = "../adapter" }
+sil-chain-core = { path = "../../crates/sil-chain-core" }
+sil-codec = { path = "../../crates/sil-codec" }
+sil-types = { path = "../../crates/sil-types" }
+serde_json = "1"
+ureq = { version = "2", features = ["json"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 

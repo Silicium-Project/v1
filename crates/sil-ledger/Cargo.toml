@@ -1,6 +1,6 @@
 [package]
 name = "sil-ledger"
-description = "Journal d'événements signés par job : spec signée, chaînes par auteur, décisions par vote de comité, état dérivé."
+description = "Journal d'événements signés par job : spec signée, chaînes par auteur, décisions sans vote (ADR 0005, 0007), état dérivé."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

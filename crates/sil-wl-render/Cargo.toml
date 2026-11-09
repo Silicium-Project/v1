@@ -9,11 +9,13 @@ license.workspace = true
 sil-workload-api.workspace = true
 sil-sandbox.workspace = true
 sil-types.workspace = true
+sil-workload-spec.workspace = true
 sil-crypto.workspace = true
 sil-codec.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+sil-raytracer.workspace = true
 sil-sampling.workspace = true
 
 [lints]

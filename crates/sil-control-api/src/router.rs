@@ -63,8 +63,15 @@ pub fn router<B: Backend>(backend: Arc<B>, tokens: TokenSet, limits: ApiLimits) 
             post(handlers::submit_event::<B>).layer(DefaultBodyLimit::max(limits.max_event_bytes)),
         )
         .route("/v1/jobs/{id}", get(handlers::job::<B>))
+        .route("/v1/jobs/{id}/image", get(handlers::job_image::<B>))
+        .route("/v1/jobs/{id}/outputs", get(handlers::job_outputs::<B>))
         .route("/v1/peers", get(handlers::peers::<B>))
-        .route("/v1/settlements", get(handlers::settlements::<B>))
+        .route(
+            "/v1/settlements",
+            get(handlers::settlements::<B>)
+                .post(handlers::submit_settlement::<B>)
+                .layer(DefaultBodyLimit::max(limits.max_event_bytes)),
+        )
         .route("/v1/worker", get(handlers::worker::<B>))
         .route_layer(middleware::from_fn_with_state(state.clone(), guard::<B>))
         .with_state(state)

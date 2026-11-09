@@ -1,5 +1,43 @@
-use crate::{Outcome, Reputation, ReputationConfig};
+use crate::{Outcome, Reputation, ReputationConfig, verdict_outcome};
 use sil_types::PublicKey;
+
+#[test]
+fn a_machine_is_a_newcomer_until_it_has_a_record() {
+    let mut r = reputation();
+    assert!(r.is_newcomer(&key(50), 0));
+    for _ in 0..2 {
+        r.observe(
+            &key(1),
+            &key(50),
+            &[key(10)],
+            Outcome::Completed { reward: 0 },
+            0,
+        );
+    }
+    assert!(r.is_newcomer(&key(50), 0));
+    r.observe(
+        &key(1),
+        &key(50),
+        &[key(10)],
+        Outcome::Completed { reward: 0 },
+        0,
+    );
+    assert!(!r.is_newcomer(&key(50), 0));
+}
+
+#[test]
+fn a_verifier_is_right_when_its_verdict_matches_the_decision() {
+    assert_eq!(
+        verdict_outcome(true, true),
+        Outcome::Completed { reward: 0 }
+    );
+    assert_eq!(
+        verdict_outcome(false, false),
+        Outcome::Completed { reward: 0 }
+    );
+    assert_eq!(verdict_outcome(true, false), Outcome::Failed);
+    assert_eq!(verdict_outcome(false, true), Outcome::Failed);
+}
 
 fn key(n: u8) -> PublicKey {
     PublicKey::from_bytes([n; 32])
@@ -26,6 +64,17 @@ fn newcomers_start_neutral_and_in_probation() {
     let r = reputation();
     assert_eq!(r.score(&key(50), 0), 0.5);
     assert_eq!(r.max_parallel(&key(50), 0), 1);
+}
+
+#[test]
+fn evidence_matches_the_score_it_explains() {
+    let mut r = reputation();
+    assert!(done(&mut r, 50, 0));
+    let (good, bad) = r.evidence(&key(50), 0);
+    assert!(good > 0.0 && bad == 0.0);
+    let expected = (good + 1.0) / (good + bad + 2.0);
+    assert!((r.score(&key(50), 0) - expected).abs() < 1e-12);
+    assert_eq!(r.evidence(&key(51), 0), (0.0, 0.0));
 }
 
 #[test]
@@ -68,7 +117,7 @@ fn self_dealing_is_ignored() {
     );
     assert!(
         !r.observe(&key(1), &key(10), &committee, completed, 0),
-        "un membre du comité"
+        "un insider"
     );
     assert_eq!(r.tracked(), 0);
 }

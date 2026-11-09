@@ -1,0 +1,9 @@
+[package]
+name = "sil-workload-spec"
+description = "Descripteurs des workloads, générés depuis contracts/workloads : unité, découpage, tarifs, politique et limites. Données seules, sans dépendance."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

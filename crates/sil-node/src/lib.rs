@@ -7,7 +7,7 @@
 //! | Acteur | Rôle |
 //! |---|---|
 //! | `gossip_loop` | reçoit les messages validés, comble les trous, rediffuse les têtes de chaîne |
-//! | `coordinator_loop` | membre du comité : vote claims, vérificateurs, finalisation ; signe les règlements |
+//! | `finalize_loop` | tout nœud : publie `Finalize` et met en file les règlements signés par les approbateurs |
 //! | `worker_loop` | réclame des fragments, les exécute, publie le résultat |
 //! | `verifier_loop` | propose de vérifier, recalcule un échantillon, publie le verdict |
 //! | `settlement_loop` | fait avancer l'outbox de règlement et la sauvegarde |
@@ -20,7 +20,9 @@
 mod backend;
 mod blob;
 pub mod cli;
-mod coordinator_loop;
+mod finalization;
+mod finalize_loop;
+mod derived_reputation;
 mod error;
 mod fetch;
 mod gossip_loop;
@@ -39,6 +41,7 @@ mod wire;
 mod work;
 mod worker_data;
 mod worker_loop;
+mod worker_tasks;
 
 pub use backend::NodeBackend;
 pub use error::NodeError;

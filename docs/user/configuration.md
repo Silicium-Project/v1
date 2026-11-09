@@ -12,6 +12,8 @@ data_dir = "data"
 [network]
 listen = ["/ip4/0.0.0.0/udp/4001/quic-v1"]
 bootstrap = ["/ip4/203.0.113.10/udp/4001/quic-v1/p2p/12D3KooW..."]
+# Relais public : à activer seulement si ce nœud est joignable directement (port ouvert).
+relay_server = false
 enable_mdns = false
 
 [control]
@@ -52,6 +54,22 @@ json = false
 
 Le dossier de données contient les clés : réservez-le à l'utilisateur qui lance le nœud.
 
+## Modes de test (`[testnet]`, optionnel)
+
+```toml
+[testnet]
+free_work = true      # le worker calcule sans vérifier d'escrow : le travail n'est pas payé
+```
+
+Tous les modes sont désactivés par défaut.
+
+- **`free_work`** : sert à tester le réseau P2P (publication, réclamation, vérification) avant
+  d'avoir une chaîne.
+- **Refusés avec `[chain]`** : le nœud ne démarre pas. Dès qu'une chaîne existe, le travail doit être
+  payé et un résultat doit être vérifié par un tiers.
+- Un avertissement est écrit au démarrage tant qu'un mode est actif.
+- Réseau de test seulement : ne jamais les activer sur un nœud qui doit gagner de l'argent.
+
 ## Chaîne Solana (`[chain]`, optionnel)
 
 Sans cette section, le nœud ne règle rien. Avec, il faut le binaire `chain/node` (le binaire
@@ -65,9 +83,23 @@ Sans cette section, le nœud ne règle rien. Avec, il faut le binaire `chain/nod
 
 ## Moteur de rendu (`[render]`, optionnel)
 
-Sans cette section, le nœud ne sait pas faire de `rendu/blocs`. Avec, le moteur désigné doit
+Sans cette section, le nœud ne sait pas faire de `rendu/raytracer`. Avec, le moteur désigné doit
 exister au démarrage. Le moteur tourne avec les droits du nœud : n'utilisez que des programmes
 de confiance.
+
+Le moteur du workload `rendu/raytracer` est le binaire `sil-raytracer-block` (crate
+`sil-raytracer`, moteur porté de la v0) :
+
+```bash
+cargo build --release -p sil-raytracer
+```
+
+```toml
+[render]
+engine = "target/release/sil-raytracer-block"
+```
+
+C'est un programme natif : il est lancé dans `sil-sandbox` (sous Windows, ajouter `.exe`).
 
 | Champ | Rôle |
 |---|---|

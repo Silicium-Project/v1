@@ -6,7 +6,6 @@ use crate::{
 };
 use sil_ledger::Event;
 use sil_net::{LedgerRequest, NetEvent, Topic};
-use sil_settlement::Authorization;
 use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::{mpsc, watch},
@@ -60,42 +59,7 @@ fn on_message(shared: &Arc<Shared>, data: &[u8]) {
                 tracing::debug!(%error, "événement reçu non retenu");
             }
         }
-        Ok(Envelope::SettlementSig {
-            claim,
-            signer,
-            signature,
-        }) => accept_settlement_signature(shared, *claim, signer, signature),
         Err(_) => {}
-    }
-}
-
-/// Enregistre la signature d'un membre du comité sur un règlement (nœuds coordinateurs).
-fn accept_settlement_signature(
-    shared: &Arc<Shared>,
-    claim: sil_settlement::SettlementClaim,
-    signer: sil_types::PublicKey,
-    signature: sil_types::Signature,
-) {
-    if !shared.roles.coordinator {
-        return;
-    }
-    let in_committee = lock(&shared.ledger)
-        .spec(&claim.job)
-        .is_some_and(|spec| spec.spec.committee.contains(&signer));
-    tracing::debug!(
-        fragment = claim.fragment,
-        in_committee,
-        "signature de règlement reçue"
-    );
-    if !in_committee {
-        return;
-    }
-    let mut authorization = Authorization::new(claim);
-    match authorization.add(signer, signature) {
-        Ok(_) => {
-            let _ = lock(&shared.outbox).enqueue(authorization);
-        }
-        Err(error) => tracing::debug!(%error, "signature de règlement refusée"),
     }
 }
 
@@ -185,53 +149,18 @@ async fn sync_jobs(shared: &Arc<Shared>) {
     }
 }
 
-/// Rediffuse nos signatures sur les règlements encore ouverts : un membre du comité qui n'a pas
-/// été joint au moment de la signature (maillage pas encore formé) doit pouvoir la recevoir plus
-/// tard, sinon le règlement reste bloqué faute de deux signatures.
-fn rebroadcast_own_settlement_signatures(shared: &Arc<Shared>, me: &sil_types::PublicKey) {
-    let open = lock(&shared.outbox).open_authorizations();
-    for authorization in open {
-        let job = authorization.claim.job;
-        tracing::debug!(
-            fragment = authorization.claim.fragment,
-            signatures = authorization.signatures.len(),
-            "règlement ouvert : signatures rediffusées"
-        );
-        for (signer, signature) in authorization.signatures.iter().filter(|(s, _)| s == me) {
-            shared.broadcast(
-                &Envelope::SettlementSig {
-                    claim: Box::new(authorization.claim.clone()),
-                    signer: *signer,
-                    signature: *signature,
-                },
-                &[Topic::for_job(&job)],
-            );
-        }
-    }
-}
-
 /// Rediffuse la dernière entrée de nos chaînes (les autres détectent alors ce qui leur manque),
-/// et, pour un membre du comité, l'annonce du job.
+/// et l'annonce du job.
 fn rebroadcast_heads(shared: &Arc<Shared>) {
     let me = shared.identity.public();
-    rebroadcast_own_settlement_signatures(shared, &me);
     let jobs = lock(&shared.ledger).job_ids();
     for job in jobs {
         let (mine, announcement) = {
             let ledger = lock(&shared.ledger);
             let mine = ledger.events_of(&job, &me).pop();
-            let announcement = ledger.spec(&job).and_then(|spec| {
-                spec.spec
-                    .committee
-                    .contains(&me)
-                    .then(|| {
-                        ledger
-                            .events_of(&job, &spec.spec.requester)
-                            .into_iter()
-                            .next()
-                    })
-                    .flatten()
-            });
+            let announcement = ledger
+                .spec(&job)
+                .and_then(|spec| ledger.events_of(&job, &spec.spec.requester).into_iter().next());
             (mine, announcement)
         };
         if let Some(event) = mine {

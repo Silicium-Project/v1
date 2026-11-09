@@ -38,23 +38,31 @@ func Recover(log *slog.Logger) Middleware {
 
 // SecurityHeaders sets the headers of the API and of the single-page app. The CSP forbids
 // inline scripts and styles, third-party origins and framing; API answers get the strictest
-// policy (they never render).
-func SecurityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
-		if strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/health" {
-			h.Set("Cache-Control", "no-store")
-			h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-		} else {
-			h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self'; "+
-				"script-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; "+
-				"base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
-		}
-		next.ServeHTTP(w, r)
-	})
+// policy (they never render). connect lists the extra origins the app may call: the Solana RPC
+// for the escrow deposit. It is empty unless the operator sets SIL_API_CONNECT_SRC.
+func SecurityHeaders(connect []string) Middleware {
+	extra := ""
+	for _, origin := range connect {
+		extra += " " + origin
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := w.Header()
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("Referrer-Policy", "no-referrer")
+			h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+			if strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/health" {
+				h.Set("Cache-Control", "no-store")
+				h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+			} else {
+				// blob: : l'aperçu d'un calcul est une URL blob créée par la page (voir JobDetailPage).
+				h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; "+
+					"script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'"+extra+"; font-src 'self'; object-src 'none'; "+
+					"base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 type statusWriter struct {

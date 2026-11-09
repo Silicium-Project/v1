@@ -2,28 +2,20 @@ use super::support::*;
 use crate::*;
 
 #[test]
-fn full_lifecycle_needs_committee_votes_and_a_certificate() {
+fn full_lifecycle_needs_verifier_votes_and_a_certificate() {
     let (worker, verifier) = (ident(60), ident(61));
     let mut world = World::new(Params::default());
     assert_eq!(world.status(), TaskStatus::Open);
     assert_eq!(world.task().next_attempt, Some(1));
 
-    let claim = world.emit(
+    // Phase 2 : le premier claim valide retient la tentative, sans vote du comité.
+    world.emit(
         &worker,
         EventBody::Claim {
             fragment: 0,
             attempt: 1,
         },
     );
-    assert_eq!(world.ledger.open_claims(&world.job, 0, world.now).len(), 1);
-    let accept = EventBody::Accept {
-        fragment: 0,
-        attempt: 1,
-        claim: claim.id().unwrap(),
-    };
-    world.vote(1, &accept);
-    assert_eq!(world.status(), TaskStatus::Open, "1 vote < seuil 2");
-    world.vote(2, &accept);
     assert_eq!(world.status(), TaskStatus::Claimed);
     assert!(
         world
@@ -52,14 +44,9 @@ fn full_lifecycle_needs_committee_votes_and_a_certificate() {
     world.attest(&verifier, 1, result, true);
     assert_eq!(world.status(), TaskStatus::Verified);
 
+    // Phase 3 : un seul `Finalize` valide suffit, il désigne le claim et le résultat.
     let certificate = world.certificate(&[&verifier], 1, result);
     world.finalize(1, 1, &certificate);
-    assert_eq!(
-        world.status(),
-        TaskStatus::Verified,
-        "1 vote de finalisation < seuil"
-    );
-    world.finalize(2, 1, &certificate);
     let task = world.task();
     assert_eq!(task.status, TaskStatus::Finalized);
     let finalized = task.finalized.unwrap();
@@ -80,6 +67,7 @@ fn expired_lease_opens_the_next_attempt_to_other_workers() {
     assert_eq!(task.status, TaskStatus::LeaseExpired);
     assert_eq!(task.next_attempt, Some(2));
 
+    // w1 ne reprend pas sa propre tentative : son claim est ignoré.
     world.emit(
         &w1,
         EventBody::Claim {
@@ -87,6 +75,13 @@ fn expired_lease_opens_the_next_attempt_to_other_workers() {
             attempt: 2,
         },
     );
+    assert_eq!(
+        world.task().attempts.len(),
+        1,
+        "l'ancien claimant est exclu"
+    );
+
+    // w2 réclame après l'échéance du bail de w1 : la tentative 2 lui revient.
     world.emit(
         &w2,
         EventBody::Claim {
@@ -94,12 +89,9 @@ fn expired_lease_opens_the_next_attempt_to_other_workers() {
             attempt: 2,
         },
     );
-    let offers = world.ledger.open_claims(&world.job, 0, world.now);
-    assert_eq!(offers.len(), 1, "l'ancien claimant est exclu");
-    assert_eq!(offers[0].author, w2.public());
-
-    world.claim_and_accept(&w2, 2);
-    assert_eq!(world.task().attempts.len(), 2);
+    let task = world.task();
+    assert_eq!(task.attempts.len(), 2);
+    assert_eq!(task.attempts[1].claimant, w2.public());
     assert_eq!(world.status(), TaskStatus::Claimed);
 }
 
@@ -132,14 +124,15 @@ fn renewals_extend_the_lease_and_release_ends_it() {
 }
 
 #[test]
-fn a_late_result_still_counts_until_a_new_attempt_is_accepted() {
+fn a_late_result_does_not_count_once_the_lease_is_over() {
     let worker = ident(60);
     let mut world = World::new(Params::default());
     world.claim_and_accept(&worker, 1);
     world.now += 100_000;
     assert_eq!(world.status(), TaskStatus::LeaseExpired);
     world.submit(&worker, 1, hash(5));
-    assert_eq!(world.status(), TaskStatus::Completed);
+    assert_eq!(world.status(), TaskStatus::LeaseExpired);
+    assert!(world.task().attempts[0].result.is_none());
 }
 
 #[test]

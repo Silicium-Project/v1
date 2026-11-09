@@ -18,7 +18,7 @@ func TestRoutesThatNeedASessionRefuseAnonymousAndGarbageTokens(t *testing.T) {
 	e := newEnv(t, true)
 	routes := [][2]string{
 		{"POST", "/v1/auth/logout"}, {"POST", "/v1/devices/link-codes"}, {"GET", "/v1/devices"},
-		{"DELETE", "/v1/devices/x"}, {"PUT", "/v1/content"}, {"POST", "/v1/jobs"},
+		{"DELETE", "/v1/devices/x"}, {"DELETE", "/v1/devices/x/purge"}, {"PUT", "/v1/content"}, {"POST", "/v1/jobs"},
 		{"GET", "/v1/jobs"}, {"GET", "/v1/jobs/" + jobHex},
 	}
 	for _, token := range []string{"", "nope", "sils_" + strings.Repeat("A", 43)} {

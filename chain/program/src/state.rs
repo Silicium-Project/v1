@@ -12,7 +12,9 @@ const HEADER_BYTES: usize = 1536;
 /// Octets réservés par fragment réglé pour `verifications_required = V` : entrée sérialisée de
 /// `SettledFragment` (résultat, claimant, approbateurs).
 const RECORD_BASE: usize = 160;
-const RECORD_PER_APPROVER: usize = 34;
+/// Par approbateur : son entrée dans le règlement.
+/// Par approbateur : son entrée, plus une entrée de pénalité (fragment, vérificateur) au plus.
+const RECORD_PER_APPROVER: usize = 34 + 36;
 
 /// Taille du compte (en-tête de longueur compris) pour des conditions données.
 pub fn account_space(terms: &EscrowTerms) -> Result<usize, ProgramError> {

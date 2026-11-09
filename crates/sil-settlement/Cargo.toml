@@ -1,6 +1,6 @@
 [package]
 name = "sil-settlement"
-description = "Règlement des fragments finalisés : autorisation du comité, outbox idempotente et reprenable, garde d'escrow, chaîne simulée."
+description = "Règlement des fragments finalisés : autorisation par les approbateurs, outbox idempotente et reprenable, garde d'escrow, chaîne simulée."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

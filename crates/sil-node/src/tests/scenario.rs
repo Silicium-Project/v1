@@ -40,10 +40,6 @@ pub fn stored_result(nodes: &[&TestNode], job: &JobId, fragment: u32) -> (Public
     panic!("résultat introuvable dans les magasins");
 }
 
-pub fn committee_keys() -> Vec<PublicKey> {
-    vec![ledger_key(1), ledger_key(2), ledger_key(3)]
-}
-
 pub async fn upload_input(node: &TestNode, data: &[u8]) {
     let (status, _) = http(
         node.api.unwrap(),

@@ -42,7 +42,10 @@ var jobID = regexp.MustCompile(`^[0-9a-f]{64}$`)
 type Node interface {
 	PutContent(ctx context.Context, data []byte) (nodeclient.ContentReceipt, error)
 	SubmitEvent(ctx context.Context, event []byte) (nodeclient.EventReceipt, error)
+	SubmitSettlement(ctx context.Context, settlement []byte) (json.RawMessage, error)
 	Job(ctx context.Context, id string) (json.RawMessage, error)
+	JobImage(ctx context.Context, id string) (nodeclient.Image, error)
+	JobOutputs(ctx context.Context, id string) ([]nodeclient.Output, error)
 }
 
 // Service holds the job use cases.
@@ -101,6 +104,27 @@ func (s *Service) Publish(ctx context.Context, userID, id string, event []byte, 
 
 // List returns the user jobs, newest first.
 func (s *Service) List(userID string) []store.Job { return s.store.JobsOf(userID) }
+
+// Event forwards a signed event of one of the user's jobs (its requester cancels it this way).
+// The node checks the signature and the chain; this checks that the job is the user's.
+func (s *Service) Event(ctx context.Context, userID, id string, event []byte) (nodeclient.EventReceipt, error) {
+	if !jobID.MatchString(id) || len(event) == 0 || len(event) > MaxEventBytes {
+		return nodeclient.EventReceipt{}, ErrInvalidInput
+	}
+	if _, err := s.store.JobOf(userID, id); err != nil {
+		return nodeclient.EventReceipt{}, ErrNotFound
+	}
+	return s.node.SubmitEvent(ctx, event)
+}
+
+// Settle relays a settlement signed by the approvers of a job to a node that pays the fees. Anyone
+// may relay one: the signatures are the proof, the chain checks them. No account is needed.
+func (s *Service) Settle(ctx context.Context, settlement []byte) (json.RawMessage, error) {
+	if len(settlement) == 0 || len(settlement) > MaxEventBytes {
+		return nil, ErrInvalidInput
+	}
+	return s.node.SubmitSettlement(ctx, settlement)
+}
 
 // View is what the API shows for one job.
 type View struct {

@@ -40,6 +40,43 @@ impl Backend for Fake {
         Ok((job.as_bytes()[0] == 1).then(|| json!({ "status": "Active" })))
     }
 
+    fn job_outputs(&self, job: &JobId) -> Result<Vec<FragmentOutput>, ApiError> {
+        match job.as_bytes()[0] {
+            1 => Ok(vec![
+                FragmentOutput {
+                    fragment: 0,
+                    bytes: vec![0xab, 0xcd],
+                },
+                FragmentOutput {
+                    fragment: 1,
+                    bytes: vec![0x01],
+                },
+            ]),
+            _ => Err(ApiError::NotFound),
+        }
+    }
+
+    fn job_image(&self, job: &JobId) -> Result<JobImage, ApiError> {
+        match job.as_bytes()[0] {
+            1 => Ok(JobImage {
+                width: 2,
+                height: 1,
+                rgb: vec![1, 2, 3, 4, 5, 6],
+            }),
+            2 => Err(ApiError::BadRequest(
+                "ce workload ne produit pas d'image".into(),
+            )),
+            _ => Err(ApiError::NotFound),
+        }
+    }
+
+    fn submit_settlement(&self, bytes: Vec<u8>) -> Result<Value, ApiError> {
+        if bytes.is_empty() {
+            return Err(ApiError::BadRequest("règlement vide".into()));
+        }
+        Ok(serde_json::json!({ "tx": "fake-tx" }))
+    }
+
     fn peers(&self) -> Result<Value, ApiError> {
         Ok(json!([]))
     }

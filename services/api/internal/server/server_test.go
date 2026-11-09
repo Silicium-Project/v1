@@ -55,7 +55,11 @@ func newFakeNode(t *testing.T) *fakeNode {
 			w.WriteHeader(http.StatusAccepted)
 			_, _ = w.Write([]byte(`{"accepted":1,"pending":false}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/jobs/"+jobHex && n.submitted.Load():
-			_, _ = w.Write([]byte(`{"job":"` + jobHex + `","status":"` + n.state.Load().(string) + `","tasks":[{"status":"Open"}]}`))
+			_, _ = w.Write([]byte(`{"job":"` + jobHex + `","status":"` + n.state.Load().(string) + `","workload":"rendu/raytracer","image":true,"tasks":[{"status":"Open"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/jobs/"+jobHex+"/image" && n.submitted.Load():
+			w.Header().Set("X-Image-Width", "2")
+			w.Header().Set("X-Image-Height", "1")
+			_, _ = w.Write([]byte{255, 0, 0, 0, 255, 0})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

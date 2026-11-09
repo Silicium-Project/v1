@@ -35,8 +35,6 @@ function specFromVector(): JobSpecInput {
     width: 0,
     height: 0,
     fragments: 2,
-    committee: (vectors.committee as string[]).map(fromHex),
-    threshold: 2,
     verificationsRequired: 1,
     leaseMs: 60_000,
     maxAttempts: 3,
@@ -67,7 +65,7 @@ function ed25519Key(raw: Uint8Array) {
 describe('the signed texts match sil-ledger byte for byte', () => {
   it('writes the spec text exactly as Rust does', () => {
     expect(toHex(specSigningMessage(specFromVector()))).toBe(vectors.spec_message)
-    expect(utf8(specSigningMessage(specFromVector())).startsWith('Silicium JobSpec v1\n')).toBe(true)
+    expect(utf8(specSigningMessage(specFromVector())).startsWith('Silicium JobSpec v2\n')).toBe(true)
   })
 
   it('writes the event text exactly as Rust does', () => {
@@ -95,7 +93,7 @@ describe('the signed texts match sil-ledger byte for byte', () => {
   it('the spec text names every field in fixed order', () => {
     const lines = specText(specFromVector()).split('\n')
     expect(lines.map((line) => line.split(':')[0])).toEqual([
-      'Silicium JobSpec v1',
+      'Silicium JobSpec v2',
       'Requester',
       'Nonce',
       'Workload',
@@ -104,8 +102,6 @@ describe('the signed texts match sil-ledger byte for byte', () => {
       'Width',
       'Height',
       'Fragments',
-      'Committee',
-      'Threshold',
       'Verifications',
       'Lease ms',
       'Max attempts',

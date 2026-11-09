@@ -2,7 +2,13 @@
 // The wallet holds the requester key: the site never sees it. Every call here needs the
 // user to approve in the wallet; a refusal is reported as wallet_rejected.
 
-export type WalletCode = 'no_wallet' | 'wallet_rejected' | 'wallet_key'
+export type WalletCode =
+  | 'no_wallet'
+  | 'wallet_rejected'
+  | 'wallet_key'
+  | 'no_funds'
+  | 'deposit_failed'
+  | 'deposit_unsupported'
 
 export class WalletFailure extends Error {
   constructor(readonly code: WalletCode) {
@@ -18,6 +24,7 @@ interface PublicKeyLike {
 interface SolanaProvider {
   connect(): Promise<{ publicKey: PublicKeyLike }>
   signMessage(message: Uint8Array, display?: 'utf8' | 'hex'): Promise<{ signature: Uint8Array }>
+  signTransaction?<T>(transaction: T): Promise<T>
 }
 
 /** The injected provider, or null when no Solana wallet is installed. */
@@ -58,6 +65,18 @@ export async function signWithWallet(message: Uint8Array, display: 'utf8' | 'hex
   } catch (failure) {
     if (failure instanceof WalletFailure) throw failure
     console.error('[wallet] signMessage failed:', failure)
+    throw new WalletFailure('wallet_rejected')
+  }
+}
+
+/** Asks the wallet to sign a transaction (the requester approves the escrow deposit). */
+export async function signTransactionWithWallet<T>(transaction: T): Promise<T> {
+  const provider = walletProvider()
+  if (!provider?.signTransaction) throw new WalletFailure('no_wallet')
+  try {
+    return await provider.signTransaction(transaction)
+  } catch (failure) {
+    console.error('[wallet] signTransaction failed:', failure)
     throw new WalletFailure('wallet_rejected')
   }
 }

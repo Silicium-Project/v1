@@ -13,6 +13,7 @@ use crate::{
 use futures::StreamExt;
 use libp2p::{
     Multiaddr, PeerId, Swarm,
+    core::transport::ListenerId,
     kad::{self, RecordKey},
     multiaddr::Protocol,
     request_response::OutboundRequestId,
@@ -40,6 +41,10 @@ pub(crate) struct Driver {
     pub(crate) pending_ledger: HashMap<OutboundRequestId, Reply<LedgerResponse>>,
     pub(crate) pending_content: HashMap<OutboundRequestId, Reply<ContentResponse>>,
     pub(crate) pending_providers: HashMap<kad::QueryId, (BTreeSet<PeerId>, Reply<Vec<PeerId>>)>,
+    /// Écouteur de circuit ouvert auprès de chaque relais d'amorçage.
+    pub(crate) relay_listeners: HashMap<PeerId, ListenerId>,
+    /// Relais auprès desquels une réservation est confirmée.
+    pub(crate) reserved_relays: BTreeSet<PeerId>,
 }
 
 /// Termine une requête sortante en prévenant celui qui attend.
@@ -58,6 +63,14 @@ fn peer_of(address: &Multiaddr) -> Option<PeerId> {
         Protocol::P2p(peer) => Some(peer),
         _ => None,
     })
+}
+
+/// Relais d'une adresse de circuit (`/…/p2p/<relais>/p2p-circuit/…`).
+fn relay_of(address: &Multiaddr) -> Option<PeerId> {
+    let circuit = address
+        .iter()
+        .any(|part| matches!(part, Protocol::P2pCircuit));
+    if circuit { peer_of(address) } else { None }
 }
 
 impl Driver {
@@ -84,12 +97,33 @@ impl Driver {
         }
     }
 
+    /// Recontacte les pairs d'amorçage et renouvelle la réservation de relais tant qu'elle
+    /// n'est pas confirmée (connexion au relais perdue, refus, expiration).
     fn redial_bootstrap(&mut self) {
         for address in self.bootstrap.clone() {
-            let connected = peer_of(&address).is_some_and(|peer| self.swarm.is_connected(&peer));
-            if !connected {
-                let _ = self.swarm.dial(address);
+            let Some(peer) = peer_of(&address) else {
+                continue;
+            };
+            if !self.swarm.is_connected(&peer) {
+                let _ = self.swarm.dial(address.clone());
             }
+            if !self.reserved_relays.contains(&peer) {
+                self.reserve_relay(address, peer);
+            }
+        }
+    }
+
+    /// Ouvre un écouteur de circuit auprès du relais : le nœud devient joignable via
+    /// `relais/p2p-circuit/p2p/<nous>`. Remplace l'écouteur précédent du même relais.
+    fn reserve_relay(&mut self, relay: Multiaddr, peer: PeerId) {
+        if let Some(old) = self.relay_listeners.remove(&peer) {
+            self.swarm.remove_listener(old);
+        }
+        match self.swarm.listen_on(relay.with(Protocol::P2pCircuit)) {
+            Ok(id) => {
+                self.relay_listeners.insert(peer, id);
+            }
+            Err(error) => tracing::debug!(%error, %peer, "réservation de relais impossible"),
         }
     }
 
@@ -179,6 +213,16 @@ impl Driver {
             SwarmEvent::NewListenAddr { address, .. } => self.listen_addrs.push(address),
             SwarmEvent::ExpiredListenAddr { address, .. } => {
                 self.listen_addrs.retain(|known| *known != address);
+            }
+            SwarmEvent::ExternalAddrConfirmed { address } => {
+                if let Some(relay) = relay_of(&address) {
+                    self.reserved_relays.insert(relay);
+                }
+            }
+            SwarmEvent::ExternalAddrExpired { address } => {
+                if let Some(relay) = relay_of(&address) {
+                    self.reserved_relays.remove(&relay);
+                }
             }
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 self.emit(NetEvent::Connected(peer_id));

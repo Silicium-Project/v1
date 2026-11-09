@@ -35,3 +35,30 @@ impl ResultBlob {
         decode(bytes, max_len)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ResultBlob;
+    use sil_net::Bytes;
+    use sil_types::Hash32;
+
+    /// Un résultat de plus de 4 Kio (fragment de rendu) doit se relire : ciborium refusait les
+    /// chaînes d'octets plus longues que son buffer de scratch.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn large_result_roundtrips() {
+        let blob = ResultBlob {
+            result: Bytes(vec![9; 4608]),
+            milestones: vec![
+                Hash32::from_bytes([1; 32]),
+                Hash32::from_bytes([2; 32]),
+                Hash32::from_bytes([3; 32]),
+            ],
+        };
+        let bytes = blob.to_bytes().expect("encode");
+        assert_eq!(
+            ResultBlob::from_bytes(&bytes, 1 << 20).expect("decode"),
+            blob
+        );
+    }
+}

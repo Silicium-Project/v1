@@ -30,6 +30,8 @@ impl<'de> Deserialize<'de> for Bytes {
                 Ok(Bytes(value))
             }
         }
-        deserializer.deserialize_bytes(Visitor)
+        // `deserialize_bytes` de ciborium refuse les chaînes > 4 Kio (buffer de scratch) : résultats
+        // de rendu plus grands. `deserialize_byte_buf` lit toute longueur.
+        deserializer.deserialize_byte_buf(Visitor)
     }
 }

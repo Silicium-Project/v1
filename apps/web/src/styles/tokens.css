@@ -1,30 +1,32 @@
-/* Design tokens. Values mirror palette.ts (checked by contrast.test.ts). No gradients, no glass
-   effects, no shadows beyond a 1px border: flat surfaces, clear edges. */
+/* Design tokens. Values mirror palette.ts (checked by contrast.test.ts). Identity: warm paper,
+   ink, one vermilion accent. Serif display for titles, mono for technical labels. No gradients,
+   no glass effects, no shadows beyond a 1px rule: flat surfaces, clear edges. */
 :root {
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, Consolas, 'Liberation Mono', monospace;
 
-  --color-bg: #f7f9fc;
-  --color-surface: #ffffff;
-  --color-text: #0b1d3b;
-  --color-text-muted: #455c78;
-  --color-border: #c9d4e3;
-  --color-input-border: #6a7d96;
+  --color-bg: #f4efe6;
+  --color-surface: #fbf8f2;
+  --color-text: #1d1a16;
+  --color-text-muted: #5a5246;
+  --color-border: #d3c9b6;
+  --color-input-border: #7d7263;
 
-  --color-accent: #155eb8;
-  --color-accent-strong: #0f4a94;
+  --color-accent: #a23b16;
+  --color-accent-strong: #7f2c0f;
   --color-accent-text: #ffffff;
-  --color-accent-soft: #eaf3ff;
-  --color-focus: #155eb8;
+  --color-accent-soft: #f3e2d5;
+  --color-focus: #a23b16;
 
-  --color-danger: #b63d46;
-  --color-danger-soft: #fff0f1;
-  --color-success: #1b6a4a;
-  --color-success-soft: #eaf7ef;
-  --color-warning: #8a5a00;
-  --color-warning-soft: #fff5e7;
-  --color-neutral: #455c78;
-  --color-neutral-soft: #edf2f8;
+  --color-danger: #a4262c;
+  --color-danger-soft: #fbe9e8;
+  --color-success: #2f6b3a;
+  --color-success-soft: #e6f1e4;
+  --color-warning: #7a5200;
+  --color-warning-soft: #fbefd6;
+  --color-neutral: #5a5246;
+  --color-neutral-soft: #ebe4d6;
 
   --radius: 0.5rem;
   --max-width: 60rem;

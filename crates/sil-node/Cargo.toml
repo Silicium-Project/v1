@@ -1,6 +1,6 @@
 [package]
 name = "sil-node"
-description = "Nœud complet : assemble réseau, journal, contenu, workloads, coordination, règlement et API de contrôle. Aucune logique métier."
+description = "NÅ“ud complet : assemble rÃ©seau, journal, contenu, workloads, coordination, rÃ¨glement et API de contrÃ´le. Aucune logique mÃ©tier."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -29,8 +29,8 @@ sil-sandbox.workspace = true
 sil-render-wasm.workspace = true
 sil-sampling.workspace = true
 sil-reputation.workspace = true
-sil-coordinator.workspace = true
 sil-chain-core.workspace = true
+sil-workload-spec.workspace = true
 sil-settlement.workspace = true
 sil-control-api.workspace = true
 serde.workspace = true

@@ -35,6 +35,7 @@ besides the Go toolchain.
 | `POST /v1/auth/logout` | session | ends the session |
 | `POST /v1/devices/link-codes` | session | one-time code, 10 minutes |
 | `POST /v1/devices/link` | proof of key | the machine links itself |
+| `GET /v1/devices/link-codes/{code}` | none, rate-limited | which account a code belongs to (masked), before the owner confirms; the code is not consumed |
 | `GET /v1/devices`, `DELETE /v1/devices/{id}` | session | list, revoke |
 | `PUT /v1/content` | session | upload an input (raw bytes) to the node |
 | `POST /v1/jobs` | session | forward a **client-signed** `JobPublished` event |
@@ -42,7 +43,6 @@ besides the Go toolchain.
 | `POST /v1/auth/wallet/challenge` | none, rate-limited | single-use message for a Solana wallet to sign (login) |
 | `POST /v1/auth/wallet/login` | none, rate-limited | verifies the Ed25519 signature, opens a session; creates the account on first login |
 | `POST /v1/account/delete-challenge` | session | message to sign before deleting a wallet account |
-| `GET /v1/network/committee` | session | the coordinator committee of new jobs (`SIL_API_COMMITTEE`), threshold, workloads, `payments: false` |
 | `GET /v1/account` | session | the account (e-mail, wallet address, creation date) |
 | `GET /v1/account/export` | session | every personal datum held, as a JSON download (GDPR art. 15, 20) |
 | `DELETE /v1/account` | session + password, or session + fresh delete signature | erases the account and its sessions, link codes, devices and job index (GDPR art. 17) |
@@ -58,12 +58,9 @@ single-use, bound to the address and to the purpose (`login` or `delete`), and v
 failed attempt consumes it. Challenges live in memory: a restart invalidates them, which only
 means asking again. The limit is 10 000 open challenges (`503 busy` beyond).
 
-## Committee
+## Network terms
 
-New jobs get the committee of `SIL_API_COMMITTEE` (1 to 7 distinct 64-character lower-case hex
-keys, checked at start-up). The threshold is the strict majority. The network does not choose the
-committee yet: any node can claim the coordinator role in its presence message.
-
+New jobs get no committee (ADR 0007): the requester signs the terms the network sets.
 ## Who signs what
 
 The API **does not sign** jobs. The requester signs the `JobSpec` and the `JobPublished`

@@ -7,6 +7,8 @@ export const KNOWN_ERROR_CODES = [
   'unauthenticated',
   'invalid_credentials',
   'email_taken',
+  'wrong_password',
+  'not_an_image',
   'invalid_input',
   'rate_limited',
   'node_unavailable',

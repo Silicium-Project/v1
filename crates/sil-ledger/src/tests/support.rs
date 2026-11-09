@@ -1,3 +1,4 @@
+use crate::spec::SPEC_VERSION;
 use crate::*;
 use sil_attest::{Attestation, AttestationBody, Certificate};
 use sil_crypto::{MasterSeed, Purpose, SigningIdentity};
@@ -14,8 +15,6 @@ pub fn hash(n: u8) -> Hash32 {
 
 #[derive(Clone)]
 pub struct Params {
-    pub committee: usize,
-    pub threshold: u32,
     pub verifications: u32,
     pub fragments: u32,
     pub max_attempts: u32,
@@ -25,8 +24,6 @@ pub struct Params {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            committee: 3,
-            threshold: 2,
             verifications: 1,
             fragments: 1,
             max_attempts: 3,
@@ -35,9 +32,9 @@ impl Default for Params {
     }
 }
 
-pub fn spec_for(requester: &SigningIdentity, committee: &[SigningIdentity], p: &Params) -> JobSpec {
+pub fn spec_for(requester: &SigningIdentity, p: &Params) -> JobSpec {
     JobSpec {
-        version: 1,
+        version: SPEC_VERSION,
         requester: requester.public(),
         nonce: 1,
         workload: "calcul/sha256".into(),
@@ -46,8 +43,6 @@ pub fn spec_for(requester: &SigningIdentity, committee: &[SigningIdentity], p: &
         width: 0,
         height: 0,
         fragments: p.fragments,
-        committee: committee.iter().map(SigningIdentity::public).collect(),
-        threshold: p.threshold,
         verifications_required: p.verifications,
         lease_ms: 60_000,
         max_attempts: p.max_attempts,
@@ -57,7 +52,7 @@ pub fn spec_for(requester: &SigningIdentity, committee: &[SigningIdentity], p: &
     }
 }
 
-/// Un job publié, son comité, et le journal de tous les événements émis.
+/// Un job publié et le journal de tous les événements émis.
 pub struct World {
     pub ledger: Ledger,
     pub job: JobId,
@@ -72,10 +67,9 @@ impl World {
 
     pub fn with_limits(p: Params, limits: LedgerLimits) -> Self {
         let requester = ident(100);
-        let committee: Vec<_> = (0..p.committee).map(|n| ident(10 + n as u8)).collect();
         let mut ledger = Ledger::open_to_all(limits);
         let (job, event) = ledger
-            .publish_job(&requester, spec_for(&requester, &committee, &p), 1_000)
+            .publish_job(&requester, spec_for(&requester, &p), 1_000)
             .unwrap();
         Self {
             ledger,
@@ -100,14 +94,6 @@ impl World {
         self.try_emit(who, body).unwrap()
     }
 
-    /// Les `n` premiers membres du comité émettent le même vote.
-    pub fn vote(&mut self, n: usize, body: &EventBody) {
-        for index in 0..n {
-            let member = ident(10 + index as u8);
-            self.emit(&member, body.clone());
-        }
-    }
-
     pub fn task(&self) -> TaskState {
         self.ledger.task_state(&self.job, 0, self.now).unwrap()
     }
@@ -116,7 +102,8 @@ impl World {
         self.task().status
     }
 
-    /// `worker` propose la tentative et le comité la retient. Retourne l'id du claim.
+    /// `worker` propose la tentative : le premier claim valide l'emporte (ADR 0005). Retourne
+    /// l'id du claim.
     pub fn claim_and_accept(&mut self, worker: &SigningIdentity, attempt: u32) -> Hash32 {
         let claim = self.emit(
             worker,
@@ -125,16 +112,7 @@ impl World {
                 attempt,
             },
         );
-        let claim_id = claim.id().unwrap();
-        self.vote(
-            2,
-            &EventBody::Accept {
-                fragment: 0,
-                attempt,
-                claim: claim_id,
-            },
-        );
-        claim_id
+        claim.id().unwrap()
     }
 
     pub fn submit(&mut self, worker: &SigningIdentity, attempt: u32, result: Hash32) {
@@ -150,21 +128,13 @@ impl World {
         );
     }
 
-    /// `verifier` propose, le comité le retient.
+    /// `verifier` propose de vérifier : retenu si son offre fait partie des k premières (phase 3).
     pub fn accept_verifier(&mut self, verifier: &SigningIdentity, attempt: u32) {
-        let offer = self.emit(
+        self.emit(
             verifier,
             EventBody::VerifyOffer {
                 fragment: 0,
                 attempt,
-            },
-        );
-        self.vote(
-            2,
-            &EventBody::VerifierAccept {
-                fragment: 0,
-                attempt,
-                offer: offer.id().unwrap(),
             },
         );
     }
@@ -217,15 +187,48 @@ impl World {
         }
     }
 
-    pub fn finalize(&mut self, votes: usize, attempt: u32, certificate: &Certificate) {
-        self.vote(
-            votes,
-            &EventBody::Finalize {
-                fragment: 0,
-                attempt,
-                certificate: certificate.clone(),
-            },
-        );
+    /// Claim et résultat de la tentative `attempt` : ce que désigne un `Finalize`.
+    pub fn refs(&self, attempt: u32) -> (Hash32, Hash32) {
+        let task = self.task();
+        let state = &task.attempts[attempt as usize - 1];
+        (state.claim_event, state.result.as_ref().unwrap().event)
+    }
+
+    /// Offres des vérificateurs qui approuvent le certificat (ce que désigne un `Finalize`).
+    pub fn offers_of(&self, attempt: u32, certificate: &Certificate) -> Vec<Hash32> {
+        let task = self.task();
+        let state = &task.attempts[attempt as usize - 1];
+        certificate
+            .approvals
+            .iter()
+            .filter_map(|a| {
+                state
+                    .verifiers
+                    .iter()
+                    .find(|v| v.verifier == a.verifier)
+                    .map(|v| v.offer_event)
+            })
+            .collect()
+    }
+
+    /// Finalise avec `copies` nœuds distincts : tout nœud peut certifier (ADR 0007).
+    pub fn finalize(&mut self, copies: usize, attempt: u32, certificate: &Certificate) {
+        let (claim, submit) = self.refs(attempt);
+        let verifiers = self.offers_of(attempt, certificate);
+        for index in 0..copies {
+            let node = ident(10 + index as u8);
+            self.emit(
+                &node,
+                EventBody::Finalize {
+                    fragment: 0,
+                    attempt,
+                    claim,
+                    submit,
+                    verifiers: verifiers.clone(),
+                    certificate: certificate.clone(),
+                },
+            );
+        }
     }
 
     /// Déroule tout jusqu'à `Verified` avec un seul vérificateur.

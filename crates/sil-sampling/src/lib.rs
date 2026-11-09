@@ -3,7 +3,7 @@
 //! **Graine** : le vérificateur signe `(tâche, tentative, résultat)` dans le domaine
 //! `Sampling`. Ed25519 est déterministe : il ne peut pas « tirer » une signature favorable,
 //! et n'importe qui peut revérifier la graine. Le worker ne peut pas l'anticiper (il faudrait
-//! la clé du vérificateur), et le comité ne la choisit pas (il choisit *qui* vérifie, pas la
+//! la clé du vérificateur), et personne ne la choisit (le vérificateur et le résultat la déterminent, pas la
 //! graine de chacun). Avec V vérificateurs, chacun tire son propre échantillon : pour tricher
 //! sans être vu il faut contrôler **tous** les vérificateurs.
 //!

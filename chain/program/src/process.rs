@@ -1,7 +1,7 @@
-//! Dispatch des instructions et les opérations qui ne touchent pas aux signatures du comité.
+//! Dispatch des instructions et les opérations qui ne touchent pas aux signatures des approbateurs.
 
-use crate::settle;
 use crate::state::{account_space, load, store};
+use crate::{penalty, settle, verifier};
 use sil_chain_core::wire::{CODE_INVALID_ACCOUNT, ESCROW_SEED, EscrowIx, decode_ix, rule_code};
 use sil_chain_core::{Escrow, EscrowTerms, RuleError};
 use sil_types::{JobId, PublicKey};
@@ -34,6 +34,8 @@ pub fn process_instruction(
         EscrowIx::TopUp { amount } => top_up(program_id, accounts, amount),
         EscrowIx::Settle(args) => settle::settle(program_id, accounts, args),
         EscrowIx::Refund => refund(program_id, accounts),
+        EscrowIx::RegisterVerifier { key } => verifier::register(program_id, accounts, key),
+        EscrowIx::Penalize(args) => penalty::penalize(program_id, accounts, args),
     }
 }
 
@@ -130,14 +132,14 @@ fn now_ms() -> Result<u64, ProgramError> {
         .ok_or(invalid())
 }
 
-fn require_signer_writable(account: &AccountInfo) -> ProgramResult {
+pub(crate) fn require_signer_writable(account: &AccountInfo) -> ProgramResult {
     if !account.is_signer || !account.is_writable {
         return Err(ProgramError::MissingRequiredSignature);
     }
     Ok(())
 }
 
-fn require_writable(account: &AccountInfo) -> ProgramResult {
+pub(crate) fn require_writable(account: &AccountInfo) -> ProgramResult {
     if !account.is_writable {
         return Err(ProgramError::InvalidAccountData);
     }

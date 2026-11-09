@@ -37,8 +37,24 @@ export type JobStateName = 'running' | 'finalized' | 'cancelled' | 'expired' | '
 
 export interface JobStatus {
   state: string
+  /** Workload id as the node knows it, and whether it produces a picture. */
+  workload?: string
+  image?: boolean
+  /** Last event of the requester chain: the next event (a cancellation) follows it. */
+  requester_head?: { sequence: number; hash: string }
   tasks?: Record<string, number>
+  /** Progress of each fragment, by index, as the node reports it. */
+  fragments?: FragmentStatus[]
   note?: string
+}
+
+export interface FragmentStatus {
+  index: number
+  /** Node task status name: Open, Claimed, Completed, Verified, Finalized… */
+  status: string
+  attempts: number
+  approvals: number
+  finalized: boolean
 }
 
 export function login(email: string, password: string): Promise<TokenAnswer> {
@@ -59,6 +75,22 @@ export function profile(token: string): Promise<Profile> {
 
 export function exportAccount(token: string): Promise<Blob> {
   return requestBlob('/v1/account/export', token)
+}
+
+export interface CredentialsChange {
+  email: string
+  current_password?: string
+  new_password?: string
+}
+
+/** Adds an e-mail and a password to a wallet account, or changes them. Returns the new profile. */
+export function setCredentials(token: string, change: CredentialsChange): Promise<Profile> {
+  return requestJson('/v1/account/credentials', { method: 'PUT', token, body: change })
+}
+
+/** The finished result of a job: a PNG picture for a render job, a text file otherwise. Owner only. */
+export function jobResult(token: string, id: string): Promise<Blob> {
+  return requestBlob(`/v1/jobs/${encodeURIComponent(id)}/result`, token)
 }
 
 export function deleteAccount(token: string, password: string): Promise<void> {
@@ -85,8 +117,36 @@ export function linkDevice(
   })
 }
 
+/** Who a link code belongs to, before the machine links to it. No session: the code is the input. */
+export interface LinkPreview {
+  account: string
+  kind: 'email' | 'wallet'
+  expires_at: string
+}
+
+export function previewLinkCode(code: string): Promise<LinkPreview> {
+  return requestJson(`/v1/devices/link-codes/${encodeURIComponent(code)}`)
+}
+
 export function revokeDevice(token: string, id: string): Promise<void> {
   return requestJson(`/v1/devices/${encodeURIComponent(id)}`, { method: 'DELETE', token })
+}
+
+/** Public summary of the network as the node sees it: counts only, no identifier. */
+export interface NetworkStatus {
+  online: number
+  by_role: Record<string, number>
+  node_reachable: boolean
+  updated_at: string
+}
+
+export function getNetworkStatus(): Promise<NetworkStatus> {
+  return requestJson('/v1/network/status')
+}
+
+/** Deletes a revoked device for good. The API refuses an active one (409 device_active). */
+export function purgeDevice(token: string, id: string): Promise<void> {
+  return requestJson(`/v1/devices/${encodeURIComponent(id)}/purge`, { method: 'DELETE', token })
 }
 
 export function listJobs(token: string): Promise<{ jobs: JobSummary[] }> {

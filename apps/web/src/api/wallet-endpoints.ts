@@ -9,13 +9,6 @@ export interface WalletChallenge {
   expires_at: string
 }
 
-export interface CommitteeAnswer {
-  committee: string[] // coordinator keys, 64 lower-case hex each
-  threshold: number
-  workloads: string[]
-  payments: boolean // false until the Solana escrow adapter exists
-}
-
 export interface ContentReceipt {
   content_id: string
   size: number
@@ -57,10 +50,6 @@ export function deleteAccountWithWallet(token: string, nonce: string, signature:
   })
 }
 
-export function committee(token: string): Promise<CommitteeAnswer> {
-  return requestJson('/v1/network/committee', { token })
-}
-
 export function putContent(token: string, data: Uint8Array): Promise<ContentReceipt> {
   return requestJson('/v1/content', { method: 'PUT', token, rawBody: data })
 }
@@ -71,4 +60,40 @@ export function publishJob(token: string, jobId: string, event: Uint8Array, labe
     token,
     body: { job_id: jobId, event: toBase64(event), label },
   })
+}
+
+/** Sends a signed event of one of the user's jobs (its cancellation). The node checks the proof. */
+export function cancelJob(token: string, jobId: string, event: Uint8Array): Promise<{ accepted: number; pending: boolean }> {
+  return requestJson(`/v1/jobs/${encodeURIComponent(jobId)}/events`, {
+    method: 'POST',
+    token,
+    body: { event: toBase64(event) },
+  })
+}
+
+/** What the network decides for a job (services/api/internal/policy). */
+export interface NetworkTerms {
+  fragments: number
+  reward_per_unit: number
+  verifier_reward_per_unit: number
+  verifications_required: number
+  lease_ms: number
+  max_attempts: number
+  expires_in_ms: number
+}
+
+export interface TermsAnswer {
+  terms: NetworkTerms
+  payments: boolean
+}
+
+/** Terms of a job for this workload and input size: the user never chooses them. */
+export function networkTerms(
+  token: string,
+  query: { workload: string; size: number; width?: number; height?: number },
+): Promise<TermsAnswer> {
+  const params = new URLSearchParams({ workload: query.workload, size: String(query.size) })
+  if (query.width) params.set('width', String(query.width))
+  if (query.height) params.set('height', String(query.height))
+  return requestJson(`/v1/network/terms?${params.toString()}`, { token })
 }

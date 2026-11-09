@@ -1,0 +1,21 @@
+[package]
+name = "sil-raytracer"
+description = "Moteur de rendu raytracing déterministe, porté de silicium-raytracer v0 : scène .cfg vers pixels RGB24, ligne par ligne, sans dépendance système."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sil-raytracer-block"
+path = "src/bin/sil-raytracer-block.rs"
+
+[dependencies]
+libm = "0.2"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
+
+[lints]
+workspace = true

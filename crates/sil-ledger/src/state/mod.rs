@@ -10,7 +10,6 @@ mod index;
 mod open;
 mod task;
 mod types;
-mod votes;
 
 use crate::{Event, EventBody, spec::JobSpec};
 use index::View;
@@ -86,36 +85,6 @@ impl JobParts<'_> {
         found
             .into_values()
             .map(|(_, attestation)| attestation)
-            .collect()
-    }
-
-    /// Votes `Accept` des membres du comité pour (fragment, tentative) : le premier vote de
-    /// chaque membre, avec l'identifiant du claim visé.
-    pub(crate) fn claim_votes(&self, fragment: u32, attempt: u32) -> Vec<(PublicKey, Hash32)> {
-        let mut first: BTreeMap<PublicKey, (u64, Hash32)> = BTreeMap::new();
-        for event in self.events.values() {
-            let EventBody::Accept {
-                fragment: f,
-                attempt: a,
-                claim,
-            } = &event.body
-            else {
-                continue;
-            };
-            let counts = *f == fragment
-                && *a == attempt
-                && self.spec.committee.contains(&event.author)
-                && !self.equivocators.contains(&event.author);
-            let earlier = first
-                .get(&event.author)
-                .is_none_or(|(sequence, _)| event.sequence < *sequence);
-            if counts && earlier {
-                first.insert(event.author, (event.sequence, *claim));
-            }
-        }
-        first
-            .into_iter()
-            .map(|(who, (_, claim))| (who, claim))
             .collect()
     }
 

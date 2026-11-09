@@ -14,9 +14,20 @@ pub struct NodeConfig {
     pub trust: TrustConfig,
     /// Chaîne Solana pour le règlement des jobs. Absente : le nœud ne règle rien.
     pub chain: Option<ChainConfig>,
-    /// Moteur de rendu. Absent : le nœud ne fait pas de `rendu/blocs`.
+    /// Moteur de rendu. Absent : le nœud ne fait pas de `rendu/raytracer`.
     pub render: Option<RenderConfig>,
+    /// Mode de test. Par défaut désactivé.
+    pub testnet: TestnetConfig,
 }
+
+/// Modes de test. Refusés si une chaîne est configurée (voir `validate`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct TestnetConfig {
+    /// Le worker calcule sans vérifier d'escrow : le travail n'est pas payé. Réseau de test seulement.
+    pub free_work: bool,
+}
+
 
 /// Moteur de rendu : un programme installé par l'opérateur, lancé dans `sil-sandbox`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -55,8 +66,11 @@ pub struct ChainConfig {
     pub rpc_url: String,
     /// Identifiant (base58) du programme d'escrow.
     pub program_id: String,
-    /// Fichier JSON de la clé qui paie les frais de transaction (comme `solana-keygen`).
-    pub payer_keypair: PathBuf,
+    /// Fichier JSON de la clé qui paie les frais de transaction (comme `solana-keygen`). Absent :
+    /// ce nœud ne règle pas lui-même, il envoie ses règlements à `relay_url`.
+    pub payer_keypair: Option<PathBuf>,
+    /// Relais de règlement (`https://…`) : `POST /v1/settlements` règle avec les frais du relais.
+    pub relay_url: Option<String>,
 }
 
 /// Confiance accordée par ce nœud.
@@ -73,8 +87,11 @@ pub struct TrustConfig {
 #[serde(deny_unknown_fields, default)]
 pub struct NetworkConfig {
     pub listen: Vec<String>,
-    /// Pairs d'amorçage ; chaque adresse doit épingler le pair (`/p2p/<id>`).
+    /// Pairs d'amorçage ; chaque adresse doit épingler le pair (`/p2p/<id>`). Ils servent aussi
+    /// de relais : le nœud y réserve un circuit, ce qui le rend joignable même derrière un NAT.
     pub bootstrap: Vec<String>,
+    /// Ce nœud sert de relais public. À activer seulement s'il est joignable directement.
+    pub relay_server: bool,
     pub enable_mdns: bool,
 }
 
@@ -118,6 +135,7 @@ impl Default for NodeConfig {
             trust: TrustConfig::default(),
             chain: None,
             render: None,
+            testnet: TestnetConfig::default(),
         }
     }
 }
@@ -127,6 +145,7 @@ impl Default for NetworkConfig {
         Self {
             listen: vec!["/ip4/0.0.0.0/udp/4001/quic-v1".into()],
             bootstrap: Vec::new(),
+            relay_server: false,
             enable_mdns: false,
         }
     }

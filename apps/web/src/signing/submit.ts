@@ -1,3 +1,4 @@
+import { findWorkload, isImageSide } from '@/workloads/find'
 import { domainFrame, fromHex, toHex } from './cbor'
 import {
   encodeJobPublishedBody,
@@ -19,6 +20,8 @@ export interface SubmitDeps {
   /** `display` tells the wallet how to show the message. Both signed texts are UTF-8. */
   sign(message: Uint8Array, display: 'utf8' | 'hex'): Promise<Uint8Array>
   publish(jobId: string, event: Uint8Array, label: string): Promise<{ id: string }>
+  /** Opens the job's escrow on-chain, approved by the wallet, before the job is published. */
+  deposit(spec: JobSpecInput, jobId: string): Promise<void>
   sha256(data: Uint8Array): Promise<Uint8Array>
   now(): number
   randomNonce(): number
@@ -26,50 +29,56 @@ export interface SubmitDeps {
   progress?(step: string): void
 }
 
-export interface SubmitInput {
-  requester: Uint8Array // the wallet's 32-byte public key
-  data: Uint8Array // the input file (for rendu/blocs: the scene, without the size header)
-  workload: string
+/** The job's terms, set by the network (services/api/internal/policy); the user never chooses them. */
+export interface JobTerms {
   fragments: number
-  committee: Uint8Array[]
-  threshold: number
-  label: string
-  /** Image size in pixels, used by rendu/blocs only. */
-  width?: number
-  height?: number
+  /** Paid to the worker, per unit of its fragment (lamports). */
+  rewardPerUnit: number
+  /** Paid to each verifier, per unit of the fragment (lamports). */
+  verifierRewardPerUnit: number
+  verificationsRequired: number
+  leaseMs: number
+  maxAttempts: number
+  expiresInMs: number
 }
 
-export const ONE_DAY_MS = 24 * 60 * 60 * 1000
-export const LEASE_MS = 60_000
-export const MAX_ATTEMPTS = 3
-export const RENDER_WORKLOAD = 'rendu/blocs'
-/** Largest side of an image, in pixels (the render workload refuses more). */
-export const MAX_SIDE = 16_384
-
-/** True for a whole number of pixels from 1 to MAX_SIDE. */
-export function isSide(value: number): boolean {
-  return Number.isInteger(value) && value >= 1 && value <= MAX_SIDE
+export interface SubmitInput {
+  requester: Uint8Array // the wallet's 32-byte public key
+  data: Uint8Array // the input file, without the parameters (they go in front of it)
+  workload: string
+  terms: JobTerms
+  label: string
+  /** The workload's declared parameters (`params` of its descriptor), e.g. width and height. */
+  params?: Partial<Record<'width' | 'height', number>>
 }
 
 /**
- * The bytes the node stores as the job input. For rendu/blocs the size goes in front of the scene:
- * width then height, each u32 little-endian (sil-wl-render, `Header`).
+ * The bytes the node stores as the job input. The parameters the workload declares go in front of
+ * the file, each as a u32 little-endian, in the order of its descriptor (sil-wl-render, `Header`).
+ * A workload without parameters stores the file as it is.
  */
 export function inputPayload(input: SubmitInput): { payload: Uint8Array; width: number; height: number } {
-  if (input.workload !== RENDER_WORKLOAD) {
+  const spec = findWorkload(input.workload)
+  if (!spec) {
+    throw new Error(`unknown workload: ${input.workload}`)
+  }
+  const values = spec.params.map((name) => input.params?.[name] ?? Number.NaN)
+  if (!values.every((value) => isImageSide(value, spec))) {
+    throw new Error(`parameters must be whole numbers from 1 to ${spec.maxSide}`)
+  }
+  const dimension = (name: 'width' | 'height') => {
+    const index = spec.params.indexOf(name)
+    return index === -1 ? 0 : values[index]!
+  }
+  if (values.length === 0) {
     return { payload: input.data, width: 0, height: 0 }
   }
-  const width = input.width ?? 0
-  const height = input.height ?? 0
-  if (!isSide(width) || !isSide(height)) {
-    throw new Error('image size must be whole numbers from 1 to 16384')
-  }
-  const payload = new Uint8Array(8 + input.data.length)
+  const header = 4 * values.length
+  const payload = new Uint8Array(header + input.data.length)
   const view = new DataView(payload.buffer)
-  view.setUint32(0, width, true)
-  view.setUint32(4, height, true)
-  payload.set(input.data, 8)
-  return { payload, width, height }
+  values.forEach((value, index) => view.setUint32(4 * index, value, true))
+  payload.set(input.data, header)
+  return { payload, width: dimension('width'), height: dimension('height') }
 }
 
 export interface SubmitResult {
@@ -98,15 +107,13 @@ export async function submitJob(input: SubmitInput, deps: SubmitDeps): Promise<S
     inputSize: payload.length,
     width,
     height,
-    fragments: input.fragments,
-    committee: input.committee,
-    threshold: input.threshold,
-    verificationsRequired: 1,
-    leaseMs: LEASE_MS,
-    maxAttempts: MAX_ATTEMPTS,
-    rewardPerUnit: 0, // the site does not set a payment yet
-    verifierRewardPerUnit: 0,
-    expiresAtMs: deps.now() + ONE_DAY_MS,
+    fragments: input.terms.fragments,
+    verificationsRequired: input.terms.verificationsRequired,
+    leaseMs: input.terms.leaseMs,
+    maxAttempts: input.terms.maxAttempts,
+    rewardPerUnit: input.terms.rewardPerUnit,
+    verifierRewardPerUnit: input.terms.verifierRewardPerUnit,
+    expiresAtMs: deps.now() + input.terms.expiresInMs,
   }
 
   advance('sign-spec')
@@ -114,6 +121,10 @@ export async function submitJob(input: SubmitInput, deps: SubmitDeps): Promise<S
 
   // job_id = SHA-256 over the job-id framed spec bytes (sil-ledger JobSpec::job_id).
   const jobId = toHex(await deps.sha256(domainFrame('sil/v1/job-id', encodeJobSpec(spec))))
+
+  // L'escrow doit exister avant la publication : sans lui, aucun worker ne réclame le job.
+  advance('deposit')
+  await deps.deposit(spec, jobId)
 
   const event: EventInput = {
     requester: input.requester,

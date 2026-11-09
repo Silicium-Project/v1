@@ -42,7 +42,7 @@ pub use identity::keypair_from_secret;
 pub use limits::NetLimits;
 pub use messages::{ContentRequest, ContentResponse, LedgerRequest, LedgerResponse};
 pub use presence::{
-    Presence, PresenceGate, ROLE_COMPUTE, ROLE_COORDINATOR, ROLE_STORAGE, ROLE_VERIFY,
+    Presence, PresenceGate, ROLE_COMPUTE, ROLE_STORAGE, ROLE_VERIFY,
 };
 pub use providers::{
     AcceptAll, ContentProvider, LedgerProvider, MessageValidator, NoContent, NoLedger, Providers,

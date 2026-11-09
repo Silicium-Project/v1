@@ -14,12 +14,6 @@ pub enum EventBody {
     JobPublished { spec: SignedJobSpec },
     /// Tout pair : propose de calculer la tentative.
     Claim { fragment: u32, attempt: u32 },
-    /// Comité (vote) : retient un claim.
-    Accept {
-        fragment: u32,
-        attempt: u32,
-        claim: Hash32,
-    },
     /// Claimant : prolonge le bail.
     Renew { fragment: u32, attempt: u32 },
     /// Claimant : abandonne la tentative.
@@ -34,18 +28,18 @@ pub enum EventBody {
     },
     /// Tout pair sauf le claimant : propose de vérifier.
     VerifyOffer { fragment: u32, attempt: u32 },
-    /// Comité (vote) : retient un vérificateur.
-    VerifierAccept {
-        fragment: u32,
-        attempt: u32,
-        offer: Hash32,
-    },
     /// Vérificateur accepté : verdict signé.
     Attest { attestation: Attestation },
-    /// Comité (vote) : finalise, avec le certificat d'approbations.
+    /// Tout pair : certifie un résultat (ADR 0005, phases 3-4). `claim` et `submit` désignent le
+    /// claim et le résultat de l'auteur ; `verifiers` désigne les offres des vérificateurs qui
+    /// approuvent, et le certificat porte leurs approbations. La validité ne lit que ces
+    /// événements : ni l'ordre des claims ni l'arrivée d'une offre plus ancienne ne la défont.
     Finalize {
         fragment: u32,
         attempt: u32,
+        claim: Hash32,
+        submit: Hash32,
+        verifiers: Vec<Hash32>,
         certificate: Certificate,
     },
     /// Requester : annule le job.
@@ -57,12 +51,10 @@ impl EventBody {
     pub fn fragment(&self) -> Option<u32> {
         match self {
             Self::Claim { fragment, .. }
-            | Self::Accept { fragment, .. }
             | Self::Renew { fragment, .. }
             | Self::Release { fragment, .. }
             | Self::Submit { fragment, .. }
             | Self::VerifyOffer { fragment, .. }
-            | Self::VerifierAccept { fragment, .. }
             | Self::Finalize { fragment, .. } => Some(*fragment),
             Self::Attest { attestation } => Some(attestation.body.task.fragment),
             Self::JobPublished { .. } | Self::Cancel => None,
@@ -73,12 +65,10 @@ impl EventBody {
     pub fn attempt(&self) -> Option<u32> {
         match self {
             Self::Claim { attempt, .. }
-            | Self::Accept { attempt, .. }
             | Self::Renew { attempt, .. }
             | Self::Release { attempt, .. }
             | Self::Submit { attempt, .. }
             | Self::VerifyOffer { attempt, .. }
-            | Self::VerifierAccept { attempt, .. }
             | Self::Finalize { attempt, .. } => Some(*attempt),
             Self::Attest { attestation } => Some(attestation.body.attempt),
             Self::JobPublished { .. } | Self::Cancel => None,
@@ -100,10 +90,14 @@ impl EventBody {
                 fragment,
                 attempt,
                 certificate,
+                ..
             } if certificate.task != TaskRef::new(*job, *fragment)
                 || certificate.attempt != *attempt =>
             {
                 Err(LedgerError::InvalidEvent("certificat incohérent"))
+            }
+            Self::Finalize { verifiers, .. } if verifiers.len() > sil_attest::MAX_APPROVALS => {
+                Err(LedgerError::InvalidEvent("trop de vérificateurs désignés"))
             }
             _ => Ok(()),
         }

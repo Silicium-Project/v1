@@ -26,3 +26,17 @@ render-work/
 .DS_Store
 .vscode/
 .idea/
+
+# Moteur WASI copié par apps/web/scripts/copy-engine.mjs (artefact de build)
+apps/web/public/engine/
+
+# Paquet « nœud » téléchargeable, copié par apps/web/scripts/copy-node-bundle.mjs (artefact de build)
+apps/web/public/downloads/
+
+# Binaires embarqués dans l'application de bureau, copiés par apps/desktop/scripts/prepare-sidecars.mjs
+apps/desktop/src-tauri/binaries/
+
+infra/sim/.node-*.hex
+infra/sim/.node-*.addr
+infra/sim/tx-*.json
+infra/sim/sigs-*

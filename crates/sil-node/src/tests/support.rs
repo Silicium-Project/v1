@@ -27,9 +27,8 @@ pub fn ledger_key(seed: u8) -> PublicKey {
         .public()
 }
 
-pub fn roles(coordinator: bool, worker: bool, verifier: bool) -> Roles {
+pub fn roles(worker: bool, verifier: bool) -> Roles {
     Roles {
-        coordinator,
         worker,
         verifier,
     }
@@ -211,9 +210,9 @@ pub fn input_hash(bytes: &[u8]) -> Hash32 {
     Hash32::from_bytes(*Manifest::of_bytes(bytes).id().as_bytes())
 }
 
-pub fn job_spec(committee: &[PublicKey], input: Hash32) -> JobSpec {
+pub fn job_spec(input: Hash32) -> JobSpec {
     JobSpec {
-        version: 1,
+        version: 2,
         requester: ledger_key(100),
         nonce: now_ms(),
         workload: "calcul/sha256".into(),
@@ -222,8 +221,6 @@ pub fn job_spec(committee: &[PublicKey], input: Hash32) -> JobSpec {
         width: 0,
         height: 0,
         fragments: 2,
-        committee: committee.to_vec(),
-        threshold: 2,
         verifications_required: 1,
         lease_ms: 60_000,
         max_attempts: 3,

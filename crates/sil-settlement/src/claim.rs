@@ -9,10 +9,10 @@ use sil_types::{Hash32, JobId, PublicKey, Signature};
 /// même identifiant, sur tous les nœuds.
 pub type IntentId = Hash32;
 
-/// Plus grand nombre de signatures conservées (un comité a 7 membres au plus).
+/// Plus grand nombre de signatures conservées (une par approbateur, au plus `MAX_APPROVERS`).
 const MAX_SIGNATURES: usize = 16;
 
-/// Ce que le comité autorise à payer pour un fragment.
+/// Ce que les approbateurs autorisent à payer pour un fragment (ADR 0007).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SettlementClaim {
     pub job: JobId,
@@ -47,22 +47,10 @@ impl SettlementClaim {
         })
     }
 
-    /// Octets signés par le comité, en **disposition fixe** (reproductible sur la chaîne sans
-    /// décodeur CBOR) : `job(32) ‖ fragment u32 LE ‖ tentative u32 LE ‖ résultat(32) ‖
-    /// claimant(32) ‖ n u8 ‖ n × approbateur(32)`. Le signataire ajoute le préfixe de domaine
-    /// `sil/v1/settlement` ‖ `0x00` (voir `sil_crypto::Domain`).
+    /// Message signé par chaque approbateur (sans préfixe de domaine), défini dans `sil-chain-core`.
+    /// Ne contient pas la liste des approbateurs : elle n'est connue qu'à la finalisation.
     pub fn bytes(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(105 + 32 * self.approvers.len());
-        out.extend_from_slice(self.job.as_bytes());
-        out.extend_from_slice(&self.fragment.to_le_bytes());
-        out.extend_from_slice(&self.attempt.to_le_bytes());
-        out.extend_from_slice(self.result.as_bytes());
-        out.extend_from_slice(self.claimant.as_bytes());
-        out.push(u8::try_from(self.approvers.len()).unwrap_or(u8::MAX));
-        for approver in &self.approvers {
-            out.extend_from_slice(approver.as_bytes());
-        }
-        out
+        sil_chain_core::wire::settlement_message(&self.job, &self.args())
     }
 
     pub fn id(&self) -> IntentId {
@@ -93,7 +81,7 @@ impl SettlementClaim {
     }
 }
 
-/// Un règlement et les signatures de membres du comité qui l'autorisent.
+/// Un règlement et les signatures des approbateurs qui l'autorisent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Authorization {
     pub claim: SettlementClaim,
@@ -126,13 +114,13 @@ impl Authorization {
         Ok(true)
     }
 
-    /// Membres **distincts** du comité dont la signature est valide.
-    pub fn committee_signers(&self, committee: &[PublicKey]) -> Vec<PublicKey> {
+    /// Approbateurs **distincts** dont la signature est valide.
+    pub fn approver_signers(&self) -> Vec<PublicKey> {
         let message = self.claim.bytes();
         let mut signers: Vec<PublicKey> = self
             .signatures
             .iter()
-            .filter(|(signer, _)| committee.contains(signer))
+            .filter(|(signer, _)| self.claim.approvers.contains(signer))
             .filter(|(signer, signature)| {
                 verify(signer, Domain::Settlement, &message, signature).is_ok()
             })

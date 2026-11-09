@@ -11,6 +11,21 @@ pub struct EventReceipt {
     pub pending: bool,
 }
 
+/// Image d'un job de rendu : pixels RGB24 ligne par ligne, du haut vers le bas.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobImage {
+    pub width: u32,
+    pub height: u32,
+    pub rgb: Vec<u8>,
+}
+
+/// Résultat brut d'un fragment (octets tels que le workload les a produits).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FragmentOutput {
+    pub fragment: u32,
+    pub bytes: Vec<u8>,
+}
+
 /// Ce que l'API demande au nœud. Méthodes bloquantes : l'API les appelle depuis un thread
 /// dédié, jamais dans la boucle asynchrone.
 pub trait Backend: Send + Sync + 'static {
@@ -22,6 +37,21 @@ pub trait Backend: Send + Sync + 'static {
 
     /// État dérivé d'un job, en JSON (`None` s'il est inconnu).
     fn job(&self, job: &JobId) -> Result<Option<Value>, ApiError>;
+
+    /// Image assemblée d'un job de rendu : tous les fragments doivent être finalisés. Refusé
+    /// (`BadRequest`) si le workload ne produit pas d'image, `Unavailable` tant que ce n'est pas
+    /// final ou si un contenu manque.
+    fn job_image(&self, job: &JobId) -> Result<JobImage, ApiError>;
+
+    /// Résultat brut de chaque fragment d'un job final, dans l'ordre des fragments. Refusé
+    /// (`Unavailable`) tant qu'un fragment n'est pas final, et (`BadRequest`) si un résultat est
+    /// trop grand pour être donné par l'API (un résultat d'image passe par `job_image`).
+    fn job_outputs(&self, job: &JobId) -> Result<Vec<FragmentOutput>, ApiError>;
+
+    /// Soumet un règlement signé (octets CBOR d'une `Authorization`) avec les frais de ce nœud.
+    /// Retourne `{ "tx": ... }`. Refusé si le fragment est déjà réglé ou si ce nœud ne paie pas
+    /// les frais (relais : voir `Chain::pays_fees`).
+    fn submit_settlement(&self, bytes: Vec<u8>) -> Result<Value, ApiError>;
 
     fn peers(&self) -> Result<Value, ApiError>;
 

@@ -10,7 +10,6 @@ use sil_types::{Hash32, JobId, PublicKey, Signature};
 
 /// Texte signé pour la spec d'un job (le requester signe ce texte, sans préfixe de domaine).
 pub fn spec_text(spec: &JobSpec) -> String {
-    let committee: Vec<String> = spec.committee.iter().map(PublicKey::to_hex).collect();
     [
         format!("Silicium JobSpec v{}", spec.version),
         format!("Requester: {}", spec.requester.to_hex()),
@@ -21,8 +20,6 @@ pub fn spec_text(spec: &JobSpec) -> String {
         format!("Width: {}", spec.width),
         format!("Height: {}", spec.height),
         format!("Fragments: {}", spec.fragments),
-        format!("Committee: {}", committee.join(",")),
-        format!("Threshold: {}", spec.threshold),
         format!("Verifications: {}", spec.verifications_required),
         format!("Lease ms: {}", spec.lease_ms),
         format!("Max attempts: {}", spec.max_attempts),
@@ -32,6 +29,26 @@ pub fn spec_text(spec: &JobSpec) -> String {
             spec.verifier_reward_per_unit
         ),
         format!("Expires ms: {}", spec.expires_at_ms),
+    ]
+    .join("\n")
+}
+
+/// Texte signé par le requester pour annuler son job (événement `Cancel`, phase 4 de l'annulation).
+pub fn cancel_text(
+    author: &PublicKey,
+    job: &JobId,
+    sequence: u64,
+    previous: &Hash32,
+    issued_at_ms: u64,
+) -> String {
+    [
+        "Silicium Event v1".to_string(),
+        format!("Author: {}", author.to_hex()),
+        format!("Job: {}", job.to_hex()),
+        format!("Sequence: {sequence}"),
+        format!("Previous: {}", previous.to_hex()),
+        format!("Issued ms: {issued_at_ms}"),
+        "Body: Cancel".to_string(),
     ]
     .join("\n")
 }

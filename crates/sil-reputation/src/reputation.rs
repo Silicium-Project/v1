@@ -11,6 +11,21 @@ pub enum Outcome {
     Failed,
 }
 
+/// Weighted observations a machine needs before its record counts: below this it is a newcomer
+/// on probation, with nothing to judge it by yet.
+const PROBATION_EVIDENCE: f64 = 3.0;
+
+/// Outcome for a verifier, from its verdict and whether the attempt it judged was finalized.
+/// A verifier is right when its verdict matches the decision: approving a finalized attempt, or
+/// rejecting one that failed. Verification carries no reward of its own here, so it is zero.
+pub fn verdict_outcome(approved: bool, attempt_finalized: bool) -> Outcome {
+    if approved == attempt_finalized {
+        Outcome::Completed { reward: 0 }
+    } else {
+        Outcome::Failed
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Reputation {
     config: ReputationConfig,
@@ -36,12 +51,17 @@ impl Reputation {
         self.trusted_scopes.contains(scope)
     }
 
+    /// Les requesters dont ce nœud croit les journaux.
+    pub fn trusted_scopes(&self) -> Vec<PublicKey> {
+        self.trusted_scopes.iter().copied().collect()
+    }
+
     fn success_weight(&self, reward: u64) -> f64 {
         (1.0 + (1.0 + reward as f64).log10()).min(self.config.max_success_weight)
     }
 
     /// Enregistre une observation. Retourne `false` si elle est ignorée : scope inconnu,
-    /// auto-évaluation (`who` est dans `insiders` : requester et comité du job), ou table pleine.
+    /// auto-évaluation (`who` est dans `insiders` : requester du job et insiders), ou table pleine.
     pub fn observe(
         &mut self,
         scope: &PublicKey,
@@ -101,6 +121,19 @@ impl Reputation {
     pub fn score(&self, who: &PublicKey, now_ms: u64) -> f64 {
         let record = self.current(who, now_ms);
         (record.good + 1.0) / (record.good + record.bad + 2.0)
+    }
+
+    /// Succès et échecs pondérés, décroissants : les paramètres de la loi Beta dont `score` est la
+    /// moyenne (à ajouter 1 chacun pour Beta(1,1)).
+    pub fn evidence(&self, who: &PublicKey, now_ms: u64) -> (f64, f64) {
+        let record = self.current(who, now_ms);
+        (record.good, record.bad)
+    }
+
+    /// True while a machine has too little record to be judged: it is on probation.
+    pub fn is_newcomer(&self, who: &PublicKey, now_ms: u64) -> bool {
+        let (good, bad) = self.evidence(who, now_ms);
+        good + bad < PROBATION_EVIDENCE
     }
 
     /// Nombre de tâches simultanées confiables à ce worker : 1 en probation, puis croissant

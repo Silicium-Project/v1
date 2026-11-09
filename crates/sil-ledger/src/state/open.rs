@@ -1,4 +1,4 @@
-//! Offres en attente de décision : ce que le comité (ou son coordinateur) doit trancher.
+//! Offres en attente de décision : les offres de vérification qui peuvent encore être retenues.
 
 use super::{
     index::{Ev, View},
@@ -65,7 +65,7 @@ pub(super) fn open_verifications(view: &View<'_>, state: &TaskState) -> Vec<Open
     })
 }
 
-/// Places de vérificateur que le comité peut encore pourvoir.
+/// Places de vérificateur encore libres pour la tentative.
 pub(super) fn verification_slots_open(spec: &JobSpec, state: &TaskState, now_ms: u64) -> u32 {
     let Some(last) = state.attempts.last() else {
         return 0;

@@ -2,11 +2,12 @@
 //! workloads. Sinon le worker et l'escrow compteraient des montants différents.
 
 use serde::{Deserialize, Serialize};
-use sil_chain_core::units::{RENDER_WORKLOAD, SHA256_WORKLOAD, Shape, fragment_units};
+use sil_chain_core::units::{Shape, fragment_units};
 use sil_codec::decode;
 use sil_wl_render::{BlockRenderer, RenderWorkload};
 use sil_wl_sha256::Sha256Workload;
 use sil_workload_api::{MemoryInput, Workload, WorkloadError};
+use sil_workload_spec::{CALCUL_SHA256, RENDU_RAYTRACER};
 
 /// Même forme que la plage du workload `calcul/sha256` (type privé dans `sil-wl-sha256`).
 #[derive(Serialize, Deserialize)]
@@ -15,7 +16,7 @@ struct Plage {
     end: u64,
 }
 
-/// Même forme que la bande du workload `rendu/blocs` (type privé dans `sil-wl-render`).
+/// Même forme que la bande du workload `rendu/raytracer` (type privé dans `sil-wl-render`).
 #[derive(Serialize, Deserialize)]
 struct Bande {
     y_start: u32,
@@ -58,7 +59,7 @@ fn the_unit_rule_matches_the_sha256_split() {
                 height: 0,
             };
             let units: Result<Vec<u64>, _> = (0..fragments)
-                .map(|index| fragment_units(SHA256_WORKLOAD, shape, fragments, index))
+                .map(|index| fragment_units(CALCUL_SHA256.id, shape, fragments, index))
                 .collect();
             if specs.len() == fragments as usize {
                 assert_eq!(units.unwrap(), sizes, "entrée {len}, fragments {fragments}");
@@ -96,7 +97,7 @@ fn the_unit_rule_matches_the_render_split() {
                 height,
             };
             let units: Result<Vec<u64>, _> = (0..fragments)
-                .map(|index| fragment_units(RENDER_WORKLOAD, shape, fragments, index))
+                .map(|index| fragment_units(RENDU_RAYTRACER.id, shape, fragments, index))
                 .collect();
             if specs.len() == fragments as usize {
                 let expected: Vec<u64> = rows.iter().map(|r| r * u64::from(width)).collect();

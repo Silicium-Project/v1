@@ -55,6 +55,12 @@ impl JobLedger {
         )
     }
 
+    /// Heure d'émission du dernier événement accepté de `author` dans ce job.
+    pub(crate) fn head_time(&self, author: &PublicKey) -> Option<u64> {
+        let id = self.chains.head_id(author)?;
+        self.events.get(&id).map(|event| event.issued_at_ms)
+    }
+
     /// Qui peut émettre quoi. Refuse avant tout stockage pour borner le spam.
     fn authorize(&self, event: &Event, id: &Hash32) -> Result<(), LedgerError> {
         if self.events.contains_key(id) {
@@ -66,16 +72,12 @@ impl JobLedger {
         {
             return Err(LedgerError::InvalidEvent("fragment hors du job"));
         }
-        let is_member = spec.committee.contains(&event.author);
         match &event.body {
             EventBody::JobPublished { spec: published } => {
                 let first = self.events.is_empty() && event.sequence == 1;
                 if !first || event.author != spec.requester || *published != self.signed_spec {
                     return Err(LedgerError::NotAuthorized("publication du job"));
                 }
-            }
-            EventBody::Accept { .. } | EventBody::VerifierAccept { .. } if !is_member => {
-                return Err(LedgerError::NotAuthorized("vote réservé au comité"));
             }
             EventBody::Cancel if event.author != spec.requester => {
                 return Err(LedgerError::NotAuthorized(
@@ -91,9 +93,6 @@ impl JobLedger {
                 attestation.verify()?;
             }
             EventBody::Finalize { certificate, .. } => {
-                if !is_member {
-                    return Err(LedgerError::NotAuthorized("vote réservé au comité"));
-                }
                 certificate.verify(&CertRules {
                     required: spec.verifications_required,
                     excluded: &[],

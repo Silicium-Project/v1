@@ -4,11 +4,11 @@ use crate::{
     scoring,
 };
 use libp2p::{
-    PeerId, StreamProtocol, Swarm, SwarmBuilder, connection_limits,
+    PeerId, StreamProtocol, Swarm, SwarmBuilder, connection_limits, dcutr,
     gossipsub::{self, MessageId, ValidationMode},
-    identify, kad, noise,
+    identify, kad, noise, relay,
     request_response::{self, ProtocolSupport, cbor},
-    swarm::NetworkBehaviour,
+    swarm::{NetworkBehaviour, behaviour::toggle::Toggle},
     tcp, yamux,
 };
 use sil_crypto::sha256;
@@ -25,6 +25,26 @@ pub(crate) struct Behaviour {
     pub(crate) identify: identify::Behaviour,
     pub(crate) ledger: cbor::Behaviour<LedgerRequest, LedgerResponse>,
     pub(crate) content: cbor::Behaviour<ContentRequest, ContentResponse>,
+    /// Réservation auprès d'un relais : le nœud devient joignable via `relais/p2p-circuit`.
+    pub(crate) relay_client: relay::client::Behaviour,
+    /// Relais public (nœud joignable directement) : seulement si `NetConfig::relay_server`.
+    pub(crate) relay_server: Toggle<relay::Behaviour>,
+    /// Passage de la connexion relayée à une connexion directe (perforation de NAT).
+    pub(crate) dcutr: dcutr::Behaviour,
+}
+
+/// Bornes d'un relais : assez de circuits pour un petit réseau, circuits longs (le contenu
+/// transite par le relais). Les bornes par défaut (128 Kio, 2 min) couperaient les transferts.
+pub(crate) fn relay_server_config() -> relay::Config {
+    relay::Config {
+        max_reservations: 512,
+        max_reservations_per_peer: 2,
+        max_circuits: 256,
+        max_circuits_per_peer: 16,
+        max_circuit_duration: Duration::from_secs(60 * 60),
+        max_circuit_bytes: 1 << 30,
+        ..relay::Config::default()
+    }
 }
 
 fn config_error(error: impl ToString) -> NetError {
@@ -111,6 +131,7 @@ fn content(limits: &NetLimits) -> cbor::Behaviour<ContentRequest, ContentRespons
 pub(crate) fn build(
     keypair: libp2p::identity::Keypair,
     limits: &NetLimits,
+    relay_server: bool,
 ) -> Result<Swarm<Behaviour>, NetError> {
     let connection_limits = connection_limits::ConnectionLimits::default()
         .with_max_established(Some(limits.max_established))
@@ -125,7 +146,9 @@ pub(crate) fn build(
         )
         .map_err(config_error)?
         .with_quic()
-        .with_behaviour(|key| {
+        .with_relay_client(noise::Config::new, yamux::Config::default)
+        .map_err(config_error)?
+        .with_behaviour(|key, relay_client| {
             let local = key.public().to_peer_id();
             Ok(Behaviour {
                 limits: connection_limits::Behaviour::new(connection_limits),
@@ -137,6 +160,11 @@ pub(crate) fn build(
                 )),
                 ledger: ledger(limits),
                 content: content(limits),
+                relay_client,
+                relay_server: Toggle::from(
+                    relay_server.then(|| relay::Behaviour::new(local, relay_server_config())),
+                ),
+                dcutr: dcutr::Behaviour::new(local),
             })
         })
         .map_err(config_error)?

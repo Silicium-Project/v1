@@ -23,7 +23,7 @@ bureau (Tauri) ── HTTP ─▶ services/api          (liaison de machine, nav
 1. Connexion : bouton « Se connecter avec mon wallet ». Le site demande un challenge, le wallet
    signe le message (`Silicium login / Address / Nonce`), l'API vérifie la signature Ed25519 et
    ouvre une session. Le premier login crée le compte (pas d'e-mail, pas de mot de passe).
-2. Page **Soumettre** : fichier (8 Mo max), type de calcul (`calcul/sha256`, `rendu/blocs`),
+2. Page **Soumettre** : fichier (8 Mo max), type de calcul (`calcul/sha256`, `rendu/raytracer`),
    nombre de fragments (1 à 16), nom facultatif.
 3. Le site envoie le fichier (`PUT /v1/content`), construit la spec du job et l'événement
    `JobPublished` (encodeur CBOR de `apps/web/src/signing/`, octets identiques au Rust), puis
@@ -36,7 +36,6 @@ bureau (Tauri) ── HTTP ─▶ services/api          (liaison de machine, nav
    dans le wallet, donc l'utilisateur voit ce qu'il signe. Le format est fixé dans
    `crates/sil-ledger/src/wallet_text.rs` ; le site le reproduit à l'identique (`apps/web/src/signing/job.ts`).
    Les événements signés par les nœuds gardent le cadrage binaire (`sil/v1/event`).
-4. Le comité vient de la configuration de l'API (`SIL_API_COMMITTEE`), pas du réseau : un nœud
    ne peut pas s'auto-désigner coordinateur.
 5. Aucun paiement : la page l'indique tant que l'adaptateur de chaîne (phase 5) n'existe pas.
 
@@ -44,19 +43,49 @@ Les vecteurs partagés (`contracts/vectors/job-published.json`) figent les octet
 test Rust et un test TypeScript les comparent ; un test Node vérifie les signatures avec une
 clé Ed25519 indépendante.
 
-## Travail (application de bureau)
+## Application de bureau (nœud)
+
+Deux applications distinctes, sans pages en commun :
+
+- **Site** (`apps/web/src`) : soumettre un calcul, calculs, machines (génération des codes de liaison),
+  compte. Build `npm run build` → `dist/`.
+- **Application de bureau** (`apps/web/src/desktop`) : tableau de bord du nœud et liaison de la machine
+  (« Lier cette machine », qui envoie le code et la preuve signée à l'API). Build
+  `npm run build:desktop` (`vite.desktop.config.ts`, entrée `src/desktop/index.html`) → `dist-desktop/`,
+  chargé par Tauri. Elle partage `api`, `i18n`, `styles` et `platform/desktop.ts` avec le site, mais aucune
+  page du site n'est dans son bundle.
+- **Liaison en un clic** : le site ouvre `silicium://link?code=…` (`apps/web/src/platform/desktop-link.ts`).
+  Le shell (`apps/desktop/src-tauri/src/link.rs`, `deep_link.rs`) lit le code et refuse tout autre
+  paramètre ; l'enregistrement du schéma se fait à l'installation (`plugins.deep-link` dans
+  `tauri.conf.json`), une seconde ouverture transmet le lien à la fenêtre déjà ouverte
+  (`tauri-plugin-single-instance`). La fenêtre appelle `GET /v1/devices/link-codes/{code}` pour afficher
+  le compte (masqué) et ne lie rien avant la confirmation de l'utilisateur.
 
 - **Clé** : la clé du nœud (`node.seed` dans `<app>/node/`). La liaison de machine signe avec cette
   même clé, donc les résultats et le compte sont liés à la même identité.
 - **Lancer / arrêter** : le desktop écrit `node.toml` (dossier de données, écoute `/ip4/0.0.0.0/tcp/4001`,
-  API de contrôle sur `127.0.0.1:8750`), lance `silicium-node --config … --roles worker`, journal dans
-  `node.log`. À la fermeture de l'application, le nœud est arrêté.
+  API de contrôle sur `127.0.0.1:8750`, et `[render]` vers `sil-raytracer-block(.exe)` s'il est à côté
+  de l'application, isolation `best-effort`), lance `silicium-node --config … --roles worker`, journal
+  dans `node.log`. À la fermeture de l'application, le nœud est arrêté.
+- **Protocole du journal** : un marqueur `protocol` dans le dossier du nœud porte le nom du protocole
+  (`PROTOCOL` dans `node_process.rs`). Au démarrage, si le marqueur diffère, `ledger/` et `settlement/`
+  sont renommés `<nom>.old-<secondes>` (jamais supprimés) et le journal repart vide. `node.seed` est gardé.
+- **Installeur** : `npm run build` dans `apps/desktop` (NSIS, Windows). `scripts/prepare-sidecars.mjs`
+  copie `dist/windows-amd64/{silicium-node,sil-raytracer-block}.exe` dans `src-tauri/binaries/` sous le
+  nom `<nom>-x86_64-pc-windows-msvc.exe` (`externalBin`) ; l'installeur les pose à côté de l'application.
 - **Données** : `GET /v1/worker` sur l'API de contrôle du nœud (jeton de lecture lu dans
   `control.token`). Le desktop interroge le nœud lui-même ; le navigateur n'a pas de jeton et ne
   contacte jamais le nœud.
 - **Contenu du rapport** : rôles, calculs touchés, compteurs d'événements par type, 50 événements
-  récents, réputation (0,5 pour un inconnu), règlements vus. `payments: false` : aucun gain n'est
-  affiché comme acquis.
+  récents, réputation (moyenne a posteriori Beta(1,1), 0,5 pour un inconnu) et ses succès et échecs
+  pondérés (`reputation_evidence`), réputation relue dans le journal (`reputation_derived` : même
+  forme, calculée par `derived_reputation/` à partir des seuls événements, jugée à `as_of_ms` (heure du
+  comité du job, pas l'horloge locale), recalculée seulement quand le journal change ; ADR 0005, phase 1b,
+  affichée sans peser sur les décisions), capacité (`capacity` : tâches et vérifications en cours, `max_parallel`
+  autorisé par la réputation, cœurs), `in_progress` (tâches tenues : calcul, en attente de vérification,
+  validée, litige), `history` (50 issues : `finalized`, `superseded`, `released`, `rejected`, `expired`) et
+  `history_totals`, règlements vus. Tout est lu dans le journal (`worker_tasks.rs`) ; rien n'est écrit.
+  `payments: false` : aucun gain n'est affiché comme acquis.
 - Commandes Tauri : `machine_key`, `create_machine_key`, `sign_link_code`, `node_status`,
   `node_start`, `node_stop`, `worker_report`. Erreurs : codes stables, sans chemin ni secret.
 
@@ -85,7 +114,7 @@ et la page introuvable, champs étiquetés, erreurs liées au champ, statut anno
 (`role="alert"` / `role="status"`), focus sur le titre à chaque page.
 
 **Non vérifié** : lecteur d'écran réel, navigation clavier complète, zoom 400 % et 320 px, pages
-Calculs / Soumettre / Machines / Compte / Travail sous axe, audit tiers. La déclaration publiée
+Calculs / Soumettre / Machines / Compte / tableau de bord sous axe, audit tiers. La déclaration publiée
 (`/accessibilite`) le dit.
 
 RGPD : information à l'inscription (`/confidentialite`), export (`GET /v1/account/export`),
@@ -99,11 +128,11 @@ l'éditeur, l'hébergeur et le contact d'accessibilité sont des **emplacements 
 - **Format de signature du wallet** : le site suppose que `signMessage` signe les octets bruts
   sans préfixe. **Non vérifié avec un vrai wallet** : un test manuel avec Phantom est requis.
 - **Pas de paiement** : `reward_per_unit` et `verifier_reward_per_unit` valent 0 et la page le dit. Aucun gain n'est calculé.
-- **Comité figé** : `SIL_API_COMMITTEE`, pas de sélection automatique.
 - **Révocation** : l'API ne vérifie pas encore les signatures de machine ; une machine révoquée
   peut encore signer.
 - **Desktop** : le nœud est arrêté par `kill` (pas d'arrêt propre). Non lancé à l'écran dans ces
   vérifications ; seul le binaire nœud a été démarré avec la même config que le desktop.
-- **Pas de paquet d'installation** (`bundle.active` à `false`), icône provisoire.
+- **Installeur non signé** : NSIS seul (pas de MSI), sans signature de code ; SmartScreen le signalera.
+  Icône provisoire. Tant qu'il n'est pas publié, le site ne le propose pas.
 - **Signature dans le même processus** que l'interface pour la clé de nœud, pas de processus
   signataire séparé (`docs/technical/security/keys.md`). À faire en phase 9.

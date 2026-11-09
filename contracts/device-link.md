@@ -27,6 +27,14 @@ moment (one-time, 10 minutes).
 { "code": "ABCDEFGHJKLM", "public_key": "<64 lower-case hex>", "signature": "<128 hex>", "label": "my PC" }
 ```
 
+## Preview and one-click link
+
+`GET /v1/devices/link-codes/{code}` (no session, rate-limited) returns the account the code
+belongs to, masked (`a***@example.com` or the first and last characters of a wallet address),
+and its expiry. It does not consume the code. The website opens the desktop application with
+`silicium://link?code=<code>`; the application shows the preview, and the owner confirms before
+the proof is signed and sent.
+
 ## Test vector
 
 Shared by `services/api/internal/devices` (Go test `TestSharedVectorStaysStable`) and

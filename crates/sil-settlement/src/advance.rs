@@ -71,9 +71,11 @@ fn on_pending(entry: &mut Entry, chain: &dyn Chain, config: &OutboxConfig, now_m
             return transient(entry, config, now_ms);
         }
     };
-    contact_ok(entry);
+    // Lire l'escrow ne prouve pas que la soumission suivante passera : le compteur d'échecs ne
+    // repart à zéro qu'avec un vrai progrès, sinon le délai ne grandit jamais.
     match settled(entry, &escrow) {
         Settled::AsWanted => {
+            contact_ok(entry);
             entry.phase = Phase::Confirmed;
             return;
         }
@@ -85,22 +87,23 @@ fn on_pending(entry: &mut Entry, chain: &dyn Chain, config: &OutboxConfig, now_m
         }
         Settled::NotYet => {}
     }
-    let signers = entry.auth.committee_signers(&escrow.terms.committee);
-    if signers.len() < escrow.terms.threshold as usize {
-        // En attente de signatures du comité : rien à soumettre encore.
+    let signers = entry.auth.approver_signers();
+    let needed = entry.auth.claim.approvers.len();
+    if signers.len() < needed {
+        // En attente de signatures des approbateurs : rien à soumettre encore.
+        contact_ok(entry);
         entry.phase = Phase::Pending;
         entry.next_try_ms = now_ms.saturating_add(config.poll_ms);
         return;
     }
-    // Seules les signatures nécessaires partent : une transaction plus lourde peut dépasser sa
-    // taille maximale (le comité peut compter jusqu'à sept membres).
-    let needed = escrow.terms.threshold as usize;
+    // Seules les signatures des approbateurs partent (une par approbateur).
     let mut minimal = entry.auth.clone();
     minimal
         .signatures
         .retain(|(signer, _)| signers.iter().take(needed).any(|chosen| chosen == signer));
     match chain.submit(&minimal) {
         Ok(tx) => {
+            contact_ok(entry);
             entry.attempts += 1;
             entry.phase = Phase::Submitted { tx, at_ms: now_ms };
             entry.next_try_ms = now_ms.saturating_add(config.poll_ms);

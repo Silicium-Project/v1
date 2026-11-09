@@ -61,8 +61,12 @@ impl Inner {
             return TxStatus::Failed("escrow inconnu".into());
         };
         // Sur la chaîne, ces signataires viennent du précompilé Ed25519.
-        let signers = auth.committee_signers(&escrow.terms.committee);
-        match escrow.settle(&auth.claim.args(), &signers, &FAKE_SUBMITTER) {
+        let signers = auth.approver_signers();
+        // Le faux ne suit pas les comptes de réputation : chaque approbateur est éligible
+        // (score de départ). Le gate réel est testé dans sil-chain-core.
+        let standing =
+            vec![Some(sil_chain_core::reputation::VERIFIER_START); auth.claim.approvers.len()];
+        match escrow.settle(&auth.claim.args(), &signers, &FAKE_SUBMITTER, &standing) {
             Ok(_) => TxStatus::Confirmed,
             Err(error) => TxStatus::Failed(error.to_string()),
         }
@@ -131,6 +135,10 @@ impl FakeChain {
 }
 
 impl Chain for FakeChain {
+    fn pays_fees(&self) -> bool {
+        true
+    }
+
     fn escrow(&self, job: &JobId) -> Result<Option<Escrow>, ChainError> {
         let mut inner = self.lock();
         if let Some(error) = inner.fault(Op::Escrow) {

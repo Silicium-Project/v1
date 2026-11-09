@@ -4948,6 +4948,7 @@ dependencies = [
  "bincode",
  "serde",
  "sil-types",
+ "sil-workload-spec",
  "thiserror 2.0.21",
 ]
 
@@ -4993,17 +4994,6 @@ dependencies = [
  "sil-types",
  "thiserror 2.0.21",
  "tokio",
-]
-
-[[package]]
-name = "sil-coordinator"
-version = "0.1.0"
-dependencies = [
- "sil-attest",
- "sil-crypto",
- "sil-ledger",
- "sil-reputation",
- "sil-types",
 ]
 
 [[package]]
@@ -5095,7 +5085,6 @@ dependencies = [
  "sil-config",
  "sil-content",
  "sil-control-api",
- "sil-coordinator",
  "sil-crypto",
  "sil-ledger",
  "sil-ledger-store",
@@ -5112,6 +5101,7 @@ dependencies = [
  "sil-wl-render",
  "sil-wl-sha256",
  "sil-workload-api",
+ "sil-workload-spec",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -5229,6 +5219,7 @@ dependencies = [
  "sil-sandbox",
  "sil-types",
  "sil-workload-api",
+ "sil-workload-spec",
 ]
 
 [[package]]
@@ -5240,6 +5231,7 @@ dependencies = [
  "sil-codec",
  "sil-types",
  "sil-workload-api",
+ "sil-workload-spec",
 ]
 
 [[package]]
@@ -5250,8 +5242,13 @@ dependencies = [
  "sil-codec",
  "sil-crypto",
  "sil-types",
+ "sil-workload-spec",
  "thiserror 2.0.21",
 ]
+
+[[package]]
+name = "sil-workload-spec"
+version = "0.1.0"
 
 [[package]]
 name = "simd-adler32"

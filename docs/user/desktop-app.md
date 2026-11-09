@@ -10,35 +10,44 @@ utilisez le site web.
 
 ## 1. Lier la machine à votre compte
 
-1. Sur le site, ouvrez **Machines** et cliquez sur **Générer un code de liaison**. Le code est
-   valable 10 minutes et ne sert qu'une fois.
-2. Dans l'application de bureau, section **Lier cette machine** : saisissez le code, donnez un nom
-   (facultatif) et cliquez sur **Lier cette machine**.
+1. Sur le site, ouvrez **Machines**, cliquez sur **Générer un code de liaison**, puis sur
+   **Lier cette machine**. Le code est valable 10 minutes et ne sert qu'une fois.
+2. Votre navigateur demande d'ouvrir l'application de bureau : acceptez. L'application affiche le
+   compte auquel appartient le code et la clé de cette machine.
+3. Vérifiez le compte, donnez un nom (facultatif) et cliquez sur **Lier cette machine à ce compte**.
+
+Si l'application ne s'ouvre pas, saisissez le code à la main dans **Lier cette machine**.
+N'acceptez jamais un code que vous n'avez pas généré vous-même : il lierait cette machine à un
+autre compte.
 
 La clé qui signe la liaison est la clé du nœud : seules la clé publique et la signature quittent
 la machine.
 
-## 2. Démarrer le nœud
+## 2. Activer ce PC
 
-Ouvrez **Travail**, puis **Démarrer le nœud**. La première fois, le nœud crée son jeton et son
-identité ; les données apparaissent en quelques secondes. Le journal technique est dans
-`node.log`, dans le dossier de données de l'application.
+Ouvrez **Tableau de bord**, puis cliquez sur **Activer mon PC**. Le nœud démarre en arrière-plan. La
+première fois, il crée son jeton et son identité ; les données apparaissent en quelques secondes.
+Le journal technique est dans `node.log`, dans le dossier de données de l'application.
 
-Le nœud s'arrête quand vous fermez l'application.
+**Désactiver ce PC** arrête le nœud. Le nœud s'arrête aussi quand vous fermez l'application.
 
-## 3. Lire vos données
+## 3. Lire le tableau de bord
 
-La page **Travail** affiche :
+Une fois le PC activé, le **Tableau de bord** affiche, mis à jour toutes les 5 secondes :
 
-- vos rôles (calcul, vérification, coordination) ;
-- le nombre de calculs auxquels votre nœud a participé ;
-- le détail par type d'action (fragment réclamé, résultat envoyé, vérification…) ;
-- les 50 actions les plus récentes ;
-- votre réputation (0,50 pour un nouveau nœud, elle monte avec les résultats acceptés) ;
-- les règlements vus.
+- **Réputation bayésienne** : 0,50 pour un nouveau nœud. C'est la moyenne a posteriori d'une loi
+  Beta(1,1) : elle monte avec les tâches finalisées et baisse avec les échecs. Les succès et
+  échecs pondérés qui la fondent sont indiqués à côté.
+- **Puissance utilisée** : le nombre de tâches (calcul ou vérification) en cours, sur le nombre
+  autorisé par votre réputation, et le nombre de cœurs de la machine.
+- **Gains** : non mesurés. Aucun paiement n'est actif pour l'instant ; aucun montant n'est affiché
+  tant que les règlements sur Solana ne sont pas en service.
+- **Tâches en cours** : le calcul, le morceau, l'étape (calcul, résultat en attente de vérification,
+  validé, litige) et depuis quand.
+- **Historique des tâches** : l'issue de chaque tentative, les 50 plus récentes. « Finalisée » est
+  la seule issue retenue par le réseau.
 
-**Gains** : aucun paiement n'est actif pour l'instant. Aucun montant n'est affiché tant que les
-règlements sur Solana ne sont pas en service.
+Plus bas, le détail par type d'action, les 50 actions les plus récentes et les règlements vus.
 
 ## Ce qui se passe si ça échoue
 
@@ -47,7 +56,7 @@ règlements sur Solana ne sont pas en service.
 | Le programme du nœud est introuvable | installez `silicium-node` à côté de l'application, ou définissez `SIL_NODE_BIN` |
 | Le nœud n'a pas pu démarrer | lisez `node.log` dans le dossier de données |
 | Le nœud ne répond pas encore | patientez ; la page réessaie seule |
-| Le nœud a refusé le jeton | redémarrez le nœud depuis la page Travail |
+| Le nœud a refusé le jeton | redémarrez le nœud depuis le tableau de bord |
 | Code de liaison inconnu, expiré ou déjà utilisé | générez un nouveau code sur le site |
 
 ## Perte ou revente de la machine

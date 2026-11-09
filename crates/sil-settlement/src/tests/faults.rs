@@ -7,7 +7,7 @@ use crate::{
 fn setup() -> (FakeChain, Outbox, IntentId) {
     let chain = funded_chain();
     let mut outbox = outbox();
-    let id = outbox.enqueue(authorized(claim(0), &[10, 11])).unwrap();
+    let id = outbox.enqueue(authorized(claim(0), &[70, 71])).unwrap();
     (chain, outbox, id)
 }
 
@@ -141,7 +141,7 @@ fn a_restart_after_a_crash_before_saving_resubmits_safely() {
     first.advance(&chain, 0);
     chain.mine();
     let mut fresh = outbox();
-    let id = fresh.enqueue(authorized(claim(0), &[10, 11])).unwrap();
+    let id = fresh.enqueue(authorized(claim(0), &[70, 71])).unwrap();
     fresh.advance(&chain, 10_000);
     assert_eq!(fresh.status(&id, 10_000), Some(Status::Confirmed));
     assert_eq!(chain.submit_calls(), 1);
@@ -164,4 +164,27 @@ fn a_corrupt_outbox_file_is_an_error_not_an_empty_outbox() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[test]
+fn a_refused_submit_backs_off_instead_of_retrying_every_step() {
+    let (chain, mut outbox, id) = setup();
+    // La lecture réussit à chaque fois, mais la soumission est refusée : il ne doit pas y avoir un
+    // nouvel envoi à chaque pas (le délai doit grandir).
+    chain.fail(
+        Op::Submit,
+        ChainError::Transient("règle en attente".into()),
+        100,
+    );
+    let mut now = 0;
+    for _ in 0..60 {
+        outbox.advance(&chain, now);
+        now += 1_000;
+    }
+    assert!(
+        chain.submit_calls() <= 8,
+        "trop de soumissions : {}",
+        chain.submit_calls()
+    );
+    assert_ne!(outbox.status(&id, now), Some(Status::Confirmed));
 }

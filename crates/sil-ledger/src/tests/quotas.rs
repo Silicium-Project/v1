@@ -81,9 +81,8 @@ fn a_job_has_a_byte_ceiling() {
 #[test]
 fn oversized_events_are_refused() {
     let mut ledger = Ledger::open_to_all(limits(|l| l.max_event_bytes = 100));
-    let committee = vec![ident(10), ident(11), ident(12)];
     let requester = ident(100);
-    let spec = spec_for(&requester, &committee, &Params::default());
+    let spec = spec_for(&requester, &Params::default());
     assert_eq!(
         ledger.publish_job(&requester, spec, 1).unwrap_err(),
         LedgerError::EventTooLarge
@@ -96,11 +95,10 @@ fn job_count_is_capped_globally_and_per_requester() {
         l.max_jobs = 2;
         l.max_jobs_per_requester = 1;
     }));
-    let committee = vec![ident(10), ident(11), ident(12)];
     let p = Params::default();
     let make = |requester: u8, nonce: u64| {
         let who = ident(requester);
-        let mut spec = spec_for(&who, &committee, &p);
+        let mut spec = spec_for(&who, &p);
         spec.nonce = nonce;
         (who, spec)
     };

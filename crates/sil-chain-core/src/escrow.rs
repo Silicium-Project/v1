@@ -1,7 +1,7 @@
 use crate::{EscrowTerms, RuleError};
 use serde::{Deserialize, Serialize};
 use sil_types::{Hash32, JobId, PublicKey};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Règlement d'un fragment, tel qu'enregistré.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,6 +22,8 @@ pub struct Escrow {
     pub(crate) refunded: u64,
     pub(crate) closed: bool,
     pub(crate) settled: BTreeMap<u32, SettledFragment>,
+    /// Approbateurs déjà pénalisés, par fragment : une faute ne se punit qu'une fois.
+    pub(crate) penalized: BTreeSet<(u32, PublicKey)>,
 }
 
 impl Escrow {
@@ -51,6 +53,7 @@ impl Escrow {
             refunded: 0,
             closed: false,
             settled: BTreeMap::new(),
+            penalized: BTreeSet::new(),
         })
     }
 

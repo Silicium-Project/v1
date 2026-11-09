@@ -1,5 +1,5 @@
 //! Garde d'escrow : avant de travailler, le worker vérifie que l'escrow on-chain correspond au
-//! `JobSpec` signé. Sans cela, un requester pourrait annoncer un comité et des récompenses dans
+//! `JobSpec` signé. Sans cela, un requester pourrait annoncer des récompenses dans
 //! le spec, et ouvrir sur la chaîne un escrow aux conditions différentes.
 
 use sil_chain_core::{Escrow, EscrowTerms, RuleError};
@@ -28,8 +28,6 @@ pub enum GuardError {
 pub fn terms_of(spec: &JobSpec) -> EscrowTerms {
     EscrowTerms {
         requester: spec.requester,
-        committee: spec.committee.clone(),
-        threshold: spec.threshold,
         workload: spec.workload.clone(),
         input_size: spec.input_size,
         width: spec.width,
@@ -64,8 +62,6 @@ pub fn check_escrow(
         }
     };
     field(want.requester == have.requester, "requester")?;
-    field(want.committee == have.committee, "comité")?;
-    field(want.threshold == have.threshold, "seuil")?;
     field(want.workload == have.workload, "workload")?;
     field(want.input_size == have.input_size, "taille de l'entrée")?;
     field(want.width == have.width, "largeur")?;

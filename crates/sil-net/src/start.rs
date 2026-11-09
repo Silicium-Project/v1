@@ -3,7 +3,7 @@ use crate::{
     driver::Driver, ratelimit::PeerLimiters,
 };
 use libp2p::{Multiaddr, identity::Keypair};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use tokio::{sync::mpsc, task::JoinHandle};
 
 /// Capacité des files entre l'application et la boucle réseau.
@@ -17,6 +17,8 @@ pub struct NetConfig {
     pub limits: NetLimits,
     /// Topics auxquels s'abonner au démarrage.
     pub subscribe: Vec<Topic>,
+    /// Ce nœud sert de relais public (il doit être joignable directement).
+    pub relay_server: bool,
 }
 
 /// Réseau démarré : poignée, flux d'événements, tâche de la boucle.
@@ -32,7 +34,7 @@ pub fn start(
     config: NetConfig,
     providers: Providers,
 ) -> Result<Network, NetError> {
-    let mut swarm = behaviour::build(keypair, &config.limits)?;
+    let mut swarm = behaviour::build(keypair, &config.limits, config.relay_server)?;
     for topic in &config.subscribe {
         swarm
             .behaviour_mut()
@@ -64,6 +66,8 @@ pub fn start(
         pending_ledger: HashMap::new(),
         pending_content: HashMap::new(),
         pending_providers: HashMap::new(),
+        relay_listeners: HashMap::new(),
+        reserved_relays: BTreeSet::new(),
     };
     let task = tokio::spawn(driver.run());
     Ok(Network {

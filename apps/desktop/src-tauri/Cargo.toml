@@ -10,14 +10,18 @@ description = "Silicium desktop shell: hosts the web UI and holds the machine si
 [workspace]
 
 [dependencies]
-tauri = "2"
+tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sil-crypto = { path = "../../../crates/sil-crypto" }
 sil-types = { path = "../../../crates/sil-types" }
+tauri-plugin-deep-link = "2.6.3"
+tauri-plugin-single-instance = { version = "2.5.5", features = ["deep-link"] }
+ed25519-dalek = "2"
+getrandom = "0.2"
 
 [build-dependencies]
-tauri-build = "2"
+tauri-build = { version = "2", features = [] }
 
 [dev-dependencies]
 tempfile = "3"
