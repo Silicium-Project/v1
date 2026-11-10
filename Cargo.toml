@@ -28,6 +28,9 @@ sil-sampling = { path = "crates/sil-sampling" }
 sil-workload-api = { path = "crates/sil-workload-api" }
 sil-wl-sha256 = { path = "crates/sil-wl-sha256" }
 sil-wl-render = { path = "crates/sil-wl-render" }
+sil-batch = { path = "crates/sil-batch" }
+sil-wl-image = { path = "crates/sil-wl-image" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 sil-sandbox = { path = "crates/sil-sandbox" }
 sil-render-wasm = { path = "crates/sil-render-wasm" }
 sil-reputation = { path = "crates/sil-reputation" }
@@ -55,6 +58,8 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", 
 futures = "0.3"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query", "matched-path"] }
 serde_json = "1"
+sysinfo = "0.32"
+ureq = { version = "2", features = ["json"] }
 tower = { version = "0.5", features = ["util"] }
 
 [workspace.lints.rust]

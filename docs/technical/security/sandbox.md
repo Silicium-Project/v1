@@ -76,7 +76,9 @@ l'opérateur installe et désigne dans `[render] engine` (voir `docs/user/config
 le lance pour chaque bloc via `sil-wl-render::ExternalRenderer`, donc dans `sil-sandbox`, avec
 l'isolation `[render] isolation` (défaut : `strict`).
 
-Protocole : arguments `<largeur> <hauteur> <y0> <y1>`, scène sur l'entrée standard, exactement
+Protocole : arguments `<largeur> <hauteur> <y0> <y1>`, ou `bands <largeur> <hauteur> <y0>-<y1> ...`
+pour plusieurs bandes en un appel (la vérification d'un fragment en un seul appel). Un moteur qui
+répond code 2 à `bands` est un ancien moteur : l'appel retombe sur un appel par bande. La scène est sur l'entrée standard, exactement
 `largeur × (y1 - y0) × 3` octets RGB24 sur la sortie standard.
 
 | Garantie (en plus de celles ci-dessus) | Test |
@@ -94,7 +96,9 @@ ne servent qu'aux tests. Le workload sha256 reste dans le processus du nœud : c
 ## Ce qui reste non couvert
 
 - **Windows** : mémoire, nombre de processus, réseau, fichiers (voir ci-dessus).
-- **Linux** : un programme peut toujours consommer le CPU jusqu'à `cpu_seconds`, et utiliser la
+- **Linux** : `RLIMIT_CPU` compte le temps de tous les threads. Pour le moteur de rendu, la limite
+  est relevée à `max(600, wall_ms / 1000 × cœurs + 60)` secondes (`render_isolation`, `cli.rs`), sinon
+  un rendu multi-thread serait tué en pleine tâche. Un programme peut toujours consommer le CPU jusqu'à `cpu_seconds`, et utiliser la
   mémoire jusqu'à `memory_bytes`, ce qui est voulu. Le réseau reste fermé uniquement pour les
   sockets IPv4/IPv6/netlink/paquets : les sockets UNIX restent possibles.
 - `Confined` juge l'état du disque à l'instant de l'appel : il ne protège pas contre un tiers qui

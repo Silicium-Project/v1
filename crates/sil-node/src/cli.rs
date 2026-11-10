@@ -16,6 +16,7 @@ const WASM_MEMORY_BYTES: usize = 256 * 1024 * 1024;
 use sil_settlement::{Authorization, Chain, ChainError, TxId, TxStatus};
 use sil_telemetry::TelemetryConfig;
 use sil_types::{JobId, PublicKey};
+use sil_wl_image::ImageBatchWorkload;
 use sil_wl_render::{ExternalRenderer, RenderWorkload};
 use sil_workload_api::Registry;
 use std::{net::SocketAddr, path::PathBuf, process::ExitCode, sync::Arc, time::Duration};
@@ -102,6 +103,13 @@ fn options(config: &NodeConfig, roles: Roles) -> Result<NodeOptions, String> {
             .clone()
             .unwrap_or_else(|| config.data_dir.join("control.token")),
     });
+    options.telemetry = config
+        .telemetry
+        .as_ref()
+        .map(|t| crate::options::TelemetryOptions {
+            api_url: t.api_url.clone(),
+            interval: std::time::Duration::from_secs(t.interval_s.max(10)),
+        });
     options.trusted_requesters = config
         .trust
         .requesters
@@ -147,13 +155,19 @@ fn render_isolation(
     }
     let mut policy = Isolation::for_program(&render.engine, work, launcher);
     policy.level = level;
+    // La limite CPU (RLIMIT_CPU) compte le temps de tous les threads : un rendu sur tous les
+    // coeurs consomme `cores` fois son temps mural. Sans cette marge, il serait tue en pleine tache.
+    let cores = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get) as u64;
+    policy.cpu_seconds = policy.cpu_seconds.max(render.wall_ms / 1000 * cores + 60);
     Ok(Some(policy))
 }
 
 /// Workloads servis par ce nœud : sha256 (dans le processus, code de confiance) et, si `[render]`
 /// est configuré, le rendu par un moteur externe lancé dans `sil-sandbox`.
 fn registry_for(config: &NodeConfig) -> Result<Registry, String> {
-    let mut registry = Registry::new().with(Arc::new(sil_wl_sha256::Sha256Workload));
+    let mut registry = Registry::new()
+        .with(Arc::new(sil_wl_sha256::Sha256Workload))
+        .with(Arc::new(ImageBatchWorkload));
     if let Some(render) = &config.render {
         if !render.engine.is_file() {
             return Err(format!(

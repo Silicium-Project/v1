@@ -9,3 +9,4 @@ export function findWorkload(id: string): WorkloadSpec | undefined {
 export function isImageSide(value: number, spec: WorkloadSpec): boolean {
   return Number.isInteger(value) && value >= 1 && value <= spec.maxSide
 }
+

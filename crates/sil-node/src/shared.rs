@@ -33,6 +33,8 @@ pub(crate) struct WorkBook {
     pub(crate) running: BTreeSet<(JobId, u32, u32)>,
     pub(crate) offered: BTreeSet<(JobId, u32, u32)>,
     pub(crate) verifying: BTreeSet<(JobId, u32, u32)>,
+    /// Vérifications en cours d'exécution (le rendu tourne), au plus `VERIFY_PARALLEL`.
+    pub(crate) verify_running: BTreeSet<(JobId, u32, u32)>,
     /// Tentatives déjà comptées dans la réputation (job, fragment, tentative).
     pub(crate) observed: BTreeSet<(JobId, u32, u32)>,
     /// Verdicts déjà comptés dans la réputation de vérificateur (job, fragment, tentative, pair).

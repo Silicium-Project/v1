@@ -39,6 +39,24 @@ type Device struct {
 	Label     string     `json:"label"`
 	LinkedAt  time.Time  `json:"linked_at"`
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	// Telemetry is the last report the machine sent (see devices.Service.Report). Nil until one arrives.
+	Telemetry *Telemetry `json:"telemetry,omitempty"`
+}
+
+// Telemetry is what a machine reports about itself. ObservedAt is the machine clock; ReceivedAt is ours.
+type Telemetry struct {
+	ObservedAt      time.Time `json:"observed_at"`
+	ReceivedAt      time.Time `json:"received_at"`
+	Version         string    `json:"version"`
+	CPUPct          float64   `json:"cpu_pct"`
+	MemPct          float64   `json:"mem_pct"`
+	CPUCores        int       `json:"cpu_cores"`
+	Compute         bool      `json:"compute"`
+	Verify          bool      `json:"verify"`
+	TasksActive     int       `json:"tasks_active"`
+	TasksInProgress int       `json:"tasks_in_progress"`
+	TasksFinalized  uint64    `json:"tasks_finalized"`
+	TasksOther      uint64    `json:"tasks_other"`
 }
 
 // Job is local bookkeeping of the jobs a user submitted. It is an index for "my jobs",

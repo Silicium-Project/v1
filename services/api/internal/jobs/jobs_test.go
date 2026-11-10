@@ -49,6 +49,10 @@ func (f *fakeNode) JobOutputs(context.Context, string) ([]nodeclient.Output, err
 	return []nodeclient.Output{{Fragment: 0, Bytes: []byte{0xab, 0xcd}}, {Fragment: 1, Bytes: []byte{0x01}}}, nil
 }
 
+func (f *fakeNode) JobArchive(context.Context, string) ([]byte, error) {
+	return []byte{0x04, 0x00, 0x00, 0x00, 0x89, 'P', 'N', 'G'}, nil
+}
+
 var id = strings.Repeat("ab", 32)
 
 func setup() (*Service, *fakeNode) {

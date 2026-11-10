@@ -38,7 +38,11 @@ const linkedText = computed(() =>
 )
 const POLL_MS = 5000
 // Les renouvellements de bail ne sont pas une activité : ils restent dans le journal, pas ici.
-const recentEvents = computed(() => (report.value?.recent ?? []).filter((event) => event.kind !== 'renew'))
+// Les dix dernières activités utiles (le journal garde les plus récentes d'abord) ; les renouvellements
+// de bail sont exclus, ils ne disent rien à l'utilisateur.
+const recentEvents = computed(() =>
+  (report.value?.recent ?? []).filter((event) => event.kind !== 'renew').slice(0, 10),
+)
 const KINDS = [
   'job_published',
   'claim',

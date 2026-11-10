@@ -12,6 +12,6 @@ export async function linkThisMachine(code: string, label: string): Promise<Devi
   if ((await machineKey()) === null) await createMachineKey()
   const proof = await signLinkCode(normal)
   const device = await linkDevice(normal, proof.public_key, proof.signature, label.trim())
-  saveLinkRecord(device, proof.public_key)
+  await saveLinkRecord(device, proof.public_key)
   return device
 }

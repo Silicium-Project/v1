@@ -18,6 +18,24 @@ pub struct NodeConfig {
     pub render: Option<RenderConfig>,
     /// Mode de test. Par défaut désactivé.
     pub testnet: TestnetConfig,
+    /// Télémétrie de la machine vers l'API. Absente : rien n'est envoyé.
+    pub telemetry: Option<TelemetryConfig>,
+}
+
+/// Envoi périodique de l'état de la machine (CPU, mémoire, rôles, tâches) à l'API. Le message est
+/// signé par la clé du nœud ; l'API ne l'accepte que pour un appareil lié à un compte.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TelemetryConfig {
+    /// Adresse de base de l'API (https://…). Le chemin /v1/devices/telemetry y est ajouté.
+    pub api_url: String,
+    /// Période d'envoi, en secondes.
+    #[serde(default = "default_telemetry_interval_s")]
+    pub interval_s: u64,
+}
+
+fn default_telemetry_interval_s() -> u64 {
+    60
 }
 
 /// Modes de test. Refusés si une chaîne est configurée (voir `validate`).
@@ -27,7 +45,6 @@ pub struct TestnetConfig {
     /// Le worker calcule sans vérifier d'escrow : le travail n'est pas payé. Réseau de test seulement.
     pub free_work: bool,
 }
-
 
 /// Moteur de rendu : un programme installé par l'opérateur, lancé dans `sil-sandbox`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -136,6 +153,7 @@ impl Default for NodeConfig {
             chain: None,
             render: None,
             testnet: TestnetConfig::default(),
+            telemetry: None,
         }
     }
 }

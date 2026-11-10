@@ -38,7 +38,8 @@ Une fois le PC activé, le **Tableau de bord** affiche, mis à jour toutes les 5
 - **Réputation bayésienne** : 0,50 pour un nouveau nœud. C'est la moyenne a posteriori d'une loi
   Beta(1,1) : elle monte avec les tâches finalisées et baisse avec les échecs. Les succès et
   échecs pondérés qui la fondent sont indiqués à côté.
-- **Puissance utilisée** : le nombre de tâches (calcul ou vérification) en cours, sur le nombre
+- **Puissance utilisée** : un nœud neuf fait 4 tâches à la fois (plafond borné par les cœurs − 1 ;
+  une réputation nulle interdit toute tâche). Le nombre de tâches (calcul ou vérification) en cours, sur le nombre
   autorisé par votre réputation, et le nombre de cœurs de la machine.
 - **Gains** : non mesurés. Aucun paiement n'est actif pour l'instant ; aucun montant n'est affiché
   tant que les règlements sur Solana ne sont pas en service.

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { messages } from '@/i18n'
 
 const about = computed(() => messages().site.about)
+const faq = computed(() => messages().site.faqPage)
 </script>
 
 <template>
@@ -28,6 +29,18 @@ const about = computed(() => messages().site.about)
       <ul class="site-list site-list--rules">
         <li v-for="item in about.statusItems" :key="item">{{ item }}</li>
       </ul>
+    </section>
+
+    <section id="faq" class="site-section site-container" aria-labelledby="about-faq">
+      <p class="site-kicker">{{ faq.kicker }}</p>
+      <h2 id="about-faq">{{ faq.title }}</h2>
+      <p class="site-lede">{{ faq.lede }}</p>
+      <div class="site-faq">
+        <details v-for="item in faq.items" :key="item.question">
+          <summary>{{ item.question }}</summary>
+          <p>{{ item.answer }}</p>
+        </details>
+      </div>
     </section>
   </div>
 </template>

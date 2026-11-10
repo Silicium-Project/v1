@@ -11,30 +11,9 @@ async fn three_nodes_without_coordinator_finish_a_job() {
     let data = input_bytes();
     let spec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
-    let a = start(
-        1,
-        roles(true, true),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
-    let b = start(
-        2,
-        roles(true, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let c = start(
-        3,
-        roles(true, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let a = start(1, roles(true, true), sha_registry(), chain.clone(), true).await;
+    let b = start(2, roles(true, true), sha_registry(), chain.clone(), false).await;
+    let c = start(3, roles(true, true), sha_registry(), chain.clone(), false).await;
     let nodes = [&a, &b, &c];
     connect_all(&nodes).await;
     let miner = spawn_miner(chain.clone());

@@ -23,7 +23,7 @@ bureau (Tauri) ── HTTP ─▶ services/api          (liaison de machine, nav
 1. Connexion : bouton « Se connecter avec mon wallet ». Le site demande un challenge, le wallet
    signe le message (`Silicium login / Address / Nonce`), l'API vérifie la signature Ed25519 et
    ouvre une session. Le premier login crée le compte (pas d'e-mail, pas de mot de passe).
-2. Page **Soumettre** : fichier (8 Mo max), type de calcul (`calcul/sha256`, `rendu/raytracer`),
+2. Page **Soumettre** : fichier (8 Mo max), type de calcul (`calcul/sha256`, `rendu/raytracer`, `image/batch`),
    nombre de fragments (1 à 16), nom facultatif.
 3. Le site envoie le fichier (`PUT /v1/content`), construit la spec du job et l'événement
    `JobPublished` (encodeur CBOR de `apps/web/src/signing/`, octets identiques au Rust), puis

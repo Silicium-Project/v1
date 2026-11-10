@@ -25,7 +25,7 @@ pub fn node_config(data_dir: &Path, engine: Option<&Path>) -> String {
         format!("\n[render]\nengine = \"{engine}\"\nisolation = \"best-effort\"\n")
     });
     format!(
-        "data_dir = \"{dir}\"\n\n[network]\nlisten = [\"{LISTEN}\"]\nbootstrap = [\"{BOOTSTRAP}\"]\n\n[control]\nbind = \"127.0.0.1\"\nport = {CONTROL_PORT}\ntoken_file = \"{dir}/control.token\"\n\n[chain]\nrpc_url = \"{CHAIN_RPC}\"\nprogram_id = \"{PROGRAM_ID}\"\nrelay_url = \"{RELAY}\"\n{render}"
+        "data_dir = \"{dir}\"\n\n[network]\nlisten = [\"{LISTEN}\"]\nbootstrap = [\"{BOOTSTRAP}\"]\n\n[control]\nbind = \"127.0.0.1\"\nport = {CONTROL_PORT}\ntoken_file = \"{dir}/control.token\"\n\n[chain]\nrpc_url = \"{CHAIN_RPC}\"\nprogram_id = \"{PROGRAM_ID}\"\nrelay_url = \"{RELAY}\"\n{render}\n[telemetry]\napi_url = \"{RELAY}\"\n"
     )
 }
 
@@ -51,6 +51,12 @@ mod tests {
         assert!(text.contains("[chain]\nrpc_url = \"https://api.devnet.solana.com\""));
         assert!(text.contains("relay_url = \"https://siliciumlabs.org\""));
         assert!(!text.contains("payer_keypair"));
+    }
+
+    #[test]
+    fn the_node_reports_its_machine_to_the_api() {
+        let text = node_config(Path::new("C:\\Users\\x\\node"), None);
+        assert!(text.contains("[telemetry]\napi_url = \"https://siliciumlabs.org\"\n"));
     }
 
     #[test]

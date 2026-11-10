@@ -24,6 +24,31 @@ pub const CALCUL_SHA256: Spec = Spec {
     deposit_supported: true,
 };
 
+/// `image/batch` : Une unité = un octet de l'entrée. L'entrée est un lot d'images (conteneur SILBATCH) : chaque image est redimensionnée et réencodée (PNG ou JPEG). Chaque fragment est une plage d'images, dont le résultat est publié ; un vérificateur refait le traitement de la plage.
+pub const IMAGE_BATCH: Spec = Spec {
+    id: "image/batch",
+    unit: Unit::BytesInput,
+    label_key: "submit.workloadImage",
+    params: &[],
+    max_input_bytes: 8388608,
+    max_side: 0,
+    block_rows: 0,
+    max_fragments: 16,
+    target_size: 262144,
+    reward_per_unit: 100,
+    verifier_reward_per_unit: 10,
+    verification: Verification::Sampling {
+        min_cheat_fraction: 0.2,
+        target_detection: 0.99,
+    },
+    limits: Limits {
+        wall_ms: 120000,
+        memory_bytes: 536870912,
+        output_bytes: 67108864,
+    },
+    deposit_supported: true,
+};
+
 /// `rendu/raytracer` : Une unité = un pixel de la bande du fragment. L'entrée est une scène .cfg, rendue par le moteur raytracing déterministe (sil-raytracer) ; un vérificateur recalcule un échantillon de blocs de 8 lignes.
 pub const RENDU_RAYTRACER: Spec = Spec {
     id: "rendu/raytracer",
@@ -50,4 +75,4 @@ pub const RENDU_RAYTRACER: Spec = Spec {
 };
 
 /// Tous les descripteurs, triés par identifiant.
-pub const ALL: &[Spec] = &[CALCUL_SHA256, RENDU_RAYTRACER];
+pub const ALL: &[Spec] = &[CALCUL_SHA256, IMAGE_BATCH, RENDU_RAYTRACER];

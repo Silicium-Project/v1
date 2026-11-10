@@ -28,10 +28,7 @@ pub fn ledger_key(seed: u8) -> PublicKey {
 }
 
 pub fn roles(worker: bool, verifier: bool) -> Roles {
-    Roles {
-        worker,
-        verifier,
-    }
+    Roles { worker, verifier }
 }
 
 pub fn sha_registry() -> Registry {

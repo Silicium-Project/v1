@@ -63,15 +63,15 @@ pub(crate) fn validate(config: &NodeConfig) -> Result<(), ConfigError> {
         if chain.program_id.trim().is_empty() {
             return Err(invalid("chain.program_id", "obligatoire"));
         }
-        if let Some(payer) = &chain.payer_keypair {
-            if payer.as_os_str().is_empty() {
-                return Err(invalid("chain.payer_keypair", "chemin vide"));
-            }
+        if let Some(payer) = &chain.payer_keypair
+            && payer.as_os_str().is_empty()
+        {
+            return Err(invalid("chain.payer_keypair", "chemin vide"));
         }
-        if let Some(relay) = &chain.relay_url {
-            if !(relay.starts_with("http://") || relay.starts_with("https://")) {
-                return Err(invalid("chain.relay_url", "http:// ou https:// attendu"));
-            }
+        if let Some(relay) = &chain.relay_url
+            && !(relay.starts_with("http://") || relay.starts_with("https://"))
+        {
+            return Err(invalid("chain.relay_url", "http:// ou https:// attendu"));
         }
         if chain.payer_keypair.is_none() && chain.relay_url.is_none() {
             return Err(invalid(

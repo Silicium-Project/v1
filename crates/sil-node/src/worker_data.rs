@@ -140,8 +140,8 @@ const ESCROW_SEEN_MS: u64 = 30_000;
 /// verificateur qui a approuve le fragment. Rien n'est compte avant le reglement.
 fn earnings(shared: &Shared, me: &sil_types::PublicKey, now: u64) -> Value {
     // Passe 1 (journal) : les fragments finalises ou je suis worker ou approbateur.
-    let mut entries: BTreeMap<JobId, (sil_chain_core::EscrowTerms, Vec<(u32, bool, bool)>)> =
-        BTreeMap::new();
+    type Fragments = Vec<(u32, bool, bool)>;
+    let mut entries: BTreeMap<JobId, (sil_chain_core::EscrowTerms, Fragments)> = BTreeMap::new();
     {
         let ledger = lock(&shared.ledger);
         for job in ledger.job_ids() {

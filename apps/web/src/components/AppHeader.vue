@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { t, locale, setLocale, type Locale } from '@/i18n'
 import { hasSession, clearSession, currentToken } from '@/state/session'
 import { logout } from '@/api/endpoints'
+import BrandMark from '@/components/BrandMark.vue'
 
 const router = useRouter()
 
@@ -28,11 +29,12 @@ async function signOut(): Promise<void> {
 <template>
   <header class="site-header">
     <div class="site-header__inner">
-      <RouterLink to="/" class="brand">{{ t('app.name') }}</RouterLink>
+      <RouterLink to="/" class="brand brand-link"><BrandMark :size="30" /></RouterLink>
 
       <nav :aria-label="t('site.nav.label')" class="nav">
         <ul>
           <li><RouterLink to="/produit">{{ t('site.nav.product') }}</RouterLink></li>
+          <li><RouterLink to="/types-de-calcul">{{ t('site.nav.workloads') }}</RouterLink></li>
           <li><RouterLink to="/blockchain">{{ t('site.nav.chain') }}</RouterLink></li>
           <li><RouterLink to="/installation">{{ t('site.nav.install') }}</RouterLink></li>
           <li><RouterLink to="/reseau">{{ t('site.nav.network') }}</RouterLink></li>
@@ -73,6 +75,9 @@ async function signOut(): Promise<void> {
         <button v-if="hasSession()" type="button" class="btn btn-quiet" @click="signOut">
           {{ t('common.logout') }}
         </button>
+        <RouterLink v-else class="btn btn-primary header-cta" to="/soumettre">
+          {{ t('site.home.submit') }}
+        </RouterLink>
       </div>
     </div>
   </header>

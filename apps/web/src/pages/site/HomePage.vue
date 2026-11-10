@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { messages, t } from '@/i18n'
-import { SITE_CELLS } from './mosaic'
+import LiveNetwork from '@/components/network/LiveNetwork.vue'
 
 const home = computed(() => messages().site.home)
-const cells = SITE_CELLS
 </script>
 
 <template>
@@ -16,18 +15,24 @@ const cells = SITE_CELLS
         <p class="site-lede">{{ home.lede }}</p>
         <div class="site-actions">
           <RouterLink class="btn btn-primary" to="/soumettre">{{ home.submit }}</RouterLink>
-          <RouterLink class="btn" to="/produit">{{ home.how }}</RouterLink>
+          <RouterLink class="btn" to="/installation">{{ home.installCta }}</RouterLink>
         </div>
         <p class="site-note">{{ t('site.testnet') }}</p>
       </div>
-      <div class="site-mosaic" aria-hidden="true">
-        <span
-          v-for="(filled, index) in cells"
-          :key="index"
-          class="site-mosaic__cell"
-          :class="{ 'site-mosaic__cell--on': filled }"
-        ></span>
+      <div class="site-hero__panel">
+        <LiveNetwork />
       </div>
+    </section>
+
+    <section class="site-section site-container" aria-labelledby="home-values">
+      <p class="site-kicker">{{ home.valuesKicker }}</p>
+      <h2 id="home-values">{{ home.valuesTitle }}</h2>
+      <ul class="site-values">
+        <li v-for="item in home.values" :key="item.title" class="site-value">
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.text }}</p>
+        </li>
+      </ul>
     </section>
 
     <section class="site-section site-container" aria-labelledby="home-uses">
@@ -39,19 +44,9 @@ const cells = SITE_CELLS
           <p>{{ item.text }}</p>
         </li>
       </ul>
-    </section>
-
-    <section class="site-section site-container" aria-labelledby="home-flow">
-      <p class="site-kicker">{{ home.processKicker }}</p>
-      <h2 id="home-flow">{{ home.processTitle }}</h2>
-      <ol class="site-steps">
-        <li v-for="(step, index) in home.steps" :key="step.title">
-          <span class="site-steps__number">{{ index + 1 }}</span>
-          <h3>{{ step.title }}</h3>
-          <p>{{ step.text }}</p>
-        </li>
-      </ol>
       <p class="site-inline-link">
+        <RouterLink to="/produit">{{ home.processTitle }}</RouterLink>
+        ·
         <RouterLink to="/blockchain">{{ home.chainLink }}</RouterLink>
       </p>
     </section>
@@ -62,7 +57,7 @@ const cells = SITE_CELLS
         <h2 id="home-worker">{{ home.workerTitle }}</h2>
         <p>{{ home.workerText }}</p>
       </div>
-      <RouterLink class="btn" to="/installation">{{ home.workerLink }}</RouterLink>
+      <RouterLink class="btn btn-primary" to="/installation">{{ home.workerLink }}</RouterLink>
     </section>
 
     <section class="site-section site-container" aria-labelledby="home-faq">
@@ -73,6 +68,9 @@ const cells = SITE_CELLS
           <p>{{ item.answer }}</p>
         </details>
       </div>
+      <p class="site-inline-link">
+        <RouterLink to="/a-propos#faq">{{ messages().site.faqPage.title }}</RouterLink>
+      </p>
     </section>
   </div>
 </template>

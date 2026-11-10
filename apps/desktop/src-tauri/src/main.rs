@@ -7,10 +7,12 @@ mod control_client;
 mod deep_link;
 mod journal;
 mod link;
+mod link_record;
 mod node_config;
 mod node_process;
 mod signer;
 
+use link_record::{LinkRecord, LinkRecordStore};
 use node_process::NodeProcess;
 use serde::Serialize;
 use serde_json::Value;
@@ -40,6 +42,33 @@ fn create_machine_key(store: State<'_, KeyStore>) -> Result<String, CommandError
 #[tauri::command]
 fn sign_link_code(store: State<'_, KeyStore>, code: String) -> Result<LinkProof, CommandError> {
     store.link_proof(&code).map_err(|e| e.code())
+}
+
+/// The saved link, when it belongs to the machine key this app holds now.
+#[tauri::command]
+fn link_record(
+    store: State<'_, KeyStore>,
+    links: State<'_, LinkRecordStore>,
+) -> Result<Option<LinkRecord>, CommandError> {
+    let Some(record) = links.read() else {
+        return Ok(None);
+    };
+    let current = store.public_key().map_err(|e| e.code())?;
+    Ok((current.as_deref() == Some(record.public_key.as_str())).then_some(record))
+}
+
+/// Saves the link of this machine. Refused when the record is not for the current machine key.
+#[tauri::command]
+fn save_link_record(
+    store: State<'_, KeyStore>,
+    links: State<'_, LinkRecordStore>,
+    record: LinkRecord,
+) -> Result<(), CommandError> {
+    let current = store.public_key().map_err(|e| e.code())?;
+    if current.as_deref() != Some(record.public_key.as_str()) {
+        return Err("no_key");
+    }
+    links.write(&record)
 }
 
 #[tauri::command]
@@ -79,6 +108,7 @@ fn main() {
             // The node keeps its identity in its own folder; the link proof uses that identity.
             let node_dir = dir.join("node");
             app.manage(KeyStore::new(node_dir.join("node.seed")));
+            app.manage(LinkRecordStore::new(node_dir.join("link.json")));
             let node = NodeProcess::new(node_dir);
             // An activated node that is not running (after a reboot or a crash) starts again.
             if node.wants_to_run() && !node.is_running() {
@@ -104,6 +134,8 @@ fn main() {
             machine_key,
             create_machine_key,
             sign_link_code,
+            link_record,
+            save_link_record,
             node_status,
             node_start,
             node_stop,

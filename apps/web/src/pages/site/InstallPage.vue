@@ -67,6 +67,16 @@ const IMPORT_ROOT =
   'Import-Certificate -FilePath .\\silicium-school-certificate.cer -CertStoreLocation Cert:\\CurrentUser\\Root'
 const IMPORT_PUBLISHER =
   'Import-Certificate -FilePath .\\silicium-school-certificate.cer -CertStoreLocation Cert:\\CurrentUser\\TrustedPublisher'
+// Dépôts signés (apt-get / dnf) : clé de release publique, dépôt Debian ou Fedora.
+const APT_SETUP = [
+  'curl -fsSL https://siliciumlabs.org/download/silicium-release.asc | sudo tee /usr/share/keyrings/silicium.asc >/dev/null',
+  'echo "deb [signed-by=/usr/share/keyrings/silicium.asc] https://siliciumlabs.org/download/apt stable main" | sudo tee /etc/apt/sources.list.d/silicium.list',
+  'sudo apt update && sudo apt install silicium',
+].join('\n')
+const DNF_SETUP = [
+  'sudo curl -fsSL -o /etc/yum.repos.d/silicium.repo https://siliciumlabs.org/download/silicium.repo',
+  'sudo dnf install silicium',
+].join('\n')
 </script>
 
 <template>
@@ -165,6 +175,21 @@ const IMPORT_PUBLISHER =
           <pre class="code-display"><code>Get-FileHash .\silicium-node-windows-x86_64.zip -Algorithm SHA256</code></pre>
           <p>{{ install.downloadRun }}</p>
           <pre class="code-display"><code>{{ WINDOWS_UNPACK }}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section site-container" aria-labelledby="install-repo">
+      <h2 id="install-repo">{{ install.repoTitle }}</h2>
+      <p>{{ install.repoText }}</p>
+      <div class="site-columns">
+        <div>
+          <h3>{{ install.repoAptTitle }}</h3>
+          <pre class="code-display"><code>{{ APT_SETUP }}</code></pre>
+        </div>
+        <div>
+          <h3>{{ install.repoDnfTitle }}</h3>
+          <pre class="code-display"><code>{{ DNF_SETUP }}</code></pre>
         </div>
       </div>
     </section>

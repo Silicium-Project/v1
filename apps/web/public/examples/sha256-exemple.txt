@@ -1,0 +1,2 @@
+Fichier d'exemple pour le calcul d'empreinte SHA-256.
+Chaque fragment est haché par une machine, puis refait par un vérificateur.

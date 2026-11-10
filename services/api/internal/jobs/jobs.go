@@ -46,6 +46,7 @@ type Node interface {
 	Job(ctx context.Context, id string) (json.RawMessage, error)
 	JobImage(ctx context.Context, id string) (nodeclient.Image, error)
 	JobOutputs(ctx context.Context, id string) ([]nodeclient.Output, error)
+	JobArchive(ctx context.Context, id string) ([]byte, error)
 }
 
 // Service holds the job use cases.

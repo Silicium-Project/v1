@@ -1,0 +1,20 @@
+[package]
+name = "sil-wl-image"
+description = "Workload image/batch : redimensionnement et réencodage d'un lot d'images, vérifié par recalcul."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sil-batch.workspace = true
+sil-crypto.workspace = true
+sil-types.workspace = true
+sil-workload-api.workspace = true
+sil-workload-spec.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+sil-types.workspace = true
+
+[lints]
+workspace = true

@@ -14,7 +14,7 @@ import { encodeSignedEvent } from '@/signing/job'
 import { cancelEvent, cancelSigningMessage, encodeCancelBody } from '@/signing/cancel'
 import { currentToken, endSession } from '@/state/session'
 import { normalizeState, stateDescriptionKey } from '@/status'
-import { finalizedCount, isLiveState, POLL_MS } from '@/status-progress'
+import { finalizedCount, formatElapsed, isLiveState, POLL_MS } from '@/status-progress'
 import Notice from '@/components/Notice.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 
@@ -68,6 +68,7 @@ async function load(silent = false): Promise<void> {
     job.value = answer.job
     status.value = answer.status
     updatedAt.value = new Date().toISOString()
+    trackElapsed()
     syncPolling()
     if (state.value === 'finalized' && status.value.image) void loadPreview()
   } catch (failure) {
@@ -87,6 +88,24 @@ async function load(silent = false): Promise<void> {
 }
 
 /** Télécharge le résultat d'un calcul finalisé : PNG pour le rendu, texte sinon. Le serveur fournit le fichier. */
+// Lots de fichiers : le résultat est une archive ZIP (une image par entrée).
+const BATCH_WORKLOADS = ['image/batch']
+function isBatch(): boolean {
+  return BATCH_WORKLOADS.includes(status.value?.workload ?? '')
+}
+function downloadExtension(): string {
+  if (status.value?.image) return 'png'
+  return isBatch() ? 'zip' : 'txt'
+}
+function downloadLabel(): string {
+  if (status.value?.image) return t('job.downloadResult')
+  return isBatch() ? t('job.downloadBatch') : t('job.downloadResultText')
+}
+function downloadNote(): string {
+  if (status.value?.image) return t('job.downloadNote')
+  return isBatch() ? t('job.downloadNoteBatch') : t('job.downloadNoteText')
+}
+
 async function downloadResult(): Promise<void> {
   const token = currentToken()
   if (!token || !job.value) return
@@ -97,7 +116,7 @@ async function downloadResult(): Promise<void> {
     const url = URL.createObjectURL(file)
     const link = document.createElement('a')
     link.href = url
-    link.download = `silicium-${job.value.id.slice(0, 8)}.${status.value?.image ? 'png' : 'txt'}`
+    link.download = `silicium-${job.value.id.slice(0, 8)}.${downloadExtension()}`
     document.body.append(link)
     link.click()
     link.remove()
@@ -173,9 +192,39 @@ function syncPolling(): void {
   }
 }
 
+// Elapsed time since the job was created. It ticks while the job moves, and freezes at the
+// moment this page sees it stop. A job already stopped when the page opens has no measured end.
+const now = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | undefined
+const finishedMs = ref<number | null>(null)
+let wasLive = false
+const createdMs = computed(() => (job.value ? Date.parse(job.value.created_at) : Number.NaN))
+const elapsedText = computed(() => {
+  if (Number.isNaN(createdMs.value)) return '—'
+  if (live.value) return formatElapsed(now.value - createdMs.value)
+  return finishedMs.value === null ? '—' : formatElapsed(finishedMs.value)
+})
+const elapsedNote = computed(() => (!live.value && finishedMs.value === null ? t('job.elapsedUnmeasured') : ''))
+function trackElapsed(): void {
+  if (live.value) {
+    wasLive = true
+    if (clock === undefined) clock = setInterval(() => (now.value = Date.now()), 1000)
+    return
+  }
+  if (clock !== undefined) {
+    clearInterval(clock)
+    clock = undefined
+  }
+  if (wasLive && finishedMs.value === null && !Number.isNaN(createdMs.value)) {
+    finishedMs.value = Date.now() - createdMs.value
+  }
+  now.value = Date.now()
+}
+
 onMounted(() => void load())
 onUnmounted(() => {
   if (poll !== undefined) clearInterval(poll)
+  if (clock !== undefined) clearInterval(clock)
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
 })
 watch(jobId, () => void load())
@@ -202,6 +251,11 @@ watch(jobId, () => void load())
           <dd><code>{{ job.id }}</code></dd>
           <dt>{{ t('job.createdAt') }}</dt>
           <dd><time :datetime="job.created_at">{{ formatDateTime(job.created_at) }}</time></dd>
+          <dt>{{ t('job.elapsed') }}</dt>
+          <dd>
+            <span class="job-elapsed">{{ elapsedText }}</span>
+            <span v-if="elapsedNote" class="muted"> {{ elapsedNote }}</span>
+          </dd>
           <dt>{{ t('job.status') }}</dt>
           <dd>
             <StatusBadge :state="state" />
@@ -209,7 +263,6 @@ watch(jobId, () => void load())
           </dd>
         </dl>
 
-        <Notice v-if="state === 'finalized'" kind="info" :message="t('job.finalizedNote')" />
         <Notice v-if="state === 'unknown'" kind="info" :message="t('job.unknownNote')" />
 
         <div>
@@ -256,9 +309,9 @@ watch(jobId, () => void load())
       </div>
       <div class="actions">
         <button v-if="state === 'finalized'" type="button" class="btn btn-primary" :disabled="downloading" @click="downloadResult">
-          {{ status.image ? t('job.downloadResult') : t('job.downloadResultText') }}
+          {{ downloadLabel() }}
         </button>
-        <p v-if="state === 'finalized'" class="muted">{{ status.image ? t('job.downloadNote') : t('job.downloadNoteText') }}</p>
+        <p v-if="state === 'finalized'" class="muted">{{ downloadNote() }}</p>
         <a v-if="chainUrl" class="btn" :href="chainUrl" target="_blank" rel="noopener noreferrer">{{ t('job.viewOnChain') }}</a>
         <button type="button" class="btn" :disabled="loading" @click="load()">{{ t('common.refresh') }}</button>
         <p role="status" class="muted">{{ t('job.refreshed', { time: formatTime(updatedAt) }) }}</p>

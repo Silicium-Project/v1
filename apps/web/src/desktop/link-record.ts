@@ -1,5 +1,5 @@
 import type { Device } from '@/api/endpoints'
-import { isDesktop, machineKey } from '@/platform/desktop'
+import { isDesktop, machineKey, saveLink, savedLink } from '@/platform/desktop'
 
 /**
  * Liaison faite depuis cette application : quand, à quel libellé, avec quelle clé de machine. L'API
@@ -12,11 +12,15 @@ export interface LinkRecord {
   public_key: string
 }
 
-const KEY = 'silicium.desktop.link'
+/**
+ * Ancien emplacement : le stockage du navigateur intégré. Il pouvait être perdu, la liaison
+ * n'apparaissait plus sur la machine alors qu'elle existait côté compte. Repris une seule fois.
+ */
+const LEGACY_KEY = 'silicium.desktop.link'
 
-export function readLinkRecord(): LinkRecord | null {
+function readLegacyRecord(): LinkRecord | null {
   try {
-    const raw = globalThis.localStorage.getItem(KEY)
+    const raw = globalThis.localStorage.getItem(LEGACY_KEY)
     if (raw === null) return null
     const value = JSON.parse(raw) as Partial<LinkRecord>
     if (typeof value.linked_at !== 'string' || typeof value.public_key !== 'string') return null
@@ -26,27 +30,40 @@ export function readLinkRecord(): LinkRecord | null {
   }
 }
 
-export function saveLinkRecord(device: Device, publicKey: string): void {
-  const record: LinkRecord = {
-    device_id: device.id,
-    label: device.label,
-    linked_at: device.linked_at,
-    public_key: publicKey,
-  }
-  try {
-    globalThis.localStorage.setItem(KEY, JSON.stringify(record))
-  } catch {
-    // Stockage indisponible : la liaison reste faite côté API, seul l'affichage est absent.
-  }
-}
-
 /**
- * La liaison mémorisée vaut pour la clé de machine courante. Une réinstallation crée une nouvelle
- * clé : l'ancienne liaison ne doit plus s'afficher comme celle de cette machine.
+ * La liaison de cette machine. Elle est gardée par l'application de bureau, sur le disque, à côté
+ * de la clé : elle vaut seulement pour la clé de machine courante. Une réinstallation crée une
+ * nouvelle clé : l'ancienne liaison ne doit plus s'afficher comme celle de cette machine.
  */
 export async function currentLinkRecord(): Promise<LinkRecord | null> {
   if (!isDesktop()) return null
+  try {
+    const saved = await savedLink()
+    if (saved !== null) return saved
+  } catch {
+    return null
+  }
+  const legacy = readLegacyRecord()
   const current = await machineKey()
-  const record = readLinkRecord()
-  return record !== null && current !== null && record.public_key === current ? record : null
+  if (legacy === null || current === null || legacy.public_key !== current) return null
+  try {
+    await saveLink(legacy)
+  } catch {
+    // Pas de reprise possible : la liaison reste affichée pour cette visite.
+  }
+  return legacy
+}
+
+/** Garde la liaison faite à l'instant. Un échec ne défait pas la liaison côté API. */
+export async function saveLinkRecord(device: Device, publicKey: string): Promise<void> {
+  try {
+    await saveLink({
+      device_id: device.id,
+      label: device.label,
+      linked_at: device.linked_at,
+      public_key: publicKey,
+    })
+  } catch {
+    // La liaison est faite côté API : seul l'affichage sur cette machine est absent.
+  }
 }

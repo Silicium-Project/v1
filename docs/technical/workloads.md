@@ -65,6 +65,37 @@ concordance se vérifie par `node tools/workloads/generate.mjs --check`.
 7. Lancer les tests : `cargo test --workspace`, `go test ./...` dans `services/api`,
    `npx vitest run` dans `apps/web`, et `node tools/workloads/generate.mjs --check`.
 
+## Lots de fichiers : `image/batch`
+
+Le workload prend un lot dans le conteneur `SILBATCH` (crate `sil-batch`) : un en-tête
+(type de média, format de sortie, taille cible, nombre d'enregistrements) puis les fichiers. Les
+paramètres vivent dans le lot, pas dans la spec : `params` reste vide.
+
+- **`image/batch`** (`sil-wl-image`, Rust pur) : redimensionnement et réencodage PNG ou JPEG. Un
+  fragment est une plage d'images. Chaque image est un bloc vérifiable : le résultat engage le hash
+  de chaque image encodée, et la politique `sampling` fait refaire seulement les images tirées. Un
+  vérificateur contrôle d'abord la cohérence des hash, sans rendu.
+- Un fragment par demande, même s'il y a moins d'enregistrements : les fragments en trop ont une
+  plage vide et un résultat vide. Le découpage en octets du réseau (`bytes_input`) ne suit pas le
+  découpage en enregistrements : le paiement reste proportionnel aux octets, mais les fragments vides
+  sont payés au prorata de leur part d'octets du conteneur.
+
+- Téléchargement : le résultat d'un lot est une archive ZIP, un fichier par entrée (`0001.png`,
+  `0002.jpg`… selon les premiers octets). Le nœud la donne par `GET /v1/jobs/{id}/archive` (octets
+  bruts, 64 Mo max) ; l'API la convertit en ZIP (`jobs/batch.go`). `GET /v1/jobs/{id}/outputs` reste
+  limité à 4 Ko par fragment (JSON hexadécimal) : il ne sert plus aux lots.
+
+
+### Options du lot (version 2 de SILBATCH)
+
+Zone de 16 octets après le nombre d'enregistrements (`sil-batch/src/options.rs`) : qualité JPEG, mode de redimensionnement, rotation et indicateurs (niveaux de gris, miroirs). Les octets 4 à 15 sont réservés à zéro. Une option hors de sa plage fait refuser le lot ; une option absente vaut 0. La version 1 reste lisible (options nulles). Formats : `png` (0), `jpeg` (1).
+
+Le site construit le lot dans le navigateur (`apps/web/src/workloads/batch.ts`, même format) à partir
+de plusieurs fichiers ou d'un seul `.zip` (`zip.ts` : contenus stockés ou deflate, sans ZIP64 ni
+chiffrement). Les fichiers sont triés par nom ; un fichier d'un mauvais type est ignoré.
+
+Non prévu pour l'instant : rognage, découpe audio, normalisation du volume, WebP.
+
 ## Limite connue
 
 La spec signée du job garde les champs `width` et `height` (protocole). Un workload qui aurait

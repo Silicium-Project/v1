@@ -40,6 +40,13 @@ impl Backend for Fake {
         Ok((job.as_bytes()[0] == 1).then(|| json!({ "status": "Active" })))
     }
 
+    fn job_archive(&self, job: &JobId) -> Result<Vec<u8>, ApiError> {
+        match job.as_bytes()[0] {
+            1 => Ok(vec![0xab, 0xcd, 0x01]),
+            _ => Err(ApiError::NotFound),
+        }
+    }
+
     fn job_outputs(&self, job: &JobId) -> Result<Vec<FragmentOutput>, ApiError> {
         match job.as_bytes()[0] {
             1 => Ok(vec![

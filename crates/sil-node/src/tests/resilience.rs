@@ -16,40 +16,12 @@ async fn a_long_computation_keeps_its_lease_alive() {
     spec.lease_ms = 1_500; // le calcul dure 3 s : sans renouvellement le bail expire
     chain.insert_escrow(escrow_for(&spec));
 
-    let c1 = start(
-        1,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
-    let c2 = start(
-        2,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let c3 = start(
-        3,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let c1 = start(1, roles(false, false), sha_registry(), chain.clone(), true).await;
+    let c2 = start(2, roles(false, false), sha_registry(), chain.clone(), false).await;
+    let c3 = start(3, roles(false, false), sha_registry(), chain.clone(), false).await;
     let slow = slow_registry(std::time::Duration::from_secs(3));
     let worker = start(5, roles(true, false), slow, chain.clone(), false).await;
-    let v = start(
-        4,
-        roles(false, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let v = start(4, roles(false, true), sha_registry(), chain.clone(), false).await;
     let nodes = [&c1, &c2, &c3, &worker, &v];
     connect_all(&nodes).await;
     let miner = spawn_miner(chain.clone());
@@ -87,38 +59,10 @@ async fn a_node_joining_late_catches_up_through_sync() {
     let spec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
 
-    let c1 = start(
-        1,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
-    let c2 = start(
-        2,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let c3 = start(
-        3,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let v = start(
-        4,
-        roles(false, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let c1 = start(1, roles(true, false), sha_registry(), chain.clone(), true).await;
+    let c2 = start(2, roles(true, false), sha_registry(), chain.clone(), false).await;
+    let c3 = start(3, roles(true, false), sha_registry(), chain.clone(), false).await;
+    let v = start(4, roles(false, true), sha_registry(), chain.clone(), false).await;
     let nodes = [&c1, &c2, &c3, &v];
     connect_all(&nodes).await;
     let miner = spawn_miner(chain.clone());
@@ -131,14 +75,7 @@ async fn a_node_joining_late_catches_up_through_sync() {
 
     // Un nœud arrive après la fin : il n'a rien vu. Il apprend le job (annonce du comité),
     // puis rattrape l'historique de tous les auteurs par curseur.
-    let late = start(
-        7,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let late = start(7, roles(false, false), sha_registry(), chain.clone(), false).await;
     connect_new(&late, &nodes).await;
     // Même journal (mêmes têtes de chaîne) avant de comparer : la phase 2 tranche les claims
     // par ordre total, donc deux nœuds ne sont d'accord qu'une fois les mêmes événements reçus.

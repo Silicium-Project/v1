@@ -87,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/account/delete-challenge", s.authed(s.deleteChallenge))
 	mux.HandleFunc("POST /v1/devices/link-codes", s.authed(s.newLinkCode))
 	mux.Handle("POST /v1/devices/link", s.limited(s.linkDevice))
+	mux.Handle("POST /v1/devices/telemetry", s.limited(s.reportTelemetry))
 	mux.Handle("GET /v1/devices/link-codes/{code}", s.limited(s.previewLinkCode))
 	mux.HandleFunc("GET /v1/devices", s.authed(s.listDevices))
 	mux.HandleFunc("DELETE /v1/devices/{id}", s.authed(s.revokeDevice))
@@ -161,6 +162,8 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 		{devices.ErrBadCode, 400, "bad_link_code"},
 		{devices.ErrKeyInUse, 409, "key_in_use"},
 		{devices.ErrTooMany, 409, "too_many_devices"},
+		{devices.ErrUnknownDevice, 404, "unknown_device"},
+		{devices.ErrStaleReport, 409, "stale_telemetry"},
 		{jobs.ErrJobTaken, 409, "job_taken"},
 		{jobs.ErrTooMany, 409, "too_many_jobs"},
 		{jobs.ErrNotRecorded, 422, "not_a_job"},

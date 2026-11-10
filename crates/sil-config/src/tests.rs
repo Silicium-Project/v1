@@ -160,7 +160,10 @@ fn free_work_is_off_by_default_and_refused_with_a_chain() {
 
 #[test]
 fn the_solo_mode_is_gone_and_its_key_is_refused() {
-    assert!(load_from_str("[testnet]\nsolo_verify = true\n", &no_env).is_err(), "plus de mode solo (ADR 0007)");
+    assert!(
+        load_from_str("[testnet]\nsolo_verify = true\n", &no_env).is_err(),
+        "plus de mode solo (ADR 0007)"
+    );
 }
 
 #[test]

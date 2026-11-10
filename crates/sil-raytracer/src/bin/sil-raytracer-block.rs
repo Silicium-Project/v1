@@ -12,7 +12,7 @@
 
 use sil_raytracer::check::check_scene;
 use sil_raytracer::obj;
-use sil_raytracer::render::render_rows;
+use sil_raytracer::render::{render_bands, render_rows};
 use std::io::{self, Read, Write};
 use std::process::ExitCode;
 
@@ -40,6 +40,7 @@ fn run() -> Result<Vec<u8>, String> {
     match args.first().map(String::as_str) {
         Some("check") => check(),
         Some("obj") if args.len() == 4 => import(&args[1], &args[2], &args[3]),
+        Some("bands") => bands(&args[1..]),
         _ => render(&args),
     }
 }
@@ -70,6 +71,36 @@ fn import(material: &str, size: &str, up: &str) -> Result<Vec<u8>, String> {
     }
     model.fit(size);
     Ok(model.to_block(material, "imported OBJ").into_bytes())
+}
+
+/// `bands <largeur> <hauteur> <y0>-<y1> ...` : the bands one after another, in the order given,
+/// with the scene read once. Same bytes as one `<largeur> <hauteur> <y0> <y1>` call per band.
+fn bands(args: &[String]) -> Result<Vec<u8>, String> {
+    if args.len() < 3 {
+        return Err("arguments : bands <largeur> <hauteur> <y0>-<y1> ...".into());
+    }
+    let width = args[0]
+        .parse::<u32>()
+        .map_err(|_| "largeur non numérique".to_string())?;
+    let height = args[1]
+        .parse::<u32>()
+        .map_err(|_| "hauteur non numérique".to_string())?;
+    let mut list = Vec::with_capacity(args.len() - 2);
+    for spec in &args[2..] {
+        let (first, last) = spec
+            .split_once('-')
+            .ok_or_else(|| format!("bande {spec} : y0-y1 attendu"))?;
+        let y0 = first
+            .parse::<u32>()
+            .map_err(|_| format!("bande {spec} : y0 non numérique"))?;
+        let y1 = last
+            .parse::<u32>()
+            .map_err(|_| format!("bande {spec} : y1 non numérique"))?;
+        list.push((y0, y1));
+    }
+    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let text = stdin_text()?;
+    render_bands(&text, width, height, &list, threads).map_err(|error| error.to_string())
 }
 
 fn render(args: &[String]) -> Result<Vec<u8>, String> {

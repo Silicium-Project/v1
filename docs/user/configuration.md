@@ -101,6 +101,9 @@ engine = "target/release/sil-raytracer-block"
 
 C'est un programme natif : il est lancé dans `sil-sandbox` (sous Windows, ajouter `.exe`).
 
+Le workload `image/batch` (redimensionnement et réencodage d'images) est fourni par le nœud
+lui-même, sans moteur externe.
+
 | Champ | Rôle |
 |---|---|
 | `engine` | chemin du moteur de rendu. Un fichier `.wasm` (recommandé) est isolé par construction, sur tous les systèmes. Un programme natif est lancé dans `sil-sandbox` (protocole : `sil-wl-render::ExternalRenderer`) |

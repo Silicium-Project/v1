@@ -80,6 +80,21 @@ pub(crate) async fn job<B: Backend>(
         .ok_or(ApiError::NotFound)
 }
 
+/// Résultats bruts de tous les fragments d'un job final, concaténés (octets bruts, pour les lots).
+pub(crate) async fn job_archive<B: Backend>(
+    AxumState(state): Shared<B>,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let job =
+        JobId::from_hex(&id).map_err(|_| ApiError::BadRequest("identifiant de job".into()))?;
+    let bytes = blocking(&state, move |b| b.job_archive(&job)).await?;
+    Ok((
+        [(header::CONTENT_TYPE, "application/octet-stream")],
+        Bytes::from(bytes),
+    )
+        .into_response())
+}
+
 /// Résultats bruts d'un job final, fragment par fragment, en hexadécimal.
 pub(crate) async fn job_outputs<B: Backend>(
     AxumState(state): Shared<B>,

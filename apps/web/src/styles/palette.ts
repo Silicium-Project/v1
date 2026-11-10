@@ -1,24 +1,24 @@
-// Single source of the colour values used in tokens.css. The contrast test reads this file
+﻿// Single source of the colour values used in tokens.css. The contrast test reads this file
 // and fails if a text/background pair drops below its WCAG 2.2 minimum.
 
 export const COLORS = {
-  bg: '#f4efe6',
-  surface: '#fbf8f2',
-  text: '#1d1a16',
-  muted: '#5a5246',
-  accent: '#a23b16',
-  accentStrong: '#7f2c0f',
+  bg: '#f5f8fc',
+  surface: '#ffffff',
+  text: '#0b1d3b',
+  muted: '#4a5f7d',
+  accent: '#1260c8',
+  accentStrong: '#0f4fb0',
   accentText: '#ffffff',
-  accentSoft: '#f3e2d5',
-  inputBorder: '#7d7263',
-  danger: '#a4262c',
-  dangerSoft: '#fbe9e8',
-  success: '#2f6b3a',
-  successSoft: '#e6f1e4',
-  warning: '#7a5200',
-  warningSoft: '#fbefd6',
-  neutral: '#5a5246',
-  neutralSoft: '#ebe4d6',
+  accentSoft: '#e6effc',
+  inputBorder: '#6f7f96',
+  danger: '#b42318',
+  dangerSoft: '#fdecea',
+  success: '#12703f',
+  successSoft: '#e4f5ec',
+  warning: '#7a4f00',
+  warningSoft: '#fdf3d8',
+  neutral: '#4a5f7d',
+  neutralSoft: '#e9eef5',
 } as const
 
 export type ColorName = keyof typeof COLORS

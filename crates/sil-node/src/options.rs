@@ -18,6 +18,13 @@ pub struct ControlOptions {
     pub token_file: PathBuf,
 }
 
+/// Envoi de la télémétrie : où, et à quelle période.
+#[derive(Debug, Clone)]
+pub struct TelemetryOptions {
+    pub api_url: String,
+    pub interval: std::time::Duration,
+}
+
 #[derive(Debug, Clone)]
 pub struct NodeOptions {
     pub data_dir: PathBuf,
@@ -35,6 +42,8 @@ pub struct NodeOptions {
     pub tick_ms: u64,
     /// Mode de test : le worker calcule sans escrow vérifié. Jamais avec une chaîne (voir `sil-config`).
     pub free_work: bool,
+    /// Télémétrie vers l'API. None : rien n'est envoyé.
+    pub telemetry: Option<TelemetryOptions>,
 }
 
 impl NodeOptions {
@@ -51,6 +60,7 @@ impl NodeOptions {
             trusted_requesters: Vec::new(),
             tick_ms: 500,
             free_work: false,
+            telemetry: None,
         }
     }
 }

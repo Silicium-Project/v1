@@ -87,6 +87,13 @@ function isActive(device: Device): boolean {
   return !device.revoked_at
 }
 
+// A machine reports every minute: silent for three minutes, it is shown offline.
+const ONLINE_MS = 3 * 60 * 1000
+function isOnline(device: Device): boolean {
+  const seen = device.telemetry ? Date.parse(device.telemetry.received_at) : NaN
+  return Number.isFinite(seen) && Date.now() - seen < ONLINE_MS
+}
+
 onMounted(load)
 </script>
 
@@ -130,11 +137,51 @@ onMounted(load)
               {{ isActive(device) ? t('devices.active') : t('devices.revoked') }}
             </span>
             <time :datetime="device.linked_at">{{ t('devices.linkedAt', { date: formatDateTime(device.linked_at) }) }}</time>
+            <time v-if="device.revoked_at" :datetime="device.revoked_at">
+              {{ t('devices.revokedAt', { date: formatDateTime(device.revoked_at) }) }}
+            </time>
           </p>
           <p>
             <span class="muted">{{ t('devices.keyLabel') }} :</span>
             <code>{{ device.public_key }}</code>
           </p>
+          <div v-if="isActive(device)" class="device-telemetry">
+            <template v-if="device.telemetry">
+              <p class="list__meta">
+                <span class="badge" :class="isOnline(device) ? 'badge--success' : 'badge--neutral'">
+                  {{ isOnline(device) ? t('devices.telemetryOnline') : t('devices.telemetryOffline') }}
+                </span>
+                <time :datetime="device.telemetry.received_at">
+                  {{ t('devices.telemetrySeen', { time: formatDateTime(device.telemetry.received_at) }) }}
+                </time>
+              </p>
+              <dl class="device-telemetry__grid">
+                <div>
+                  <dt>{{ t('devices.telemetryCpu') }}</dt>
+                  <dd>{{ device.telemetry.cpu_pct.toFixed(1) }} %</dd>
+                </div>
+                <div>
+                  <dt>{{ t('devices.telemetryMemory') }}</dt>
+                  <dd>{{ device.telemetry.mem_pct.toFixed(1) }} %</dd>
+                </div>
+                <div>
+                  <dt>{{ t('devices.telemetryRoles') }}</dt>
+                  <dd>
+                    {{ [device.telemetry.compute ? t('devices.telemetryRoleCompute') : '', device.telemetry.verify ? t('devices.telemetryRoleVerify') : ''].filter(Boolean).join(', ') || '—' }}
+                  </dd>
+                </div>
+              </dl>
+              <p class="muted">
+                {{ t('devices.telemetryTasks', { active: device.telemetry.tasks_active, progress: device.telemetry.tasks_in_progress }) }}
+                ·
+                {{ t('devices.telemetryDone', { done: device.telemetry.tasks_finalized, other: device.telemetry.tasks_other }) }}
+              </p>
+              <p class="muted">
+                {{ t('devices.telemetryVersion', { version: device.telemetry.version, cores: device.telemetry.cpu_cores }) }}
+              </p>
+            </template>
+            <p v-else class="muted">{{ t('devices.telemetryNone') }}</p>
+          </div>
           <div v-if="isActive(device)" class="actions">
             <button
               v-if="pendingRevoke !== device.id"
@@ -175,3 +222,23 @@ onMounted(load)
     </ul>
   </section>
 </template>
+
+<style scoped>
+.device-telemetry__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.device-telemetry__grid dt {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.device-telemetry__grid dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+</style>

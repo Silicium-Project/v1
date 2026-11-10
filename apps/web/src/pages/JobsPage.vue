@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { formatDateTime } from '@/i18n/format'
@@ -17,6 +17,9 @@ const loading = ref(true)
 const error = ref('')
 /** État de chaque calcul, lu sur le nœud (job id → état normalisé). */
 const states = ref<Record<string, string>>({})
+/** La liste n'affiche que les calculs les plus récents, dans une zone qui défile. */
+const SHOWN = 10
+const recent = computed(() => jobs.value.slice(0, SHOWN))
 
 async function loadStates(token: string, list: JobSummary[]): Promise<void> {
   const answers = await Promise.all(
@@ -70,9 +73,11 @@ onMounted(load)
     </EmptyState>
 
     <template v-if="jobs.length > 0">
-      <p class="muted">{{ t('jobs.count', { count: jobs.length }) }}</p>
-      <ul class="list">
-        <li v-for="job in jobs" :key="job.id">
+      <p class="muted">
+        {{ jobs.length > SHOWN ? t('jobs.lastTen', { shown: SHOWN, count: jobs.length }) : t('jobs.count', { count: jobs.length }) }}
+      </p>
+      <ul class="list jobs-scroll" tabindex="0" :aria-label="t('jobs.title')">
+        <li v-for="job in recent" :key="job.id">
           <RouterLink :to="{ name: 'job', params: { id: job.id } }" class="list__link">
             <span class="list__title">{{ job.label || t('jobs.noLabel') }}</span>
             <span class="list__meta">
@@ -85,3 +90,11 @@ onMounted(load)
     </template>
   </section>
 </template>
+
+<style scoped>
+.jobs-scroll {
+  max-height: 36rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+</style>

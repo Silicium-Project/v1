@@ -1,5 +1,5 @@
-/* Identité des pages publiques : titres en serif (Fraunces), filets d'encre, angles peu arrondis,
-   motif de blocs. Plat : aucun dégradé, aucune ombre. Couleurs et polices viennent de tokens.css. */
+/* Identité des pages publiques : titres sans-serif gras, cartes blanches à filet fin, angles
+   arrondis, ombre légère. Couleurs et polices viennent de tokens.css. */
 
 .brand {
   font-family: var(--font-display);
@@ -17,22 +17,20 @@
 .site-page h1,
 .site-page h2 {
   font-family: var(--font-display);
-  font-weight: 500;
-  line-height: 1.12;
-  letter-spacing: -0.015em;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   color: var(--color-text);
 }
 
 .site-page h1 {
   margin: 0.5rem 0 0;
-  font-size: clamp(2.4rem, 5vw, 3.9rem);
-  font-variation-settings: 'opsz' 96;
+  font-size: clamp(2.5rem, 5.4vw, 4.1rem);
 }
 
 .site-page h2 {
   margin: 0 0 1rem;
-  font-size: clamp(1.7rem, 3vw, 2.3rem);
-  font-variation-settings: 'opsz' 48;
+  font-size: clamp(1.75rem, 3.2vw, 2.4rem);
 }
 
 .site-page h3 {
@@ -91,24 +89,120 @@
   color: var(--color-text-muted);
 }
 
-.site-mosaic {
+
+.site-hero__panel {
+  min-width: 0;
+}
+
+.site-flow {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  max-width: 22rem;
-  width: 100%;
-  justify-self: end;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1.25rem;
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
 }
 
-.site-mosaic__cell {
-  aspect-ratio: 1;
-  border: 1px solid var(--color-border);
+.site-flow__step {
+  position: relative;
+  padding: 1.5rem;
   background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
-.site-mosaic__cell--on {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
+.site-flow__step:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -1.05rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-accent);
+  font-size: 1.25rem;
+}
+
+.site-flow__step p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.site-flow__number {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.75rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.site-ledger {
+  padding: 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.site-ledger dl {
+  margin: 0;
+}
+
+.site-ledger__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-ledger__row:last-child {
+  border-bottom: 0;
+}
+
+.site-ledger dt {
+  font-weight: 600;
+}
+
+.site-ledger dd {
+  margin: 0;
+  color: var(--color-text-muted);
+  max-width: 36rem;
+}
+
+.site-ledger__note {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.site-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+.site-value {
+  padding: 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.site-value p {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 .site-section {

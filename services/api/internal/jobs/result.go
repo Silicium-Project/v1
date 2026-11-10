@@ -43,6 +43,17 @@ func (s *Service) Result(ctx context.Context, userID, id string) (Result, error)
 		}
 		return Result{ContentType: "image/png", Filename: "silicium-" + id[:8] + ".png", Body: picture}, nil
 	}
+	if IsBatch(status.Workload) {
+		archive, err := s.node.JobArchive(ctx, id)
+		if err != nil {
+			return Result{}, err
+		}
+		zipped, err := BatchZip(archive)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{ContentType: "application/zip", Filename: "silicium-" + id[:8] + ".zip", Body: zipped}, nil
+	}
 	outputs, err := s.node.JobOutputs(ctx, id)
 	if err != nil {
 		return Result{}, err

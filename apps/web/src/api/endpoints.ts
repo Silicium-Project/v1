@@ -19,12 +19,28 @@ export interface LinkCode {
   expires_at: string
 }
 
+export interface DeviceTelemetry {
+  observed_at: string
+  received_at: string
+  version: string
+  cpu_pct: number
+  mem_pct: number
+  cpu_cores: number
+  compute: boolean
+  verify: boolean
+  tasks_active: number
+  tasks_in_progress: number
+  tasks_finalized: number
+  tasks_other: number
+}
+
 export interface Device {
   id: string
   public_key: string
   label: string
   linked_at: string
   revoked_at?: string
+  telemetry?: DeviceTelemetry
 }
 
 export interface JobSummary {

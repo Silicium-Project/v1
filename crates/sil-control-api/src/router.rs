@@ -65,6 +65,7 @@ pub fn router<B: Backend>(backend: Arc<B>, tokens: TokenSet, limits: ApiLimits) 
         .route("/v1/jobs/{id}", get(handlers::job::<B>))
         .route("/v1/jobs/{id}/image", get(handlers::job_image::<B>))
         .route("/v1/jobs/{id}/outputs", get(handlers::job_outputs::<B>))
+        .route("/v1/jobs/{id}/archive", get(handlers::job_archive::<B>))
         .route("/v1/peers", get(handlers::peers::<B>))
         .route(
             "/v1/settlements",

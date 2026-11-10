@@ -51,8 +51,7 @@ async fn a_job_reports_the_requester_head_for_the_next_event() {
     let node = start(1, roles(false, false), sha_registry(), chain, true).await;
     let (api, token) = (node.api.unwrap(), node.token());
     let data = input_bytes();
-    let spec = job_spec(input_hash(&data),
-    );
+    let spec = job_spec(input_hash(&data));
     let job = publish_job(&node, spec).await;
     let (status, body) = http(
         api,
@@ -72,17 +71,9 @@ async fn a_job_reports_the_requester_head_for_the_next_event() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_restart_replays_the_ledger_from_disk() {
     let chain = Arc::new(FakeChain::new());
-    let node = start(
-        1,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
+    let node = start(1, roles(false, false), sha_registry(), chain.clone(), true).await;
     let data = input_bytes();
-    let spec = job_spec(input_hash(&data),
-    );
+    let spec = job_spec(input_hash(&data));
     let job = publish_job(&node, spec).await;
     assert!(node.node.shared().job_state(&job).is_some());
     let TestNode {
@@ -90,15 +81,7 @@ async fn a_restart_replays_the_ledger_from_disk() {
     } = node;
     running.shutdown().await;
 
-    let again = start_in(
-        dir,
-        1,
-        roles(false, false),
-        sha_registry(),
-        chain,
-        false,
-    )
-    .await;
+    let again = start_in(dir, 1, roles(false, false), sha_registry(), chain, false).await;
     let state = again
         .node
         .shared()

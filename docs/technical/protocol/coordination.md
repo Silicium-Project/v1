@@ -11,7 +11,7 @@ vérificateurs eux-mêmes (ADR 0007).
 | Publication | le requester | spec signée ; pas de comité ni de seuil dans la spec |
 | Claim | tout nœud `worker` | le premier claim valide l'emporte (ordre total `(horodatage, identifiant)`) |
 | Bail | le claimant | renouvelé tant qu'il calcule (`Renew`), expire sinon |
-| Offre de vérification | tout nœud `verifier` | le nœud connaît le workload ; le claimant ne s'offre jamais |
+| Offre de vérification | tout nœud `verifier` | le nœud connaît le workload ; le claimant ne s'offre jamais ; une offre seulement si une place est libre (places = cœurs − 1, comme les tâches de calcul : vérifications en cours et offres de la passe) |
 | Vérificateurs retenus | le journal | les `k` premières offres valides, d'auteurs distincts, hors claimant |
 | Verdict | chaque vérificateur retenu | `Attest` signé ; une approbation porte sa signature de règlement |
 | Finalisation | tout nœud | `Finalize` avec `k` approbations distinctes (certificat) |

@@ -1,7 +1,6 @@
 import '@fontsource/geist/400.css'
 import '@fontsource/geist/600.css'
 import '@fontsource/geist-mono/400.css'
-import '@fontsource-variable/fraunces'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/site.css'

@@ -42,6 +42,20 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/site/NetworkPage.vue'),
     meta: { title: 'site.titles.network' },
   },
+  // Les questions fréquentes sont sur la page À propos ; l'ancien lien reste valable.
+  { path: '/faq', redirect: '/a-propos#faq' },
+  {
+    path: '/types-de-calcul',
+    name: 'workloads',
+    component: () => import('@/pages/site/WorkloadsPage.vue'),
+    meta: { title: 'site.titles.workloads' },
+  },
+  {
+    path: '/contact',
+    name: 'contact',
+    component: () => import('@/pages/site/ContactPage.vue'),
+    meta: { title: 'site.titles.contact' },
+  },
   {
     path: '/connexion',
     name: 'login',
@@ -123,7 +137,7 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
   const router = createRouter({
     history,
     routes,
-    scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
+    scrollBehavior: (to, _from, saved) => saved ?? (to.hash ? { el: to.hash } : { top: 0 }),
   })
 
   router.beforeEach((to) => {

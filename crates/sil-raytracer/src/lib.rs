@@ -6,7 +6,7 @@
 //! de `libm` (Rust pur), pas de la libc de la machine.
 //!
 //! Chaque pixel ne dépend que de ses coordonnées et de la scène : [`render::render_rows`] rend une
-//! bande de lignes, mono-thread. Le découpage en bandes et la vérification sont dans `sil-wl-render`.
+//! bande de lignes, en plusieurs threads. Le découpage en bandes et la vérification sont dans `sil-wl-render`.
 //!
 //! Hors de ce crate pour l'instant : la vérification de scène (`check`, à porter avec l'éditeur),
 //! l'import `.obj`, et le pipeline de tuiles de V0 (remplacé par les bandes de `sil-wl-render`).

@@ -16,38 +16,10 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
     chain.fail(Op::Escrow, ChainError::Transient("429".into()), 4);
     chain.fail(Op::Submit, ChainError::Transient("délai".into()), 3);
 
-    let c1 = start(
-        1,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
-    let c2 = start(
-        2,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let c3 = start(
-        3,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let v = start(
-        4,
-        roles(false, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let c1 = start(1, roles(true, false), sha_registry(), chain.clone(), true).await;
+    let c2 = start(2, roles(true, false), sha_registry(), chain.clone(), false).await;
+    let c3 = start(3, roles(true, false), sha_registry(), chain.clone(), false).await;
+    let v = start(4, roles(false, true), sha_registry(), chain.clone(), false).await;
     let nodes = [&c1, &c2, &c3, &v];
     connect_all(&nodes).await;
     let miner = spawn_miner(chain.clone());
@@ -75,7 +47,10 @@ async fn a_job_runs_end_to_end_over_real_nodes_despite_chain_outages() {
             expected_digest(&data, fragment as usize),
             "fragment {fragment}"
         );
-        assert!(nodes.iter().any(|node| node.key == claimant), "un worker du réseau a calculé");
+        assert!(
+            nodes.iter().any(|node| node.key == claimant),
+            "un worker du réseau a calculé"
+        );
         let settled = chain.escrow_now(&job).unwrap();
         assert_eq!(
             settled.settled(fragment).unwrap().claimant,
@@ -107,38 +82,10 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
     let spec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
 
-    let c1 = start(
-        1,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
-    let c2 = start(
-        2,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let c3 = start(
-        3,
-        roles(false, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let liar = start(
-        5,
-        roles(true, false),
-        liar_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let c1 = start(1, roles(false, false), sha_registry(), chain.clone(), true).await;
+    let c2 = start(2, roles(false, false), sha_registry(), chain.clone(), false).await;
+    let c3 = start(3, roles(false, false), sha_registry(), chain.clone(), false).await;
+    let liar = start(5, roles(true, false), liar_registry(), chain.clone(), false).await;
     let honest = start(
         6,
         roles(true, false),
@@ -147,14 +94,7 @@ async fn a_lying_worker_is_rejected_and_an_honest_one_is_paid_instead() {
         false,
     )
     .await;
-    let v = start(
-        4,
-        roles(false, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let v = start(4, roles(false, true), sha_registry(), chain.clone(), false).await;
     let nodes = [&c1, &c2, &c3, &liar, &honest, &v];
     connect_all(&nodes).await;
     let miner = spawn_miner(chain.clone());
@@ -231,38 +171,10 @@ async fn the_job_survives_the_loss_of_a_worker_node() {
     let spec: JobSpec = job_spec(input_hash(&data));
     chain.insert_escrow(escrow_for(&spec));
 
-    let c1 = start(
-        1,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        true,
-    )
-    .await;
-    let c2 = start(
-        2,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let c3 = start(
-        3,
-        roles(true, false),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
-    let v = start(
-        4,
-        roles(false, true),
-        sha_registry(),
-        chain.clone(),
-        false,
-    )
-    .await;
+    let c1 = start(1, roles(true, false), sha_registry(), chain.clone(), true).await;
+    let c2 = start(2, roles(true, false), sha_registry(), chain.clone(), false).await;
+    let c3 = start(3, roles(true, false), sha_registry(), chain.clone(), false).await;
+    let v = start(4, roles(false, true), sha_registry(), chain.clone(), false).await;
     connect_all(&[&c1, &c2, &c3, &v]).await;
     // Un membre sur trois tombe avant le job : 2 sur 3 suffisent (majorité stricte).
     c3.node.shutdown().await;

@@ -158,9 +158,12 @@ fn rebroadcast_heads(shared: &Arc<Shared>) {
         let (mine, announcement) = {
             let ledger = lock(&shared.ledger);
             let mine = ledger.events_of(&job, &me).pop();
-            let announcement = ledger
-                .spec(&job)
-                .and_then(|spec| ledger.events_of(&job, &spec.spec.requester).into_iter().next());
+            let announcement = ledger.spec(&job).and_then(|spec| {
+                ledger
+                    .events_of(&job, &spec.spec.requester)
+                    .into_iter()
+                    .next()
+            });
             (mine, announcement)
         };
         if let Some(event) = mine {

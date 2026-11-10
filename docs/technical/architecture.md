@@ -23,7 +23,7 @@ lié au même `job_id = H(JobSpec)`.
 
 `sil-types` → `sil-crypto`, `sil-codec`, `sil-config`, `sil-telemetry` →
 `sil-ledger` (+ `-store`, `sil-quota`, `sil-attest`) → `sil-content`, `sil-models`, `sil-net` → `sil-transfer` (colle réseau + stockage) →
-`sil-sampling`, `sil-workload-api` (+ `sil-wl-sha256`, `sil-wl-render`), `sil-sandbox`,
+`sil-sampling`, `sil-workload-api` (+ `sil-wl-sha256`, `sil-wl-render`, `sil-batch`, `sil-wl-image`), `sil-sandbox`,
 `sil-reputation`, `sil-chain-core`, `sil-settlement` → `sil-control-api` → `sil-node` (voir [node.md](node.md)).
 
 Dépendances en DAG : un crate n'importe jamais un crate situé après lui.

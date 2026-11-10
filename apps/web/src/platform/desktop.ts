@@ -68,6 +68,24 @@ export function signLinkCode(code: string): Promise<{ public_key: string; signat
   return call('sign_link_code', { code })
 }
 
+/** Link of this machine to an account, kept by the desktop shell next to the machine key. */
+export interface SavedLink {
+  device_id: string
+  label: string
+  linked_at: string
+  public_key: string
+}
+
+/** The saved link, or null when none belongs to the current machine key. */
+export function savedLink(): Promise<SavedLink | null> {
+  return call<SavedLink | null>('link_record')
+}
+
+/** Saves the link of this machine (refused by the shell for another machine key). */
+export function saveLink(link: SavedLink): Promise<void> {
+  return call<void>('save_link_record', { record: link })
+}
+
 export interface NodeStatus {
   running: boolean
   identity: string | null

@@ -15,7 +15,7 @@ pub use error::ConfigError;
 pub use load::{load, load_from_str};
 pub use model::{
     ChainConfig, ControlConfig, IsolationMode, LimitsConfig, LogConfig, NetworkConfig, NodeConfig,
-    RenderConfig, TrustConfig,
+    RenderConfig, TelemetryConfig, TrustConfig,
 };
 
 #[cfg(test)]

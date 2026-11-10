@@ -12,6 +12,35 @@ use std::{
     time::Duration,
 };
 
+/// `bands <largeur> <hauteur> <y0>-<y1> ...` : les bandes dans l'ordre donné, scène lue une fois.
+fn run_bands(args: &[String]) -> Result<(), String> {
+    if args.len() < 3 {
+        return Err("arguments : bands <largeur> <hauteur> <y0>-<y1> ...".into());
+    }
+    let width: u32 = args[0]
+        .parse()
+        .map_err(|_| "largeur non numérique".to_string())?;
+    let height: u32 = args[1]
+        .parse()
+        .map_err(|_| "hauteur non numérique".to_string())?;
+    let mut scene = Vec::new();
+    io::stdin()
+        .read_to_end(&mut scene)
+        .map_err(|e| e.to_string())?;
+    let mut out = io::stdout().lock();
+    for spec in &args[2..] {
+        let (first, last) = spec.split_once('-').ok_or("bande : y0-y1 attendu")?;
+        let y0: u32 = first.parse().map_err(|_| "y0 non numérique".to_string())?;
+        let y1: u32 = last.parse().map_err(|_| "y1 non numérique".to_string())?;
+        if width == 0 || y0 >= y1 || y1 > height {
+            return Err("bande hors de l'image".into());
+        }
+        out.write_all(&reference_pixels(&scene, width, y0, y1))
+            .map_err(|e| e.to_string())?;
+    }
+    out.flush().map_err(|e| e.to_string())
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -24,6 +53,9 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("bands") {
+        return run_bands(&args[1..]);
+    }
     if args.len() < 4 {
         return Err("arguments : <largeur> <hauteur> <y0> <y1> [mode]".into());
     }

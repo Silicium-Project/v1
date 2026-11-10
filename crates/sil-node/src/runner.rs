@@ -148,6 +148,14 @@ impl Node {
             )));
         }
 
+        if let Some(telemetry) = options.telemetry.clone() {
+            tasks.push(tokio::spawn(crate::telemetry::run(
+                Arc::clone(&shared),
+                telemetry,
+                stop_rx.clone(),
+            )));
+        }
+
         let mut control_addr = None;
         if let Some(control) = &options.control {
             let tokens = TokenSet::load_or_create(&control.token_file)

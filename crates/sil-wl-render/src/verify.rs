@@ -39,6 +39,8 @@ fn consistency(header: Header, band: Band, output: &Output) -> Option<Verdict> {
     None
 }
 
+/// Contrôle 3 : recalcul des blocs tirés (hors bornes ou doublons ignorés). Tous les blocs
+/// tirés sont rendus d'un seul appel au moteur, puis comparés un à un à leur milestone.
 pub(crate) fn check<R: BlockRenderer>(
     workload: &RenderWorkload<R>,
     input: &dyn InputReader,
@@ -51,7 +53,6 @@ pub(crate) fn check<R: BlockRenderer>(
     if let Some(verdict) = consistency(header, band, output) {
         return Ok(verdict);
     }
-    // Contrôle 3 : recalcul des blocs tirés (hors bornes ou doublons ignorés).
     let blocks = blocks_in(band);
     let mut indices: Vec<u32> = sample.iter().copied().filter(|i| *i < blocks).collect();
     indices.sort_unstable();
@@ -60,12 +61,22 @@ pub(crate) fn check<R: BlockRenderer>(
         return Ok(Verdict::Approve);
     }
     let scene = Header::scene(input)?;
-    for index in indices {
-        let (y0, y1) = block_rows(band, index);
-        let block = workload
-            .renderer()
-            .render(&scene, header.width, header.height, y0, y1)?;
-        let recomputed = sha256(&block);
+    let row_bytes = header.width as usize * 3;
+    let bands: Vec<(u32, u32)> = indices
+        .iter()
+        .map(|&index| block_rows(band, index))
+        .collect();
+    let pixels = workload
+        .renderer()
+        .render_bands(&scene, header.width, header.height, &bands)?;
+    let mut offset = 0usize;
+    for (&index, &(y0, y1)) in indices.iter().zip(bands.iter()) {
+        let len = (y1 - y0) as usize * row_bytes;
+        let block = pixels
+            .get(offset..offset + len)
+            .ok_or(WorkloadError::Execution("rendu des blocs incomplet".into()))?;
+        offset += len;
+        let recomputed = sha256(block);
         let committed = output.milestones[index as usize];
         if recomputed != committed {
             return Ok(reject(

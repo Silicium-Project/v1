@@ -20,6 +20,20 @@ use tokio::{sync::watch, time::interval};
 const MAX_BLOB_BYTES: usize = 256 * 1024 * 1024;
 /// Délai avant de retenter une vérification qui n'a pas pu s'exécuter.
 const RETRY_AFTER: Duration = Duration::from_secs(5);
+/// Vérifications simultanées par nœud, comme les tâches de calcul : bornées par les cœurs. Une
+/// offre prend la place de vérificateur jusqu'au verdict ; un nœud n'offre que s'il a une place.
+fn verify_parallel() -> usize {
+    crate::worker_loop::cpu_limit()
+}
+
+/// Retire la vérification de `running` quand elle se termine, même en cas d'erreur.
+struct Running(Arc<Shared>, (JobId, u32, u32));
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        lock(&self.0.work).verify_running.remove(&self.1);
+    }
+}
 
 pub(crate) async fn run(shared: Arc<Shared>, tick: Duration, mut stop: watch::Receiver<bool>) {
     let mut timer = interval(tick);
@@ -57,6 +71,8 @@ fn scan_job(shared: &Arc<Shared>, job: &JobId) {
     if !workload_known {
         return;
     }
+    // Offres faites pendant ce passage : elles prennent une place comme une vérification.
+    let mut offers = 0usize;
     for fragment in 0..fragments {
         let Some(state) = lock(&shared.ledger).task_state(job, fragment, now) else {
             continue;
@@ -75,7 +91,13 @@ fn scan_job(shared: &Arc<Shared>, job: &JobId) {
         }
         match mine {
             None => {
+                // Pas de place libre : on ne propose pas, la place reviendra au prochain passage.
+                let taken = lock(&shared.work).verify_running.len() + offers;
+                if taken >= verify_parallel() {
+                    continue;
+                }
                 if lock(&shared.work).offered.insert(key) {
+                    offers += 1;
                     let body = EventBody::VerifyOffer {
                         fragment,
                         attempt: attempt.attempt,
@@ -95,7 +117,10 @@ fn scan_job(shared: &Arc<Shared>, job: &JobId) {
 
 fn spawn_verification(shared: Arc<Shared>, job: JobId, fragment: u32, attempt: u32) {
     let runtime = shared.runtime.clone();
+    let key = (job, fragment, attempt);
+    lock(&shared.work).verify_running.insert(key);
     runtime.spawn(async move {
+        let _running = Running(Arc::clone(&shared), key);
         let _busy = crate::shared::Busy::enter(&shared);
         match verify(&shared, &job, fragment, attempt).await {
             Ok(body) => {

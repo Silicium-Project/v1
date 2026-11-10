@@ -16,6 +16,8 @@ const MAX_EVENT_BYTES: usize = 64 * 1024;
 const MAX_RESULT_BYTES: usize = 256 * 1024 * 1024;
 /// Taille maximale d'un résultat de fragment donné par l'API en hexadécimal.
 const MAX_OUTPUT_BYTES: usize = 4096;
+/// Taille maximale de l'archive d'un job (résultats concaténés, octets bruts).
+const MAX_ARCHIVE_BYTES: usize = 64 * 1024 * 1024;
 
 pub struct NodeBackend {
     shared: Arc<Shared>,
@@ -123,6 +125,15 @@ impl Backend for NodeBackend {
                 Ok(FragmentOutput { fragment, bytes })
             })
             .collect()
+    }
+
+    fn job_archive(&self, job: &JobId) -> Result<Vec<u8>, ApiError> {
+        let (_, results) = self.finished_results(job)?;
+        let total: usize = results.iter().map(Vec::len).sum();
+        if total > MAX_ARCHIVE_BYTES {
+            return Err(bad("résultat trop grand pour l'archive de l'API"));
+        }
+        Ok(results.concat())
     }
 
     fn peers(&self) -> Result<Value, ApiError> {

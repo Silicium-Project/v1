@@ -49,6 +49,12 @@ pub const ROUTES: &[Route] = &[
     },
     Route {
         method: "get",
+        path: "/v1/jobs/{id}/archive",
+        scope: Some(Scope::Read),
+        summary: "Résultats bruts de tous les fragments d'un job final, concaténés (lots de fichiers)",
+    },
+    Route {
+        method: "get",
         path: "/v1/jobs/{id}/image",
         scope: Some(Scope::Read),
         summary: "Image assemblée d'un job de rendu (octets RGB24, largeur et hauteur en en-têtes)",

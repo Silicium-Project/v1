@@ -1,35 +1,37 @@
-/* Design tokens. Values mirror palette.ts (checked by contrast.test.ts). Identity: warm paper,
-   ink, one vermilion accent. Serif display for titles, mono for technical labels. No gradients,
-   no glass effects, no shadows beyond a 1px rule: flat surfaces, clear edges. */
+﻿/* Design tokens. Values mirror palette.ts (checked by contrast.test.ts). Identity: precision blue,
+   navy ink, white cards on a cool paper background. Sans-serif throughout, bold display headings,
+   readable 17â€“18px body text. Cards use a soft 1px rule and a faint shadow; no gradients, no glass. */
 :root {
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-display: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, Consolas, 'Liberation Mono', monospace;
 
-  --color-bg: #f4efe6;
-  --color-surface: #fbf8f2;
-  --color-text: #1d1a16;
-  --color-text-muted: #5a5246;
-  --color-border: #d3c9b6;
-  --color-input-border: #7d7263;
+  --color-bg: #f5f8fc;
+  --color-surface: #ffffff;
+  --color-text: #0b1d3b;
+  --color-text-muted: #4a5f7d;
+  --color-border: #dfe7f1;
+  --color-input-border: #6f7f96;
 
-  --color-accent: #a23b16;
-  --color-accent-strong: #7f2c0f;
+  --color-accent: #1260c8;
+  --color-accent-strong: #0f4fb0;
   --color-accent-text: #ffffff;
-  --color-accent-soft: #f3e2d5;
-  --color-focus: #a23b16;
+  --color-accent-soft: #e6effc;
+  --color-focus: #1260c8;
 
-  --color-danger: #a4262c;
-  --color-danger-soft: #fbe9e8;
-  --color-success: #2f6b3a;
-  --color-success-soft: #e6f1e4;
-  --color-warning: #7a5200;
-  --color-warning-soft: #fbefd6;
-  --color-neutral: #5a5246;
-  --color-neutral-soft: #ebe4d6;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-success: #12703f;
+  --color-success-soft: #e4f5ec;
+  --color-warning: #7a4f00;
+  --color-warning-soft: #fdf3d8;
+  --color-neutral: #4a5f7d;
+  --color-neutral-soft: #e9eef5;
 
-  --radius: 0.5rem;
-  --max-width: 60rem;
+  --radius: 0.75rem;
+  --radius-card: 1rem;
+  --shadow-card: 0 1px 2px #0b1d3b0d, 0 6px 20px #0b1d3b0a;
+  --max-width: 72rem;
   --gutter: clamp(1rem, 4vw, 2.5rem);
   --touch-target: 44px;
 }

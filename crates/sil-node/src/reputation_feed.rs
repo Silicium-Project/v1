@@ -18,8 +18,7 @@ pub(crate) fn observe_outcomes(shared: &Shared, job: &JobId) {
     let Some(spec) = lock(&shared.ledger).spec(job).map(|s| s.spec.clone()) else {
         return;
     };
-    if !lock(&shared.reputation).trusts(&spec.requester)
-    {
+    if !lock(&shared.reputation).trusts(&spec.requester) {
         return;
     }
     let terms = terms_of(&spec);

@@ -135,13 +135,46 @@ fn open_claims(shared: &Arc<Shared>, me: &sil_types::PublicKey, now: u64) -> usi
     open
 }
 
+/// Taches simultanees de depart : un noeud neuf en fait autant. La reputation ne fait que relever
+/// ce plancher, sans jamais l'interdire (une reputation nulle, elle, interdit toute tache).
+const START_PARALLEL: usize = 4;
+
 /// Taches simultanees de ce noeud : la reputation, bornee par les coeurs (un coeur reste libre pour
-/// le systeme et l'interface). Le rendu est mono-thread par tache.
+/// le systeme et l'interface). Le rendu se fait sur plusieurs coeurs (sil-raytracer, render.rs).
 pub(crate) fn max_parallel(shared: &Shared, me: &sil_types::PublicKey, now: u64) -> usize {
     let reputation = lock(&shared.reputation).max_parallel(me, now) as usize;
-    reputation.min(cpu_limit())
+    allowed_parallel(reputation, cpu_limit())
 }
 
-fn cpu_limit() -> usize {
+/// Plafond pur : 0 si la reputation l'interdit, sinon au moins `START_PARALLEL`, borne aux coeurs.
+pub(crate) fn allowed_parallel(reputation: usize, cpu: usize) -> usize {
+    if reputation == 0 {
+        return 0;
+    }
+    reputation.max(START_PARALLEL).min(cpu)
+}
+
+pub(crate) fn cpu_limit() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get().saturating_sub(1).max(1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_new_node_runs_its_start_count_of_tasks() {
+        assert_eq!(allowed_parallel(1, 15), START_PARALLEL);
+    }
+
+    #[test]
+    fn reputation_raises_the_cap_up_to_the_cores() {
+        assert_eq!(allowed_parallel(6, 15), 6);
+        assert_eq!(allowed_parallel(8, 3), 3);
+    }
+
+    #[test]
+    fn a_banned_worker_gets_no_task() {
+        assert_eq!(allowed_parallel(0, 15), 0);
+    }
 }

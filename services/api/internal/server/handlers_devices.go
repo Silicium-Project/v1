@@ -9,15 +9,16 @@ import (
 )
 
 type deviceView struct {
-	ID        string     `json:"id"`
-	PublicKey string     `json:"public_key"`
-	Label     string     `json:"label"`
-	LinkedAt  time.Time  `json:"linked_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	ID        string           `json:"id"`
+	PublicKey string           `json:"public_key"`
+	Label     string           `json:"label"`
+	LinkedAt  time.Time        `json:"linked_at"`
+	RevokedAt *time.Time       `json:"revoked_at,omitempty"`
+	Telemetry *store.Telemetry `json:"telemetry,omitempty"`
 }
 
 func viewOf(d store.Device) deviceView {
-	return deviceView{ID: d.ID, PublicKey: d.PublicKey, Label: d.Label, LinkedAt: d.LinkedAt, RevokedAt: d.RevokedAt}
+	return deviceView{ID: d.ID, PublicKey: d.PublicKey, Label: d.Label, LinkedAt: d.LinkedAt, RevokedAt: d.RevokedAt, Telemetry: d.Telemetry}
 }
 
 func (s *Server) newLinkCode(w http.ResponseWriter, _ *http.Request, userID, _ string) {

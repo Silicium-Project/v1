@@ -22,6 +22,8 @@ import { loadPreferences } from '@/state/preferences'
 import FormField from '@/components/FormField.vue'
 import Notice from '@/components/Notice.vue'
 import SceneEditor from '@/components/scene/SceneEditor.vue'
+import BatchInput from '@/components/batch/BatchInput.vue'
+import { batchKindOf } from '@/workloads/batch'
 
 // Fallback upload limit, used only if the workload descriptor has none.
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024
@@ -78,6 +80,12 @@ function onFile(event: Event): void {
   const chosen = (event.target as HTMLInputElement).files?.[0] ?? null
   fileError.value = chosen && chosen.size > maxBytes.value ? t('submit.tooLarge') : ''
   file.value = fileError.value ? null : chosen
+}
+
+/** Lot construit par le formulaire de lots : son fichier d'entrée, ou rien tant qu'il est invalide. */
+const batchKind = computed(() => batchKindOf(workload.value))
+function onBatch(payload: Uint8Array<ArrayBuffer> | null, error: string): void {
+  file.value = payload && !error ? new File([payload], 'lot.silbatch', { type: 'application/octet-stream' }) : null
 }
 
 /**
@@ -272,6 +280,14 @@ onMounted(() => {
         <SceneEditor :model="sceneModel" />
         <p v-if="sizeError" class="field__error" role="alert">{{ sizeError }}</p>
       </div>
+
+      <BatchInput
+        v-else-if="batchKind"
+        :key="workload"
+        :kind="batchKind"
+        :max-bytes="maxBytes"
+        @change="onBatch"
+      />
 
       <div v-else class="field">
         <label for="input-file">{{ t('submit.file') }}</label>
