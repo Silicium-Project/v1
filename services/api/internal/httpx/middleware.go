@@ -75,6 +75,12 @@ func (s *statusWriter) WriteHeader(status int) {
 	s.ResponseWriter.WriteHeader(status)
 }
 
+// Unwrap lets http.ResponseController reach the server's writer, so a handler can extend its
+// write deadline (large model files).
+func (s *statusWriter) Unwrap() http.ResponseWriter {
+	return s.ResponseWriter
+}
+
 // AccessLog logs method, path, status and duration with a request id. It never logs
 // headers, query strings or bodies (they may carry tokens).
 func AccessLog(log *slog.Logger) Middleware {
