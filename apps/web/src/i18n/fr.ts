@@ -74,6 +74,10 @@ export const fr = {
     emptyText: 'Soumettez votre premier calcul depuis la page Soumettre.',
     submitLink: 'Soumettre un calcul',
     noLabel: 'Sans libellé',
+    unknownType: 'Type inconnu',
+    sortBy: 'Trier par',
+    sort: { date: 'Date', status: 'Statut', name: 'Nom', type: 'Type de calcul' },
+    order: { asc: 'Croissant', desc: 'Décroissant' },
     open: 'Voir le calcul',
   },
   job: {

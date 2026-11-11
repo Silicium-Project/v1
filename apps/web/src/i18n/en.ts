@@ -74,6 +74,10 @@ export const en: Messages = {
     emptyText: 'Submit your first job from the Submit page.',
     submitLink: 'Submit a job',
     noLabel: 'No label',
+    unknownType: 'Unknown type',
+    sortBy: 'Sort by',
+    sort: { date: 'Date', status: 'Status', name: 'Name', type: 'Task type' },
+    order: { asc: 'Ascending', desc: 'Descending' },
     open: 'View job',
   },
   job: {
