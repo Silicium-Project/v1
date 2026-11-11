@@ -17,6 +17,7 @@ import { normalizeState, stateDescriptionKey } from '@/status'
 import { finalizedCount, formatElapsed, isLiveState, POLL_MS } from '@/status-progress'
 import Notice from '@/components/Notice.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import EmbeddingResult from '@/components/embedding/EmbeddingResult.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,6 +93,11 @@ async function load(silent = false): Promise<void> {
 const BATCH_WORKLOADS = ['image/batch']
 function isBatch(): boolean {
   return BATCH_WORKLOADS.includes(status.value?.workload ?? '')
+}
+// Embeddings : pas de fichier à télécharger, le résultat s'affiche en tableau (EmbeddingResult).
+const EMBEDDING_WORKLOADS = ['embedding/e5-small']
+function isEmbedding(): boolean {
+  return EMBEDDING_WORKLOADS.includes(status.value?.workload ?? '')
 }
 function downloadExtension(): string {
   if (status.value?.image) return 'png'
@@ -307,11 +313,12 @@ watch(jobId, () => void load())
           <button type="button" class="btn" :disabled="cancelling" @click="cancelAsk = false">{{ t('job.cancelKeep') }}</button>
         </div>
       </div>
+      <EmbeddingResult v-if="state === 'finalized' && isEmbedding() && job" :job-id="job.id" />
       <div class="actions">
-        <button v-if="state === 'finalized'" type="button" class="btn btn-primary" :disabled="downloading" @click="downloadResult">
+        <button v-if="state === 'finalized' && !isEmbedding()" type="button" class="btn btn-primary" :disabled="downloading" @click="downloadResult">
           {{ downloadLabel() }}
         </button>
-        <p v-if="state === 'finalized'" class="muted">{{ downloadNote() }}</p>
+        <p v-if="state === 'finalized' && !isEmbedding()" class="muted">{{ downloadNote() }}</p>
         <a v-if="chainUrl" class="btn" :href="chainUrl" target="_blank" rel="noopener noreferrer">{{ t('job.viewOnChain') }}</a>
         <button type="button" class="btn" :disabled="loading" @click="load()">{{ t('common.refresh') }}</button>
         <p role="status" class="muted">{{ t('job.refreshed', { time: formatTime(updatedAt) }) }}</p>

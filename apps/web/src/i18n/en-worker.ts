@@ -81,7 +81,7 @@ export const enWorker = {
       port_busy: 'A node port is already in use (4001 or 8750): another node instance may be running. Close it, then try again.',
       start_failed: 'The node could not start. See node.log in the data folder.',
       not_running: 'The node is not running.',
-      unreachable: 'The node does not answer yet. Retrying automatically.',
+      unreachable: 'The node is starting. On first start, this can take several minutes.',
       unauthorized: 'The node refused the read token.',
       bad_answer: 'Unexpected answer from the node.',
       storage: 'The node folder cannot be written.',

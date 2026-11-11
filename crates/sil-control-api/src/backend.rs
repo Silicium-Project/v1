@@ -48,6 +48,10 @@ pub trait Backend: Send + Sync + 'static {
     /// trop grand pour être donné par l'API (un résultat d'image passe par `job_image`).
     fn job_outputs(&self, job: &JobId) -> Result<Vec<FragmentOutput>, ApiError>;
 
+    /// Contenu d'entrée d'un job, tel que le nœud le stocke (octets bruts). Réservé au
+    /// propriétaire côté API. `NotFound` si le job est inconnu.
+    fn job_input(&self, job: &JobId) -> Result<Vec<u8>, ApiError>;
+
     /// Résultats de tous les fragments d'un job final, concaténés dans l'ordre (octets bruts).
     /// Pour les workloads de lots : chaque fragment est un cadre (`sil-batch`), la concaténation
     /// reste un cadre valide. Refusé si le résultat dépasse la limite de l'archive.

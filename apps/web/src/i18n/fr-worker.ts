@@ -81,7 +81,7 @@ export const frWorker = {
       port_busy: 'Un port du nœud est déjà utilisé (4001 ou 8750) : une autre instance du nœud tourne peut-être. Fermez-la, puis réessayez.',
       start_failed: 'Le nœud n’a pas pu démarrer. Voir node.log dans le dossier de données.',
       not_running: 'Le nœud ne tourne pas.',
-      unreachable: 'Le nœud ne répond pas encore. Nouvelle tentative automatique.',
+      unreachable: 'Le nœud démarre. Au premier lancement, cela peut prendre plusieurs minutes.',
       unauthorized: 'Le nœud a refusé le jeton de lecture.',
       bad_answer: 'Réponse inattendue du nœud.',
       storage: 'Le dossier du nœud ne peut pas être écrit.',

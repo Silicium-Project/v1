@@ -53,6 +53,10 @@ func (f *fakeNode) JobArchive(context.Context, string) ([]byte, error) {
 	return []byte{0x04, 0x00, 0x00, 0x00, 0x89, 'P', 'N', 'G'}, nil
 }
 
+func (f *fakeNode) JobInput(context.Context, string) ([]byte, error) {
+	return []byte("un\ndeux"), nil
+}
+
 var id = strings.Repeat("ab", 32)
 
 func setup() (*Service, *fakeNode) {

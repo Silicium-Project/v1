@@ -115,6 +115,11 @@ export function jobResult(token: string, id: string): Promise<Blob> {
   return requestBlob(`/v1/jobs/${encodeURIComponent(id)}/result`, token)
 }
 
+/** The input of a job as the node stores it (raw bytes; for embedding, the passages file). Owner only. */
+export function jobInput(token: string, id: string): Promise<Blob> {
+  return requestBlob(`/v1/jobs/${encodeURIComponent(id)}/input`, token)
+}
+
 export function deleteAccount(token: string, password: string): Promise<void> {
   return requestJson('/v1/account', { method: 'DELETE', token, body: { password } })
 }

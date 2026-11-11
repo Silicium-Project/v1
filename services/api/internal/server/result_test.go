@@ -25,6 +25,27 @@ func raw(t *testing.T, e *env, path, token string) (int, string, []byte) {
 	return response.StatusCode, response.Header.Get("Content-Type"), body
 }
 
+func TestTheInputOfAJobIsReadableByItsOwnerOnly(t *testing.T) {
+	e := newEnv(t, true)
+	token := e.login(t, "frank@example.com")
+	event := base64.StdEncoding.EncodeToString([]byte("e"))
+	if status, _ := e.call(t, "POST", "/v1/jobs", token, map[string]string{"job_id": jobHex, "event": event, "label": "embedding"}); status != 201 {
+		t.Fatalf("publish: %d", status)
+	}
+
+	status, _, body := raw(t, e, "/v1/jobs/"+jobHex+"/input", token)
+	if status != http.StatusOK || string(body) != "un\ndeux" {
+		t.Fatalf("input: %d %q", status, body)
+	}
+	other := e.login(t, "grace@example.com")
+	if status, _, _ := raw(t, e, "/v1/jobs/"+jobHex+"/input", other); status != http.StatusNotFound {
+		t.Fatalf("another user read the input: %d", status)
+	}
+	if status, _, _ := raw(t, e, "/v1/jobs/"+jobHex+"/input", ""); status != http.StatusUnauthorized {
+		t.Fatalf("no token: %d", status)
+	}
+}
+
 func TestFinishedRenderIsDownloadableAsPNGByItsOwnerOnly(t *testing.T) {
 	e := newEnv(t, true)
 	token := e.login(t, "frank@example.com")

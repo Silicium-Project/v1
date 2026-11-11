@@ -49,6 +49,12 @@ pub const ROUTES: &[Route] = &[
     },
     Route {
         method: "get",
+        path: "/v1/jobs/{id}/input",
+        scope: Some(Scope::Read),
+        summary: "Contenu d'entrée d'un job (octets bruts, tel que stocké par le nœud)",
+    },
+    Route {
+        method: "get",
         path: "/v1/jobs/{id}/archive",
         scope: Some(Scope::Read),
         summary: "Résultats bruts de tous les fragments d'un job final, concaténés (lots de fichiers)",

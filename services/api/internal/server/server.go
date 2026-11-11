@@ -104,6 +104,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/jobs", s.authed(s.listJobs))
 	mux.HandleFunc("GET /v1/jobs/{id}", s.authed(s.getJob))
 	mux.HandleFunc("GET /v1/jobs/{id}/result", s.authed(s.result))
+	mux.HandleFunc("GET /v1/jobs/{id}/input", s.authed(s.jobInput))
 	mux.Handle("/v1/", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "unknown route")
 	}))

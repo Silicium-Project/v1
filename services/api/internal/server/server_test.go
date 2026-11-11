@@ -56,6 +56,8 @@ func newFakeNode(t *testing.T) *fakeNode {
 			_, _ = w.Write([]byte(`{"accepted":1,"pending":false}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/jobs/"+jobHex && n.submitted.Load():
 			_, _ = w.Write([]byte(`{"job":"` + jobHex + `","status":"` + n.state.Load().(string) + `","workload":"rendu/raytracer","image":true,"tasks":[{"status":"Open"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/jobs/"+jobHex+"/input" && n.submitted.Load():
+			_, _ = w.Write([]byte("un\ndeux"))
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/jobs/"+jobHex+"/image" && n.submitted.Load():
 			w.Header().Set("X-Image-Width", "2")
 			w.Header().Set("X-Image-Height", "1")

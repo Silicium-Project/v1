@@ -18,6 +18,8 @@ const MAX_RESULT_BYTES: usize = 256 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 4096;
 /// Taille maximale de l'archive d'un job (résultats concaténés, octets bruts).
 const MAX_ARCHIVE_BYTES: usize = 64 * 1024 * 1024;
+/// Taille maximale d'une entrée donnée par l'API (lecture par le propriétaire du job).
+const MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
 
 pub struct NodeBackend {
     shared: Arc<Shared>,
@@ -109,6 +111,28 @@ impl Backend for NodeBackend {
             height: spec.height,
             rgb,
         })
+    }
+
+    fn job_input(&self, job: &JobId) -> Result<Vec<u8>, ApiError> {
+        let (input, size) = {
+            let ledger = lock(&self.shared.ledger);
+            let signed = ledger.spec(job).ok_or(ApiError::NotFound)?;
+            (signed.spec.input, signed.spec.input_size)
+        };
+        if size > MAX_INPUT_BYTES as u64 {
+            return Err(bad("entrée trop grande pour l'API"));
+        }
+        let id = ContentId::from_bytes(*input.as_bytes());
+        if !self
+            .shared
+            .runtime
+            .block_on(ensure_content(&self.shared, &id))
+        {
+            return Err(ApiError::Unavailable(
+                "contenu d'entrée indisponible".into(),
+            ));
+        }
+        read_all(&self.shared.store, &id).map_err(|e| ApiError::Unavailable(e.to_string()))
     }
 
     fn job_outputs(&self, job: &JobId) -> Result<Vec<FragmentOutput>, ApiError> {
