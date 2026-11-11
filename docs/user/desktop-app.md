@@ -4,9 +4,12 @@ L'application de bureau fait tourner **votre nœud** : elle calcule les tâches 
 confie, et vous montre ce que vous avez fait. Vous n'y soumettez pas de calcul : pour cela,
 utilisez le site web.
 
-> Aucun installeur n'est encore publié. Pour l'instant, l'application se compile depuis les
-> sources (`apps/desktop/README.md`). Le programme du nœud (`silicium-node`) doit être à côté de
-> l'application, ou désigné par la variable `SIL_NODE_BIN`.
+> **Installeur Windows** (`Silicium_0.1.0_x64-setup.exe`) : téléchargeable sur le site. Il installe le
+> nœud, le moteur de rendu et le runtime ONNX (embedding). Vérifiez la somme SHA-256 publiée à côté
+> de l'installeur. Un avertissement SmartScreen peut apparaître : le certificat est celui du projet
+> étudiant. Sous Linux, les paquets `.deb` et AppImage contiennent la même chose.
+> Pour compiler vous-même, voir `apps/desktop/README.md`. Le programme du nœud (`silicium-node`) doit
+> être à côté de l'application, ou désigné par la variable `SIL_NODE_BIN`.
 
 ## 1. Lier la machine à votre compte
 
@@ -41,8 +44,8 @@ Une fois le PC activé, le **Tableau de bord** affiche, mis à jour toutes les 5
 - **Puissance utilisée** : un nœud neuf fait 4 tâches à la fois (plafond borné par les cœurs − 1 ;
   une réputation nulle interdit toute tâche). Le nombre de tâches (calcul ou vérification) en cours, sur le nombre
   autorisé par votre réputation, et le nombre de cœurs de la machine.
-- **Gains** : non mesurés. Aucun paiement n'est actif pour l'instant ; aucun montant n'est affiché
-  tant que les règlements sur Solana ne sont pas en service.
+- **Gains** : non mesurés. Les règlements passent par la chaîne de test (devnet Solana) : aucun
+  montant réel n'est affiché.
 - **Tâches en cours** : le calcul, le morceau, l'étape (calcul, résultat en attente de vérification,
   validé, litige) et depuis quand.
 - **Historique des tâches** : l'issue de chaque tentative, les 50 plus récentes. « Finalisée » est

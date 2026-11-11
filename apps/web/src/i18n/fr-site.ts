@@ -272,6 +272,17 @@ export const frSite = {
           limits: '2 minutes de calcul par morceau, 512 Mo de mémoire.',
           example: { file: 'lot-images.zip', href: '/examples/lot-images.zip' },
         },
+        {
+          id: 'embedding',
+          title: 'Embeddings de texte',
+          summary: 'Transforme chaque passage d’un lot de textes en un vecteur de 384 nombres (multilingual-e5-small). Les vecteurs comparent des textes par leur sens, dans plusieurs langues.',
+          input: 'Un fichier passages.txt : un passage par ligne, en UTF-8. Les lignes vides sont ignorées. 8 Mo au plus.',
+          options: 'Aucune. Le préfixe « passage: » du modèle est ajouté par le nœud.',
+          output: 'Un vecteur de 384 nombres à virgule flottante 32 bits (1 536 octets) par passage, dans l’ordre du fichier. Un passage de plus de 512 tokens est tronqué.',
+          verify: 'Tolérance : un vérificateur recalcule un échantillon de passages et compare chaque vecteur par cosinus. Un cosinus sous 0,999 est rejeté ; une fraude de 10 % est détectée avec une probabilité d’au moins 97 %.',
+          limits: '5 minutes de calcul par morceau, 1 Go de mémoire, 64 Mo de sortie.',
+          example: { file: 'embedding-exemple.txt', href: '/examples/embedding-exemple.txt' },
+        },
       ],
     },
     faqPage: {
@@ -285,7 +296,7 @@ export const frSite = {
         },
         {
           question: 'Quels types de calcul sont disponibles ?',
-          answer: 'Trois aujourd’hui : rendu 3D (une scène .cfg), empreinte SHA-256 et lots d’images (redimensionnement et réencodage PNG ou JPEG).',
+          answer: 'Quatre aujourd’hui : rendu 3D (une scène .cfg), empreinte SHA-256, lots d’images (redimensionnement et réencodage PNG ou JPEG) et embeddings de texte (vecteurs de 384 nombres).',
         },
         {
           question: 'Quelle taille maximale pour un envoi ?',

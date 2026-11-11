@@ -1,15 +1,16 @@
 // Package store keeps accounts, sessions, device links and job bookkeeping.
 //
-// It is a single JSON file written atomically (temp file, fsync, rename) after every
-// change. That is enough for one API instance and a few thousand accounts; a SQL backend
-// can replace it behind the same methods (see docs/technical/api-service.md).
+// The data lives in one SQLite database (pure Go driver, no cgo). The service works on an
+// in-memory copy; each change is written back in one transaction that touches only the rows
+// that changed. If the write fails, the memory copy is rolled back, so memory never gets
+// ahead of the disk. A store.json found next to the database (the former format) is
+// imported once, then renamed store.json.migrated.
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"sync"
 )
 
@@ -22,6 +23,8 @@ var (
 	ErrExpired = errors.New("expired or used")
 )
 
+// snapshot is the in-memory copy of the database. The JSON tags are kept for the legacy
+// store.json import.
 type snapshot struct {
 	Users    map[string]User    `json:"users"`   // by id
 	Sessions map[string]Session `json:"session"` // by token hash
@@ -33,29 +36,41 @@ type snapshot struct {
 // Store is safe for concurrent use.
 type Store struct {
 	mu   sync.Mutex
-	path string // empty: memory only
+	db   *sql.DB // nil: memory only (tests)
 	data snapshot
 }
 
-// Open loads the file at path (created on first change). An empty path gives an
-// in-memory store, for tests.
+// Open opens (creating it if needed) the database at path. An empty path gives an in-memory
+// store, for tests.
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, data: emptySnapshot()}
+	s := &Store{data: emptySnapshot()}
 	if path == "" {
 		return s, nil
 	}
-	raw, err := os.ReadFile(path)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return s, nil
-	case err != nil:
+	db, err := openDB(path)
+	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(raw, &s.data); err != nil {
+	s.db = db
+	if err := loadAll(db, &s.data); err != nil {
+		db.Close()
 		return nil, err
 	}
-	s.data.fillNil()
+	if err := s.importLegacy(dirOf(path)); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return s, nil
+}
+
+// Close releases the database. The store must not be used afterwards.
+func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return nil
+	}
+	return s.db.Close()
 }
 
 func emptySnapshot() snapshot {
@@ -82,8 +97,8 @@ func (s *snapshot) fillNil() {
 	}
 }
 
-// update runs change under the lock and saves if it succeeds. If saving fails the change
-// is rolled back in memory, so memory never gets ahead of the disk.
+// update runs change under the lock and persists the difference. If the change or the write
+// fails, memory goes back to its state before the change.
 func (s *Store) update(change func(*snapshot) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -91,15 +106,40 @@ func (s *Store) update(change func(*snapshot) error) error {
 	if err != nil {
 		return err
 	}
+	var before encodings
+	if s.db != nil {
+		if before, err = encode(&s.data); err != nil {
+			return err
+		}
+	}
 	if err := change(&s.data); err != nil {
 		s.data = backup
 		return err
 	}
-	if err := s.save(); err != nil {
-		s.data = backup
-		return err
+	if s.db != nil {
+		if err := s.persist(before); err != nil {
+			s.data = backup
+			return err
+		}
 	}
 	return nil
+}
+
+// persist writes, in one transaction, the rows that differ from before.
+func (s *Store) persist(before encodings) error {
+	after, err := encode(&s.data)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op once committed
+	if err := applyRows(tx, before, after, &s.data); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) read(look func(*snapshot)) {
@@ -121,33 +161,6 @@ func (s *Store) clone() (snapshot, error) {
 	return copy, nil
 }
 
-func (s *Store) save() error {
-	if s.path == "" {
-		return nil
-	}
-	raw, err := json.Marshal(s.data)
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, ".store-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(raw); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), s.path)
+func (d *snapshot) empty() bool {
+	return len(d.Users)+len(d.Sessions)+len(d.Links)+len(d.Devices)+len(d.Jobs) == 0
 }

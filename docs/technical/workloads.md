@@ -17,7 +17,7 @@ concordance se vérifie par `node tools/workloads/generate.mjs --check`.
 
 - **Générique (descripteur)** : identifiant, unité, champs demandés à l'utilisateur, taille max
   de l'entrée, découpage (`max_fragments`, `target_size`), tarifs, politique de vérification
-  (`recompute` ou `sampling`), limites d'exécution, possibilité de dépôt sur le site.
+  (`recompute`, `sampling` ou `sampling_tolerance`), limites d'exécution, possibilité de dépôt sur le site.
 - **Code (par workload)** : le découpage exact de l'entrée, l'exécution d'un fragment et la
   vérification d'un résultat. Un descripteur ne peut pas décrire un calcul.
 - **Code (par type d'unité)** : `sil-chain-core/src/units.rs`, `escrow.ts` (`maxPayout`). Un type
@@ -50,6 +50,9 @@ concordance se vérifie par `node tools/workloads/generate.mjs --check`.
 - `split.target_size` : taille visée d'un fragment, dans l'unité de découpage (octets pour
   `bytes_input`, blocs pour `pixels_band`).
 - `deposit` : `supported` seulement si le site sait calculer le dépôt (unité `bytes_input`).
+- `verification` : `sampling_tolerance` ajoute `cos_min` (seuil de cosinus), `model_sha256` (hash du
+  modèle épinglé) et `ort_version` (version ONNX Runtime épinglée). Le nœud refuse un workload dont
+  le modèle ou la version ne correspondent pas. Voir `embedding-workload.md`.
 
 ## Ajouter un workload
 
@@ -94,7 +97,23 @@ Le site construit le lot dans le navigateur (`apps/web/src/workloads/batch.ts`, 
 de plusieurs fichiers ou d'un seul `.zip` (`zip.ts` : contenus stockés ou deflate, sans ZIP64 ni
 chiffrement). Les fichiers sont triés par nom ; un fichier d'un mauvais type est ignoré.
 
-Non prévu pour l'instant : rognage, découpe audio, normalisation du volume, WebP.
+Non prévu pour l'instant : rognage, normalisation du volume, WebP.
+
+## Textes : `embedding/e5-small`
+
+Entrée : `passages.txt`, un passage par ligne, UTF-8. Les lignes vides sont ignorées ; 8 Mo au plus
+(`max_input_bytes`). Le fragment est une plage de passages (paramètres `first` et `count`, u32
+little-endian en en-tête). Le résultat est, pour chaque passage dans l'ordre, un vecteur de 384 `f32`
+little-endian (1 536 octets). Un passage de plus de 512 tokens est tronqué.
+
+- Vérification : `sampling_tolerance`. Un vérificateur recalcule un échantillon de passages (tiré
+  avec `samples_needed`) et compare chaque vecteur par cosinus à `cos_min` = 0,999. Un cosinus absent
+  ou non fini est un rejet.
+- Le site construit le fichier (`apps/web/src/workloads/embedding.ts`, `passagesFile`) et refuse un
+  texte vide ou trop gros avant envoi.
+- Le nœud doit avoir ONNX Runtime 1.31.1 à côté du binaire (`runtime_library` dans
+  `crates/sil-node/src/cli.rs`). Sans lui, le nœud n'offre pas le workload et journalise
+  `embedding non offert par ce nœud`.
 
 ## Limite connue
 

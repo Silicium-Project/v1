@@ -271,6 +271,17 @@ export const enSite = {
           limits: '2 minutes of computation per piece, 512 MB of memory.',
           example: { file: 'lot-images.zip', href: '/examples/lot-images.zip' },
         },
+        {
+          id: 'embedding',
+          title: 'Text embeddings',
+          summary: 'Turns each passage of a batch of texts into a vector of 384 numbers (multilingual-e5-small). Vectors compare texts by meaning, across several languages.',
+          input: 'A passages.txt file: one passage per line, UTF-8. Empty lines are ignored. 8 MB at most.',
+          options: 'None. The model’s “passage:” prefix is added by the node.',
+          output: 'One vector of 384 32-bit floats (1,536 bytes) per passage, in file order. A passage longer than 512 tokens is truncated.',
+          verify: 'Tolerance: a verifier recomputes a sample of passages and compares each vector by cosine. A cosine below 0.999 is rejected; a 10% cheat is detected with a probability of at least 97%.',
+          limits: '5 minutes of computation per piece, 1 GB of memory, 64 MB of output.',
+          example: { file: 'embedding-exemple.txt', href: '/examples/embedding-exemple.txt' },
+        },
       ],
     },
     faqPage: {
@@ -284,7 +295,7 @@ export const enSite = {
         },
         {
           question: 'Which kinds of computation are available?',
-          answer: 'Three today: 3D rendering (a .cfg scene), SHA-256 digest and image batches (PNG or JPEG resize and re-encode).',
+          answer: 'Four today: 3D rendering (a .cfg scene), SHA-256 digest, image batches (PNG or JPEG resize and re-encode) and text embeddings (vectors of 384 numbers).',
         },
         {
           question: 'What is the maximum size of a submission?',

@@ -20,7 +20,7 @@ func TestEmailIsUnique(t *testing.T) {
 }
 
 func TestStateSurvivesARestart(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "sub", "store.json")
+	path := filepath.Join(t.TempDir(), "sub", "silicium.db")
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +32,8 @@ func TestStateSurvivesARestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer again.Close()
+	defer s.Close()
 	if _, err := again.UserByEmail("x@y.z"); err != nil {
 		t.Fatalf("user lost: %v", err)
 	}
@@ -113,13 +115,17 @@ func TestJobsAreScopedToTheirOwner(t *testing.T) {
 	}
 }
 
-func TestFailedSaveRollsBackMemory(t *testing.T) {
-	dir := t.TempDir()
-	// The store path is a directory, so renaming the temp file onto it fails.
-	s, _ := Open("")
-	s.path = dir
+func TestFailedWriteRollsBackMemory(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "silicium.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A closed database cannot take the transaction: the write fails.
+	if err := s.db.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.CreateUser(User{ID: "a", Email: "x@y.z"}); err == nil {
-		t.Fatal("expected a save error")
+		t.Fatal("expected a write error")
 	}
 	if _, err := s.UserByEmail("x@y.z"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("memory ahead of disk: %v", err)

@@ -14,7 +14,7 @@ web / desktop ──HTTP/JSON──▶ services/api ──HTTP (token)──▶ 
 |---|---|
 | `cmd/silicium-api` | `main`: load config, wire, serve, graceful stop. No logic. |
 | `internal/config` | the only reader of `SIL_API_*` variables; reports all problems at once |
-| `internal/store` | accounts, sessions, link codes, devices, job index (atomic JSON file) |
+| `internal/store` | accounts, sessions, link codes, devices, job index (SQLite, `modernc.org/sqlite`, sans cgo) |
 | `internal/auth` | register, login, sessions (PBKDF2-SHA256, hashed tokens) |
 | `internal/devices` | one-time link codes and the Ed25519 proof (`contracts/device-link.md`) |
 | `internal/jobs` | upload input, forward signed events, honest status |
@@ -112,9 +112,10 @@ CORS is exact-match only, never with credentials. See `web-and-desktop.md`.
 
 - **No TLS in the service.** Run it behind a TLS-terminating proxy; the session token and
   password travel in clear otherwise.
-- **JSON file store**: one instance only, loaded in memory, rewritten whole on each change.
-  Fine for thousands of accounts, not for scale. The store methods are the seam for a SQL
-  backend.
+- **SQLite store**: one instance only. The data is loaded in memory at start; each change is
+  written in one transaction that touches only the rows that changed, and is rolled back in memory
+  if the write fails. Fine for thousands of accounts. Not for several API instances: that needs a
+  server database.
 - **Job ownership is bookkeeping**: the index says "this account submitted it"; another
   account could register a job id that already exists on the node by sending a valid known
   event first. It grants nothing (authority is the requester signature in the ledger) but

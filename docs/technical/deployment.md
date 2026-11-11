@@ -15,8 +15,8 @@ Ce qui **ne** tourne **pas** sur le VPS :
 
 - **Les workers et vérificateurs** : ce sont les postes des utilisateurs, via l'application de bureau.
   Un calcul ne doit pas dépendre du VPS.
-- **Le règlement Solana** : pas de paiement en testnet (`payments: false`), donc pas de nœud Solana
-  et pas de clé de paiement sur le VPS.
+- **La clé de paiement Solana** : retirée du VPS le 8 nov. (voir « Points ouverts »). Le nœud du VPS
+  relaie les règlements et vérifie, il ne paie pas lui-même.
 - **La compilation** : les binaires sont compilés sur le poste de développement, puis copiés.
   Un build sur le VPS ajouterait des outils et des sources à un serveur exposé. Les artefacts
   signés et les canaux de mise à jour sont prévus en phase 9.
@@ -50,7 +50,7 @@ Appliqué par `infra/vps/base.sh` :
 /etc/silicium/node.toml     configuration du nœud (0640 root:silicium)
 /etc/silicium/api.env       variables de l'API (0640 root:silicium)
 /var/lib/silicium/node/     node.seed (identité du nœud), control.token, journal
-/var/lib/silicium/api/      store.json (comptes, sessions, index des jobs)
+/var/lib/silicium/api/      silicium.db (SQLite : comptes, sessions, liaisons, machines, index des jobs)
 /etc/caddy/Caddyfile        HTTPS public
 ```
 
@@ -68,7 +68,7 @@ mention contraire. `HOTE` désigne `ubuntu@<IP du VPS>`.
    ssh HOTE 'bash -s' < infra/vps/base.sh
    ```
 
-2. **Binaire de l'API** (Go, sans dépendance externe) :
+2. **Binaire de l'API** (Go, `CGO_ENABLED=0` : le driver SQLite `modernc.org/sqlite` est en Go pur) :
 
    ```bash
    cd services/api
@@ -77,12 +77,21 @@ mention contraire. `HOTE` désigne `ubuntu@<IP du VPS>`.
    cd ../..
    ```
 
-3. **Binaire du nœud** (Rust, compilé sous Linux, par exemple dans WSL) :
+3. **Binaire du nœud et runtime** (Rust, compilé sous Linux, par exemple dans WSL) :
 
    ```bash
-   cargo build --release -p sil-node --bin silicium-node
-   cp target/release/silicium-node dist/linux-amd64/
+   cd chain/node && cargo build --release && cd ../..
+   mkdir -p dist/linux-amd64
+   cp chain/node/target/release/silicium-node dist/linux-amd64/
+   cargo build --release -p sil-raytracer --bin sil-raytracer-block
+   cp target/release/sil-raytracer-block dist/linux-amd64/
+   cargo build --release -p sil-sandbox --bin sil-sandbox-launch
+   cp target/release/sil-sandbox-launch dist/linux-amd64/
+   python3 tools/runtime/fetch_onnxruntime.py linux dist/linux-amd64   # ONNX Runtime 1.31.1, hash vérifié
    ```
+
+   Le nœud du VPS est `chain/node` (même binaire que l'application). `sil-node` seul refuse la
+   section `[chain]`.
 
 4. **Site web** :
 
@@ -114,12 +123,13 @@ mention contraire. `HOTE` désigne `ubuntu@<IP du VPS>`.
    ssh HOTE 'sudo systemctl enable --now silicium-node && sudo journalctl -u silicium-node -n 40 --no-pager'
    ```
 
-8. **Démarrer l'API** : aucune clé de comité à configurer (ADR 0007).
+8. **Clé publique du nœud** (information, aucune clé de comité à configurer, ADR 0007) :
+
    ```bash
    ssh HOTE 'sudo -u silicium /opt/silicium/bin/silicium-node --config /etc/silicium/node.toml --public-key'
    ```
 
-   Le résultat est 64 caractères hexadécimaux minuscules. Le comité accepte 1 à 7 clés : ici, une seule.
+   Le résultat est 64 caractères hexadécimaux minuscules.
 
 9. **Démarrer l'API** et vérifier qu'elle répond en local :
 
@@ -146,6 +156,50 @@ mention contraire. `HOTE` désigne `ubuntu@<IP du VPS>`.
 - `ssh HOTE 'sudo ss -tlnp'` : `8080` et `8750` liés à `127.0.0.1` uniquement.
 - `ssh HOTE 'sudo systemctl is-active silicium-node silicium-api caddy'` : trois `active`.
 
+## Mise à jour d'un déploiement
+
+Deux scripts, même effet : copier `silicium-api`, `silicium-node`, `sil-sandbox-launch`,
+`sil-raytracer-block`, `libonnxruntime.so` et les deux unités systemd dans `/opt/silicium/bin/` (écriture
+atomique), puis relancer les services.
+
+- **Windows** (poste de développement) : `powershell -ExecutionPolicy Bypass -File infra\vps\deploy.ps1 -Target ubuntu@213.32.68.67`.
+  Utilise le OpenSSH de Windows et `~\.ssh\id_ed25519`. `-DryRun` vérifie la connexion et prépare les
+  fichiers sans rien copier.
+- **Linux / WSL** : `SIL_SSH_KEY=… SIL_SSH_KNOWN_HOSTS=… bash infra/vps/deploy.sh ubuntu@213.32.68.67`.
+  Sous WSL, `~/.ssh` n'est pas celui de Windows : sans `SIL_SSH_KEY`, le script échoue sur la clé absente.
+
+Les deux passent en `BatchMode` et `StrictHostKeyChecking=yes` : aucune question interactive, et un hôte
+inconnu fait échouer le déploiement. Vérifier ensuite :
+
+```bash
+ssh HOTE 'sudo sha256sum /opt/silicium/bin/silicium-node /opt/silicium/bin/libonnxruntime.so'
+ssh HOTE 'sudo journalctl -u silicium-node -n 20 --no-pager | grep -i "onnx"'
+```
+
+Attendu : `Loaded ONNX Runtime dylib with version '1.31.1'`.
+
+Le pipeline `.github/workflows/deliver.yml` (build puis déploiement par environnement) n'est pas
+opérationnel : les environnements GitHub `development` et `production` et leurs secrets ne sont pas
+configurés. Le déploiement se fait à la main avec les commandes ci-dessus.
+
+## Base de l'API (SQLite)
+
+Les données de l'API sont dans `/var/lib/silicium/api/silicium.db`. Au premier démarrage du nouveau
+binaire, un `store.json` présent dans le même dossier est importé une fois, puis renommé en
+`store.json.migrated` (jamais supprimé). Ordre à respecter, car le nouveau binaire ouvre
+`SIL_API_STORE` comme une base :
+
+```bash
+ssh HOTE 'sudo cp -a /var/lib/silicium/api/store.json /var/lib/silicium/api/store.json.bak'   # sauvegarde
+ssh HOTE 'sudo sed -i "s#^SIL_API_STORE=.*#SIL_API_STORE=/var/lib/silicium/api/silicium.db#" /etc/silicium/api.env'
+powershell -ExecutionPolicy Bypass -File infra\vps\deploy.ps1 -Target ubuntu@213.32.68.67      # redémarre l'API
+ssh HOTE 'sudo ls -l /var/lib/silicium/api/ && sudo journalctl -u silicium-api -n 20 --no-pager'
+```
+
+Vérifier : `silicium.db` existe, `store.json.migrated` est là, et l'API répond sur `/health`. Un
+`store.json` présent alors que la base contient déjà des données fait refuser le démarrage
+(« import refusé ») : ne pas le supprimer à la main, le sortir du dossier après vérification.
+
 ## Points ouverts
 
 - **Clé payeur retirée du VPS** (8 nov.) : section `[chain]` supprimée de `/etc/silicium/node.toml`
@@ -154,7 +208,9 @@ mention contraire. `HOTE` désigne `ubuntu@<IP du VPS>`.
 - **Relais** : `relay_server = true` sur le VPS (`[network]`). Les nœuds derrière NAT réservent un
   circuit auprès de lui (voir `node.md`, section NAT).
 - **Domaine** : HTTPS et le certificat exigent un nom de domaine. Sans lui, le site reste inaccessible
-  depuis Internet (l'API n'a pas de TLS).
-- **Pas de sauvegarde automatique** de `store.json` ni de `node.seed` pour l'instant.
+  depuis Internet (l'API n'a pas de TLS). Le nom `vps-910c1dbc.vps.ovh.net` résout sur l'IP du VPS,
+  mais il appartient à OVH : aucun certificat public ne peut y être émis, donc un site de dev sur ce
+  nom demande un certificat interne ou un autre port (à vérifier avant de configurer Caddy).
+- **Pas de sauvegarde automatique** de `silicium.db` ni de `node.seed` pour l'instant.
 - **Artefacts non signés** : le déploiement copie des binaires sans vérifier leur origine. À remplacer
   par des artefacts signés (phase 9).

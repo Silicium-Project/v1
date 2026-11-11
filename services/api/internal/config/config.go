@@ -16,7 +16,7 @@ import (
 // Config is the validated configuration.
 type Config struct {
 	Addr              string        // listen address
-	StorePath         string        // JSON store file
+	StorePath         string        // SQLite database file (store.json next to it is imported once)
 	NodeURL           string        // control API of the node
 	NodeToken         string        // token with the read and submit scopes (never logged)
 	NodeTimeout       time.Duration // per request
@@ -33,7 +33,7 @@ type Config struct {
 func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
 		Addr:              valueOr(getenv("SIL_API_ADDR"), "127.0.0.1:8080"),
-		StorePath:         valueOr(getenv("SIL_API_STORE"), "data/store.json"),
+		StorePath:         valueOr(getenv("SIL_API_STORE"), "data/silicium.db"),
 		NodeURL:           strings.TrimSpace(getenv("SIL_API_NODE_URL")),
 		NodeTimeout:       10 * time.Second,
 		AllowRegistration: true,
@@ -116,7 +116,6 @@ func splitList(value string) []string {
 	}
 	return out
 }
-
 
 func isHex(text string) bool {
 	for _, c := range text {

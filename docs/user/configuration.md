@@ -79,7 +79,8 @@ Sans cette section, le nœud ne règle rien. Avec, il faut le binaire `chain/nod
 |---|---|
 | `rpc_url` | URL RPC `http://` ou `https://` |
 | `program_id` | identifiant base58 du programme d'escrow |
-| `payer_keypair` | fichier JSON de la clé qui paie les frais de transaction (elle doit avoir du SOL) |
+| `payer_keypair` | fichier JSON de la clé qui paie les frais de transaction (elle doit avoir du SOL). Absent : le nœud envoie ses règlements au relais |
+| `relay_url` | relais de règlement (`https://…`) : `POST /v1/settlements` règle avec les frais du relais |
 
 ## Moteur de rendu (`[render]`, optionnel)
 
@@ -103,6 +104,20 @@ C'est un programme natif : il est lancé dans `sil-sandbox` (sous Windows, ajout
 
 Le workload `image/batch` (redimensionnement et réencodage d'images) est fourni par le nœud
 lui-même, sans moteur externe.
+
+Le workload `embedding/e5-small` n'a **pas de section** de configuration : il est proposé dès que le
+runtime ONNX et le modèle sont présents (voir [run-a-node.md](run-a-node.md#embedding-embeddinge5-small)).
+
+## Télémétrie (`[telemetry]`, optionnel)
+
+```toml
+[telemetry]
+api_url = "https://siliciumlabs.org"   # base de l'API ; /v1/devices/telemetry est ajouté
+interval_s = 60                        # période d'envoi, en secondes
+```
+
+Sans cette section, rien n'est envoyé. Le message est signé par la clé du nœud ; l'API ne l'accepte
+que pour une machine liée à un compte. Il contient l'état de la machine (CPU, mémoire, rôles, tâches).
 
 | Champ | Rôle |
 |---|---|

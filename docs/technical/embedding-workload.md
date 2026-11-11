@@ -1,6 +1,26 @@
 # Workload embedding et vérification tolérante
 
-Statut : **spec, non implémentée**. Aucun code, aucun descripteur, aucun changement de protocole avant validation.
+Statut (novembre 2026) : **implémenté et publié** (`embedding/e5-small`). Ce document garde la spec d'origine et les mesures ; la section « État réel » donne ce qui est en place, et ce qui diffère de la spec.
+
+## État réel
+
+| Élément | En place | Référence |
+|---|---|---|
+| Descripteur `embedding/e5-small`, politique `sampling_tolerance` | oui (`min_cheat_fraction` 0,1 ; `target_detection` 0,97 ; `cos_min` 0,999) | `contracts/workloads/embedding-e5-small.json` |
+| Modèle fp32 épinglé par SHA-256 (`ca456c06…8665`) | oui, téléchargé au premier démarrage, hash vérifié | `crates/sil-model`, `crates/sil-wl-embed/src/lib.rs` |
+| Tokenizer épinglé (`0b44a9d7…4c39`) | oui | `crates/sil-wl-embed/src/lib.rs` |
+| ONNX Runtime 1.31.1 | oui, livré dans les paquets (installeur, deb, AppImage, archives) | `apps/desktop/scripts/prepare-runtime.mjs`, `tools/runtime/fetch_onnxruntime.py` |
+| Vérification par tolérance (cosinus par vecteur, racine d'échantillon) | oui | `crates/sil-wl-embed/src/workload.rs` (`verify_tolerance`) |
+| Mode `tolerance` du certificat et du ledger | oui | `crates/sil-ledger/src/tolerance.rs`, `crates/sil-attest/src/tolerance.rs` |
+| Au moins 2 vérificateurs par fragment (§10.8, décision 3) | **non** : `services/api/internal/policy/policy.go` fixe `VerificationsRequired = 1` | à décider |
+| Int8 | abandonné (§9) | — |
+
+Écarts avec la spec d'origine :
+- Un passage de plus de 512 tokens est **tronqué** (troncature du tokenizer, `MAX_TOKENS = 512`), pas découpé en chunks.
+- Le préfixe `passage: ` est ajouté par le nœud à chaque texte. Le site n'envoie pas de préfixe.
+- Le modèle (470 268 510 octets) n'est **pas** dans les paquets : le nœud le télécharge au premier démarrage et refuse tout fichier dont le hash diffère.
+
+Tests : les cas de mode, de seuil et de rejeu sont couverts par `crates/sil-ledger/tests/tolerance.rs` et `crates/sil-attest`. La graine (§10.7, test 5) n'a pas de test dédié. Le test de référence (`crates/sil-wl-embed/tests/reference.rs`, `--ignored`) reproduit les vecteurs mesurés avec ONNX Runtime 1.31.1 à 1e-5 près.
 
 ## 1. Problème
 
@@ -45,16 +65,16 @@ Un worker peut renvoyer des vecteurs légèrement faux, dans la tolérance, sans
 - Modèle retenu : **`intfloat/multilingual-e5-small`** (sources : fiche Hugging Face, fichiers ONNX).
   - Licence MIT (usage commercial libre).
   - 117,65 M paramètres, 12 couches, 384 dimensions.
-  - Entrée max 512 tokens. Les documents plus longs sont découpés en chunks ; la taille du chunk est dans le descripteur.
+  - Entrée max 512 tokens. Un passage plus long est tronqué (voir « État réel »).
   - 100 langues (base xlm-roberta). Score Mr. TyDi moyen : 64,4.
-  - **Préfixe obligatoire** : chaque texte commence par `query: ` ou `passage: `, y compris hors anglais. Figé dans le workload.
+  - **Préfixe obligatoire** : chaque texte commence par `query: ` ou `passage: `, y compris hors anglais. Le workload utilise `passage: ` (figé dans `sil-wl-embed`).
   - Pooling : moyenne masquée (average pooling), puis normalisation L2.
 - Variantes ONNX et taille à distribuer :
   - fp32 : `model.onnx`, 448 MB.
   - int8 publié : `model_qint8_avx512_vnni.onnx`, 113 MB. Cette variante est liée aux instructions AVX-512 VNNI : **non retenue** pour un modèle figé multi-machines.
-  - Décision : int8 générique, quantifié nous-mêmes avec un jeu de calibration fixé et hashé, ou fp32 si l'écart est trop grand. Choix après mesure.
-- Runtime d'inférence : ONNX Runtime (crate `ort`), threads fixés à 1. Alternative Rust équivalente possible, après test de déterminisme.
-- Impact paquet nœud : +113 MB minimum en int8, +448 MB en fp32.
+  - Décision appliquée : fp32 (§9, troisième passage).
+- Runtime d'inférence : ONNX Runtime 1.31.1 (crate `ort` 2.0.0-rc.2, `ort-sys` épinglé), threads fixés à 1, chargé dynamiquement depuis le dossier du binaire.
+- Impact paquet nœud : la bibliothèque ONNX Runtime seulement (19 Mo Windows, 29 Mo Linux). Le modèle fp32 (448 MiB) n'est pas dans le paquet.
 
 ## 6. Format du résultat
 
@@ -79,7 +99,7 @@ Un worker peut renvoyer des vecteurs légèrement faux, dans la tolérance, sans
 5. Certificat et règlement : décision de la question 4.
 6. API, web, docs, puis upgrade devnet si nécessaire.
 
-Rien de ce qui précède n'est fait tant que la question 1 et la question 3 ne sont pas tranchées.
+Ces étapes sont faites. Les questions 1 et 3 sont tranchées par les mesures de §9 (`cos_min` 0,999 ; fp32).
 
 ## 9. Résultat de l'étape 1 (mesure de déterminisme)
 
@@ -187,5 +207,5 @@ Taille de l'échantillon : `samples_needed(total, min_cheat_fraction, target)` (
 
 1. **`cos_min` = 0,999** (`cos_min_micro = 999000`). Honnête sur AVX2 : cosinus 1,0. Triches mesurées : int8 générique 0,976, int8 par canal 0,988, toutes sous le seuil. À revalider après la mesure AVX-512.
 2. **Taille d'échantillon : pilotée par le descripteur**, via `samples_needed`. Proposition : `min_cheat_fraction = 0,1` et `target_detection = 0,97`, soit environ 34 éléments par vérificateur (à confirmer avec la fonction). Pour `f = 0,2` et `0,99`, une vingtaine suffit. Coût à mesurer : passages par vérificateur et par fragment.
-3. **Au moins 2 vérificateurs par fragment en mode `tolerance`** (`verifications_required >= 2`). Un vérificateur seul laisse passer des fraudes légères.
+3. **Au moins 2 vérificateurs par fragment en mode `tolerance`** (`verifications_required >= 2`). Un vérificateur seul laisse passer des fraudes légères. **Non appliqué** : `policy.go` fixe `VerificationsRequired = 1` pour tous les workloads. Décision à prendre avant de l'ouvrir à des utilisateurs réels.
 4. **Programme devnet : confirmé.** `chain/program/src/settle.rs` ne lit que les signatures Ed25519 précompilées sur le message de règlement, qui contient déjà le hash du résultat. Ni le corps d'attestation, ni le mode, ni la preuve de tolérance ne sont lus. Le mode `tolerance` ne touche pas au programme. L'upgrade devnet ne sert qu'à ajouter le workload (identifiant, récompenses).

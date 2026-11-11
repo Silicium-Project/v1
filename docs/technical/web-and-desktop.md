@@ -23,7 +23,8 @@ bureau (Tauri) ── HTTP ─▶ services/api          (liaison de machine, nav
 1. Connexion : bouton « Se connecter avec mon wallet ». Le site demande un challenge, le wallet
    signe le message (`Silicium login / Address / Nonce`), l'API vérifie la signature Ed25519 et
    ouvre une session. Le premier login crée le compte (pas d'e-mail, pas de mot de passe).
-2. Page **Soumettre** : fichier (8 Mo max), type de calcul (`calcul/sha256`, `rendu/raytracer`, `image/batch`),
+2. Page **Soumettre** : fichier (8 Mo max), type de calcul (`calcul/sha256`, `rendu/raytracer`, `image/batch`,
+   `embedding/e5-small`, dont l'entrée est un `passages.txt` construit par `embedding.ts`),
    nombre de fragments (1 à 16), nom facultatif.
 3. Le site envoie le fichier (`PUT /v1/content`), construit la spec du job et l'événement
    `JobPublished` (encodeur CBOR de `apps/web/src/signing/`, octets identiques au Rust), puis
@@ -36,8 +37,8 @@ bureau (Tauri) ── HTTP ─▶ services/api          (liaison de machine, nav
    dans le wallet, donc l'utilisateur voit ce qu'il signe. Le format est fixé dans
    `crates/sil-ledger/src/wallet_text.rs` ; le site le reproduit à l'identique (`apps/web/src/signing/job.ts`).
    Les événements signés par les nœuds gardent le cadrage binaire (`sil/v1/event`).
-   ne peut pas s'auto-désigner coordinateur.
-5. Aucun paiement : la page l'indique tant que l'adaptateur de chaîne (phase 5) n'existe pas.
+4. Règlement : la page indique qu'aucun montant réel n'est engagé ; les règlements passent par la
+   chaîne de test (devnet).
 
 Les vecteurs partagés (`contracts/vectors/job-published.json`) figent les octets à signer. Un
 test Rust et un test TypeScript les comparent ; un test Node vérifie les signatures avec une
@@ -70,9 +71,16 @@ Deux applications distinctes, sans pages en commun :
 - **Protocole du journal** : un marqueur `protocol` dans le dossier du nœud porte le nom du protocole
   (`PROTOCOL` dans `node_process.rs`). Au démarrage, si le marqueur diffère, `ledger/` et `settlement/`
   sont renommés `<nom>.old-<secondes>` (jamais supprimés) et le journal repart vide. `node.seed` est gardé.
-- **Installeur** : `npm run build` dans `apps/desktop` (NSIS, Windows). `scripts/prepare-sidecars.mjs`
-  copie `dist/windows-amd64/{silicium-node,sil-raytracer-block}.exe` dans `src-tauri/binaries/` sous le
-  nom `<nom>-x86_64-pc-windows-msvc.exe` (`externalBin`) ; l'installeur les pose à côté de l'application.
+- **Installeur** : `npm run build` dans `apps/desktop` (NSIS, Windows ; `.deb` et AppImage sous Linux).
+  `beforeBuildCommand` lance `scripts/prepare-sidecars.mjs` (copie `dist/<plateforme>/silicium-node` et
+  `sil-raytracer-block` dans `src-tauri/binaries/`, nom `<nom>-<triplet>`, `externalBin`) puis
+  `scripts/prepare-runtime.mjs` (copie `onnxruntime.dll` ou `libonnxruntime.so` dans
+  `src-tauri/resources/`, `bundle.resources`). L'installeur pose le nœud et le runtime à côté de
+  l'application ; sous Linux, le runtime est dans `usr/lib/Silicium/`, où le nœud le cherche
+  (`runtime_library` dans `crates/sil-node/src/cli.rs`).
+- **Signature** : l'installeur Windows est signé par `beforeBundleCommand` (`scripts/sign.mjs`, certificat
+  de l'équipe). Les sidecars installés ont donc un hash différent de `dist/` : c'est attendu. Le
+  build ne se signe pas en CI (pas de certificat en secret).
 - **Données** : `GET /v1/worker` sur l'API de contrôle du nœud (jeton de lecture lu dans
   `control.token`). Le desktop interroge le nœud lui-même ; le navigateur n'a pas de jeton et ne
   contacte jamais le nœud.
@@ -127,12 +135,14 @@ l'éditeur, l'hébergeur et le contact d'accessibilité sont des **emplacements 
   protocole ; décision reportée à l'escrow Solana.
 - **Format de signature du wallet** : le site suppose que `signMessage` signe les octets bruts
   sans préfixe. **Non vérifié avec un vrai wallet** : un test manuel avec Phantom est requis.
-- **Pas de paiement** : `reward_per_unit` et `verifier_reward_per_unit` valent 0 et la page le dit. Aucun gain n'est calculé.
+- **Pas de paiement réel** : les tarifs (`reward_per_unit`, `verifier_reward_per_unit`, dans
+  `services/api/internal/policy/policy.go` et les descripteurs) sont non nuls, mais les règlements
+  passent par le devnet Solana. Aucun montant réel n'est engagé.
 - **Révocation** : l'API ne vérifie pas encore les signatures de machine ; une machine révoquée
   peut encore signer.
 - **Desktop** : le nœud est arrêté par `kill` (pas d'arrêt propre). Non lancé à l'écran dans ces
   vérifications ; seul le binaire nœud a été démarré avec la même config que le desktop.
-- **Installeur non signé** : NSIS seul (pas de MSI), sans signature de code ; SmartScreen le signalera.
-  Icône provisoire. Tant qu'il n'est pas publié, le site ne le propose pas.
+- **Installeur** : NSIS seul (pas de MSI). Signé avec le certificat de l'équipe, mais SmartScreen peut
+  encore avertir (réputation du certificat). Icône provisoire. Publié sur le site (`app.json`).
 - **Signature dans le même processus** que l'interface pour la clé de nœud, pas de processus
   signataire séparé (`docs/technical/security/keys.md`). À faire en phase 9.

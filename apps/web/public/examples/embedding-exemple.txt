@@ -1,0 +1,7 @@
+Le réseau Silicium répartit les calculs entre plusieurs machines.
+Les vérificateurs recalculent une partie des résultats avant tout paiement.
+Le chat dort sur le canapé du salon.
+Un petit chat se repose sur le canapé.
+The network splits each computation across several machines.
+Verifiers recompute part of the results before any payment.
+Le train pour Lyon part à huit heures.
