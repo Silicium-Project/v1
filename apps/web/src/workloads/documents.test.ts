@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DocumentError, MAX_UPLOAD_BYTES, passagesOf, textLines } from './documents'
+import { DocumentError, MAX_UPLOAD_BYTES, labelOf, passagesOf, textLines } from './documents'
 
 const enc = (value: string) => new TextEncoder().encode(value)
 
@@ -63,6 +63,18 @@ async function failureOf(promise: Promise<unknown>): Promise<{ code: string; nam
 describe('textLines', () => {
   it('keeps one trimmed line per non-empty line, with CRLF endings', () => {
     expect(textLines('  un \r\n\r\nDeux\n   \ntrois')).toEqual(['un', 'Deux', 'trois'])
+  })
+})
+
+describe('labelOf', () => {
+  it('joins the file names with commas', () => {
+    expect(labelOf(['a.pdf', 'b.docx'])).toBe('a.pdf, b.docx')
+  })
+
+  it('keeps a label of at most 64 characters, ending with an ellipsis when cut', () => {
+    const label = labelOf(Array.from({ length: 20 }, (_, i) => `document-numero-${i}.pdf`))
+    expect(Array.from(label)).toHaveLength(64)
+    expect(label.endsWith('…')).toBe(true)
   })
 })
 

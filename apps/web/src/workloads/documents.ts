@@ -16,10 +16,18 @@ export const MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
 /** Profondeur maximale d'archives dans des archives. */
 const MAX_DEPTH = 3
+/** Longueur maximale d'un libellé de job (nœud et API). */
+const MAX_LABEL_RUNES = 64
 
 interface Item {
   name: string
   bytes: Uint8Array
+}
+
+/** Libellé d'un job à partir des noms de fichiers : séparés par des virgules, 64 caractères au plus. */
+export function labelOf(names: string[]): string {
+  const runes = Array.from(names.join(', '))
+  return runes.length <= MAX_LABEL_RUNES ? runes.join('') : `${runes.slice(0, MAX_LABEL_RUNES - 1).join('')}…`
 }
 
 /** Lignes non vides d'un texte, espaces de bord retirés (comme le nœud). */

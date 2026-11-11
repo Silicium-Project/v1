@@ -5,7 +5,10 @@ import { DocumentError, passagesOf } from '@/workloads/documents'
 import { passagesFile } from '@/workloads/embedding'
 
 const props = defineProps<{ maxBytes: number }>()
-const emit = defineEmits<{ change: [file: File | null, error: string] }>()
+const emit = defineEmits<{
+  change: [file: File | null, error: string]
+  files: [names: string[]]
+}>()
 
 /** Texte extrait de tous les fichiers choisis (aucune saisie à la main). */
 const extracted = ref('')
@@ -38,6 +41,7 @@ async function onFiles(event: Event) {
   names.value = files.map((file) => file.name)
   try {
     extracted.value = await passagesOf(files)
+    emit('files', names.value)
   } catch (error) {
     extracted.value = ''
     const key = error instanceof DocumentError ? ERROR_KEYS[error.code] : undefined

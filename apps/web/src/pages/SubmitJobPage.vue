@@ -24,6 +24,7 @@ import Notice from '@/components/Notice.vue'
 import SceneEditor from '@/components/scene/SceneEditor.vue'
 import BatchInput from '@/components/batch/BatchInput.vue'
 import EmbeddingInput from '@/components/embedding/EmbeddingInput.vue'
+import { labelOf } from '@/workloads/documents'
 import { batchKindOf } from '@/workloads/batch'
 
 // Fallback upload limit, used only if the workload descriptor has none.
@@ -88,6 +89,10 @@ const batchKind = computed(() => batchKindOf(workload.value))
 const isEmbedding = computed(() => workload.value === 'embedding/e5-small')
 function onText(chosen: File | null, error: string): void {
   file.value = chosen && !error ? chosen : null
+}
+/** Sans libellé saisi, le job prend le nom du ou des fichiers (64 caractères au plus). */
+function onFileNames(names: string[]): void {
+  if (label.value.trim() === '') label.value = labelOf(names)
 }
 function onBatch(payload: Uint8Array<ArrayBuffer> | null, error: string): void {
   file.value = payload && !error ? new File([payload], 'lot.silbatch', { type: 'application/octet-stream' }) : null
@@ -298,6 +303,7 @@ onMounted(() => {
         v-else-if="isEmbedding"
         :max-bytes="maxBytes"
         @change="onText"
+        @files="onFileNames"
       />
 
       <div v-else class="field">
