@@ -8,6 +8,9 @@ import (
 	"fmt"
 )
 
+// EmbeddingWorkload is the workload whose result is raw f32 vectors (384 per passage, in order).
+const EmbeddingWorkload = "embedding/e5-small"
+
 // Workloads whose result is a batch of files (SILBATCH frames, one file per frame).
 var batchWorkloads = map[string]bool{
 	"image/batch": true,

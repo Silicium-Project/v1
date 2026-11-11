@@ -7,12 +7,14 @@ import { passagesFile } from '@/workloads/embedding'
 const props = defineProps<{ maxBytes: number }>()
 const emit = defineEmits<{ change: [file: File | null, error: string] }>()
 
-const text = ref('')
+/** Texte extrait de tous les fichiers choisis (aucune saisie à la main). */
+const extracted = ref('')
 const busy = ref(false)
 const fileError = ref('')
-const check = computed(() => passagesFile(text.value, props.maxBytes))
+const names = ref<string[]>([])
+const check = computed(() => passagesFile(extracted.value, props.maxBytes))
 
-const FILE_ERRORS: Record<string, string> = {
+const ERROR_KEYS: Record<string, string> = {
   unsupported: 'submit.embeddingFileUnsupported',
   invalid: 'submit.embeddingFileInvalid',
   noText: 'submit.embeddingFileNoText',
@@ -21,33 +23,31 @@ const FILE_ERRORS: Record<string, string> = {
 
 const errorText = computed(() => {
   if (fileError.value) return fileError.value
-  if (check.value.error === 'empty') return text.value === '' ? '' : t('submit.embeddingEmpty')
+  if (check.value.error === 'empty' && extracted.value !== '') return t('submit.embeddingEmpty')
   if (check.value.error === 'tooLarge') return t('submit.embeddingTooLarge')
   return ''
 })
 
-/** Remplit la zone de texte avec les passages extraits : l'utilisateur peut les relire et les modifier. */
-async function onFile(event: Event) {
+/** Extrait le texte de tous les fichiers choisis, en entier. Un échec nomme les fichiers concernés. */
+async function onFiles(event: Event) {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
+  const files = Array.from(input.files ?? [])
+  if (files.length === 0) return
   busy.value = true
   fileError.value = ''
+  names.value = files.map((file) => file.name)
   try {
-    text.value = await passagesOf(file)
+    extracted.value = await passagesOf(files)
   } catch (error) {
-    const key = error instanceof DocumentError ? FILE_ERRORS[error.code] : undefined
-    fileError.value = t(key ?? 'submit.embeddingFileInvalid')
+    extracted.value = ''
+    const key = error instanceof DocumentError ? ERROR_KEYS[error.code] : undefined
+    const listed = error instanceof DocumentError ? error.names.join(', ') : ''
+    fileError.value = t(key ?? 'submit.embeddingFileInvalid', { names: listed })
   } finally {
     busy.value = false
     input.value = ''
   }
 }
-
-// Une correction à la main efface l'erreur d'un fichier refusé.
-watch(text, () => {
-  fileError.value = ''
-})
 
 watch(
   check,
@@ -63,23 +63,15 @@ watch(
     <input
       id="embedding-file"
       type="file"
-      accept=".pdf,.zip,.txt,.md,application/pdf,application/zip,text/plain,text/markdown"
+      multiple
       :disabled="busy"
-      aria-describedby="embedding-file-hint"
-      @change="onFile"
+      aria-describedby="embedding-file-hint embedding-count"
+      @change="onFiles"
     />
     <p v-if="busy" class="muted" role="status">{{ t('submit.embeddingFileBusy') }}</p>
-    <label for="embedding-text">{{ t('submit.embeddingLabel') }}</label>
-    <p id="embedding-hint" class="field__hint">{{ t('submit.embeddingHint') }}</p>
-    <textarea
-      id="embedding-text"
-      v-model="text"
-      class="input"
-      rows="10"
-      aria-describedby="embedding-hint embedding-count"
-      :aria-invalid="errorText ? 'true' : undefined"
-      spellcheck="false"
-    ></textarea>
+    <p v-else-if="names.length > 0 && !fileError" class="muted" role="status">
+      {{ t('submit.embeddingFilesChosen', { names: names.join(', ') }) }}
+    </p>
     <p id="embedding-count" class="muted" role="status">
       {{ t('submit.embeddingCount', { count: check.count, bytes: check.bytes }) }}
     </p>

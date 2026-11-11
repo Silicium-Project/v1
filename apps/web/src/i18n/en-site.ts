@@ -275,7 +275,7 @@ export const enSite = {
           id: 'embedding',
           title: 'Text embeddings',
           summary: 'Turns each passage of a batch of texts into a vector of 384 numbers (multilingual-e5-small). Vectors compare texts by meaning, across several languages.',
-          input: 'One passage per line (passages.txt, UTF-8), or a PDF, ZIP (PDF, TXT, MD), TXT or MD file: the text is extracted in the browser. Empty lines are ignored. 8 MB of text at most, 32 MB of file at most.',
+          input: 'One or more files of any type: the text of each file is extracted in full in the browser (PDF, Word, PowerPoint, Excel, ZIP, text, HTML, CSV…). One line of text = one passage. Images and binary files are refused, and named. 8 MB of text at most, 32 MB per file at most.',
           options: 'None. The model’s “passage:” prefix is added by the node.',
           output: 'One vector of 384 32-bit floats (1,536 bytes) per passage, in file order. A passage longer than 512 tokens is truncated.',
           verify: 'Tolerance: a verifier recomputes a sample of passages and compares each vector by cosine. A cosine below 0.999 is rejected; a 10% cheat is detected with a probability of at least 97%.',

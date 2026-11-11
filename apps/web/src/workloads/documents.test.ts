@@ -3,14 +3,14 @@ import { DocumentError, MAX_UPLOAD_BYTES, passagesOf, textLines } from './docume
 
 const enc = (value: string) => new TextEncoder().encode(value)
 
-/** Archive ZIP minimale, entrées stockées (sans compression). */
-function zipOf(files: Record<string, string>): Uint8Array {
+/** Archive ZIP minimale, entrées stockées (sans compression) ; contenu texte ou binaire. */
+function zipOf(files: Record<string, string | Uint8Array>): Uint8Array {
   const parts: Uint8Array[] = []
   const central: Uint8Array[] = []
   let offset = 0
   for (const [name, content] of Object.entries(files)) {
     const nameBytes = enc(name)
-    const body = enc(content)
+    const body = typeof content === 'string' ? enc(content) : content
     const local = new DataView(new ArrayBuffer(30))
     local.setUint32(0, 0x04034b50, true)
     local.setUint32(18, body.byteLength, true)
@@ -26,17 +26,21 @@ function zipOf(files: Record<string, string>): Uint8Array {
     central.push(new Uint8Array(record.buffer), nameBytes)
     offset += 30 + nameBytes.byteLength + body.byteLength
   }
+  const count = Object.keys(files).length
   const directorySize = central.reduce((sum, part) => sum + part.byteLength, 0)
   const end = new DataView(new ArrayBuffer(22))
   end.setUint32(0, 0x06054b50, true)
-  end.setUint16(8, Object.keys(files).length, true)
-  end.setUint16(10, Object.keys(files).length, true)
+  end.setUint16(8, count, true)
+  end.setUint16(10, count, true)
   end.setUint32(12, directorySize, true)
   end.setUint32(16, offset, true)
-  const all = [...parts, ...central, new Uint8Array(end.buffer)]
-  const out = new Uint8Array(all.reduce((sum, part) => sum + part.byteLength, 0))
+  return concat([...parts, ...central, new Uint8Array(end.buffer)])
+}
+
+function concat(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.byteLength, 0))
   let at = 0
-  for (const part of all) {
+  for (const part of parts) {
     out.set(part, at)
     at += part.byteLength
   }
@@ -45,56 +49,90 @@ function zipOf(files: Record<string, string>): Uint8Array {
 
 const file = (name: string, bytes: Uint8Array) => new File([bytes.slice()], name)
 
-async function codeOf(promise: Promise<unknown>): Promise<string> {
+/** Code et fichiers concernés d'une erreur de document. */
+async function failureOf(promise: Promise<unknown>): Promise<{ code: string; names: string[] }> {
   try {
     await promise
   } catch (error) {
-    if (error instanceof DocumentError) return error.code
+    if (error instanceof DocumentError) return { code: error.code, names: error.names }
     throw error
   }
-  return 'ok'
+  return { code: 'ok', names: [] }
 }
 
 describe('textLines', () => {
   it('keeps one trimmed line per non-empty line, with CRLF endings', () => {
-    expect(textLines(enc('  un \r\n\r\nDeux\n   \ntrois'))).toEqual(['un', 'Deux', 'trois'])
-  })
-
-  it('refuses bytes that are not UTF-8', () => {
-    expect(() => textLines(new Uint8Array([0xc3, 0x28]))).toThrow(DocumentError)
+    expect(textLines('  un \r\n\r\nDeux\n   \ntrois')).toEqual(['un', 'Deux', 'trois'])
   })
 })
 
 describe('passagesOf', () => {
-  it('reads a text file, one passage per line', async () => {
-    expect(await passagesOf(file('notes.md', enc('Premier\n\nSecond\n')))).toBe('Premier\nSecond')
+  it('reads a text file of any text format, one passage per line', async () => {
+    expect(await passagesOf([file('notes.csv', enc('a,b\n\nc,d\n'))])).toBe('a,b\nc,d')
   })
 
-  it('reads the text entries of a ZIP and ignores the others, in the order of the archive', async () => {
-    const archive = zipOf({ 'b.txt': 'deux', 'a.md': 'un', 'image.png': 'pixels', 'nested.zip': 'x' })
-    expect(await passagesOf(file('lot.zip', archive))).toBe('un\ndeux')
+  it('reads several files, in the order they were chosen', async () => {
+    const text = await passagesOf([file('deux.md', enc('deux')), file('un.txt', enc('un'))])
+    expect(text).toBe('deux\nun')
   })
 
-  it('refuses a ZIP with no readable entry', async () => {
-    const archive = zipOf({ 'image.png': 'pixels' })
-    expect(await codeOf(passagesOf(file('lot.zip', archive)))).toBe('unsupported')
+  it('reads every entry of a ZIP, of any type it can read, and the archives inside it', async () => {
+    const inner = zipOf({ 'cache.txt': 'interieur' })
+    const archive = zipOf({ 'b.txt': 'deux', 'a.md': 'un', 'dossier/c.json': '{"c":1}', 'imbriquee.zip': inner })
+    expect(await passagesOf([file('lot.zip', archive)])).toBe('un\ndeux\n{"c":1}\ninterieur')
   })
 
-  it('refuses a format it does not read', async () => {
-    expect(await codeOf(passagesOf(file('rapport.docx', enc('x'))))).toBe('unsupported')
+  it('names the files it cannot read, binary ones included, and reads none of them silently', async () => {
+    const archive = zipOf({ 'texte.txt': 'ok', 'photo.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0xff]) })
+    const failure = await failureOf(passagesOf([file('lot.zip', archive)]))
+    expect(failure).toEqual({ code: 'unsupported', names: ['photo.png'] })
   })
 
-  it('refuses a text file with no passage', async () => {
-    expect(await codeOf(passagesOf(file('vide.txt', enc(' \n\n'))))).toBe('noText')
+  it('names an unreadable binary file passed directly', async () => {
+    const failure = await failureOf(passagesOf([file('donnees.bin', new Uint8Array([0xff, 0xfe, 0x00, 0x81]))]))
+    expect(failure).toEqual({ code: 'unsupported', names: ['donnees.bin'] })
   })
 
-  it('refuses a file over the upload limit before reading it', async () => {
+  it('reads the paragraphs of a Word document', async () => {
+    const xml = '<w:document xmlns:w="http://x"><w:body><w:p><w:r><w:t>Premier</w:t></w:r></w:p><w:p><w:r><w:t>Second</w:t></w:r></w:p></w:body></w:document>'
+    const docx = zipOf({ '[Content_Types].xml': '<x/>', 'word/document.xml': xml })
+    expect(await passagesOf([file('rapport.docx', docx)])).toBe('Premier\nSecond')
+  })
+
+  it('reads the shared strings and the cells of an Excel sheet', async () => {
+    const shared = '<sst xmlns="http://s"><si><t>Nom</t></si><si><t>Prix</t></si></sst>'
+    const sheet =
+      '<worksheet xmlns="http://s"><sheetData>' +
+      '<row><c t="s"><v>0</v></c><c t="s"><v>1</v></c></row>' +
+      '<row><c><v>42</v></c><c><v>3.5</v></c></row>' +
+      '</sheetData></worksheet>'
+    const xlsx = zipOf({ 'xl/sharedStrings.xml': shared, 'xl/worksheets/sheet1.xml': sheet })
+    expect(await passagesOf([file('tarifs.xlsx', xlsx)])).toBe('Nom\tPrix\n42\t3.5')
+  })
+
+  it('reads the text of an HTML page without its scripts', async () => {
+    const page = '<html><body><p>Un</p><p>Deux</p><script>x = 1</script></body></html>'
+    expect(await passagesOf([file('page.html', enc(page))])).toBe('Un\nDeux')
+  })
+
+  it('refuses a file with no text at all, and names it', async () => {
+    expect(await failureOf(passagesOf([file('vide.txt', enc(' \n\n'))]))).toEqual({ code: 'noText', names: [] })
+  })
+
+  it('refuses a file over the upload limit, and names it, before reading it', async () => {
     const big = file('gros.txt', enc('x'))
     Object.defineProperty(big, 'size', { value: MAX_UPLOAD_BYTES + 1 })
-    expect(await codeOf(passagesOf(big))).toBe('tooLarge')
+    expect(await failureOf(passagesOf([big]))).toEqual({ code: 'tooLarge', names: ['gros.txt'] })
   })
 
-  it('refuses a ZIP that is not an archive', async () => {
-    expect(await codeOf(passagesOf(file('faux.zip', enc('pas un zip'))))).toBe('invalid')
+  it('refuses a ZIP that is not an archive, and names it', async () => {
+    expect(await failureOf(passagesOf([file('faux.zip', enc('pas un zip'))]))).toEqual({
+      code: 'invalid',
+      names: ['faux.zip'],
+    })
+  })
+
+  it('refuses an empty selection', async () => {
+    expect(await failureOf(passagesOf([]))).toEqual({ code: 'noText', names: [] })
   })
 })

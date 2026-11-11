@@ -10,7 +10,6 @@ import {
   decodeVectors,
   passageRows,
   passagesOf,
-  resultBytesOf,
   toCsv,
   toJson,
   type PassageRow,
@@ -38,7 +37,7 @@ async function load(): Promise<void> {
   try {
     const [input, result] = await Promise.all([jobInput(token, props.jobId), jobResult(token, props.jobId)])
     const passages = passagesOf(await input.text())
-    const vectors = decodeVectors(resultBytesOf(await result.text()))
+    const vectors = decodeVectors(new Uint8Array(await result.arrayBuffer()))
     rows.value = passageRows(passages, vectors)
   } catch (failure) {
     if (isSessionEnded(failure)) await endSession(router)

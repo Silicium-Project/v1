@@ -111,14 +111,16 @@ little-endian (1 536 octets). Un passage de plus de 512 tokens est tronqué.
   ou non fini est un rejet.
 - Le site construit le fichier (`apps/web/src/workloads/embedding.ts`, `passagesFile`) et refuse un
   texte vide ou trop gros avant envoi.
-- Le site accepte aussi un fichier PDF, ZIP, TXT ou MD. `apps/web/src/workloads/documents.ts` en extrait
-  le texte dans le navigateur, puis `passagesFile` construit `passages.txt`. Le nœud ne lit jamais de PDF
-  ni de ZIP : il reçoit toujours du texte, donc le descripteur, les hash et le programme on-chain ne
-  changent pas. Un ZIP ne lit que ses entrées `.pdf`, `.txt` et `.md` (sans ZIP imbriqué). Limites :
-  fichier 32 Mo, ZIP décompressé 32 Mo, texte 8 Mo. Un PDF sans couche de texte (scan) est refusé : pas
-  d'OCR. pdf.js (`pdfjs-dist` 6.4.299, épinglé) est chargé à la demande ; le worker est un fichier du site.
-  Limite : un PDF en CJK qui ne porte pas sa table de caractères peut sortir illisible (pas de cMap
-  servie).
+- Le site n'a pas de saisie libre : il prend un ou plusieurs fichiers de tous types.
+  `apps/web/src/workloads/documents.ts` extrait le texte de chaque fichier en entier dans le navigateur
+  (PDF via pdf.js, ZIP et archives imbriquées récursivement, DOCX/PPTX/XLSX, HTML, tout texte UTF-8),
+  puis `passagesFile` construit `passages.txt`. Le nœud ne lit jamais de document : il reçoit toujours
+  du texte, donc le descripteur, les hash et le programme on-chain ne changent pas. Un fichier sans
+  texte (image, binaire, PDF scanné) fait échouer l'envoi en le nommant : rien n'est ignoré en silence.
+  Limites : 32 Mo par fichier, archive décompressée 128 Mo, texte 8 Mo, profondeur d'archives 3.
+  Les archives doivent utiliser les méthodes stocké ou deflate. pdf.js (`pdfjs-dist` 6.4.299, épinglé)
+  est chargé à la demande ; le worker est un fichier du site. Limite : un PDF en CJK qui ne porte pas
+  sa table de caractères peut sortir illisible (pas de cMap servie).
 - Le nœud doit avoir ONNX Runtime 1.31.1 à côté du binaire (`runtime_library` dans
   `crates/sil-node/src/cli.rs`). Sans lui, le nœud n'offre pas le workload et journalise
   `embedding non offert par ce nœud`.

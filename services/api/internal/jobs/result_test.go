@@ -71,6 +71,27 @@ func TestShaResultIsATextFileWithEachFragmentAndTheFinalDigest(t *testing.T) {
 	}
 }
 
+// embeddingJob is what the node says about a finished embedding job.
+const embeddingJob = `{"status":"Finalized","workload":"embedding/e5-small","image":false,"tasks":[]}`
+
+func TestEmbeddingResultIsTheRawVectorsNotTheHexOutputs(t *testing.T) {
+	svc, node := setup()
+	node.job = embeddingJob
+	if _, err := svc.Publish(context.Background(), "alice", id, []byte("event"), "embedding"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.Result(context.Background(), "alice", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ContentType != "application/octet-stream" || !strings.HasSuffix(result.Filename, ".bin") {
+		t.Fatalf("content %s file %s", result.ContentType, result.Filename)
+	}
+	if want := []byte{0x04, 0x00, 0x00, 0x00, 0x89, 'P', 'N', 'G'}; !bytes.Equal(result.Body, want) {
+		t.Fatalf("body %x, want the archive of the fragments", result.Body)
+	}
+}
+
 func TestAnotherUsersJobHasNoResult(t *testing.T) {
 	svc, node := setup()
 	node.job = renderJob

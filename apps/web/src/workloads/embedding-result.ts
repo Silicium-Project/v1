@@ -20,27 +20,6 @@ export function passagesOf(input: string): string[] {
     .filter((line) => line !== '')
 }
 
-/**
- * Octets bruts du résultat, depuis le fichier texte que l'API donne pour un job : une ligne
- * `fragment N: <hex>` par fragment. Les fragments se concatènent dans leur ordre.
- */
-export function resultBytesOf(text: string): Uint8Array {
-  const parts: Array<{ fragment: number; hex: string }> = []
-  for (const line of text.split('\n')) {
-    const match = /^fragment (\d+): ([0-9a-f]*)\s*$/.exec(line)
-    if (match) parts.push({ fragment: Number(match[1]), hex: match[2] ?? '' })
-  }
-  if (parts.length === 0) throw new Error('résultat sans fragment')
-  parts.sort((a, b) => a.fragment - b.fragment)
-  const hex = parts.map((part) => part.hex).join('')
-  if (hex.length % 2 !== 0) throw new Error('résultat hexadécimal incomplet')
-  const bytes = new Uint8Array(hex.length / 2)
-  for (let at = 0; at < bytes.length; at += 1) {
-    bytes[at] = Number.parseInt(hex.slice(at * 2, at * 2 + 2), 16)
-  }
-  return bytes
-}
-
 /** Décode le résultat : un vecteur par passage. Lève une erreur si la taille ne tombe pas juste. */
 export function decodeVectors(bytes: Uint8Array): number[][] {
   if (bytes.byteLength % VECTOR_BYTES !== 0) throw new Error('résultat de taille inattendue')

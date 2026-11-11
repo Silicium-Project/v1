@@ -54,6 +54,15 @@ func (s *Service) Result(ctx context.Context, userID, id string) (Result, error)
 		}
 		return Result{ContentType: "application/zip", Filename: "silicium-" + id[:8] + ".zip", Body: zipped}, nil
 	}
+	// Embeddings : un vecteur de 1 536 octets par passage, trop gros pour la sortie par fragment en
+	// hexadécimal. Le résultat brut (vecteurs dans l'ordre des fragments) est donné tel quel.
+	if status.Workload == EmbeddingWorkload {
+		archive, err := s.node.JobArchive(ctx, id)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{ContentType: "application/octet-stream", Filename: "silicium-" + id[:8] + ".bin", Body: archive}, nil
+	}
 	outputs, err := s.node.JobOutputs(ctx, id)
 	if err != nil {
 		return Result{}, err

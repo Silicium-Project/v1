@@ -2,7 +2,11 @@
 export type DocumentErrorCode = 'unsupported' | 'invalid' | 'noText' | 'tooLarge'
 
 export class DocumentError extends Error {
-  constructor(readonly code: DocumentErrorCode) {
+  /** Noms des fichiers concernés (pour `unsupported`, `invalid` et `tooLarge`). */
+  readonly names: string[]
+
+  constructor(readonly code: DocumentErrorCode, names: string[] = []) {
     super(code)
+    this.names = names
   }
 }

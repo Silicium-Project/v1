@@ -4,7 +4,6 @@ import {
   decodeVectors,
   passageRows,
   passagesOf,
-  resultBytesOf,
   toCsv,
   toJson,
 } from './embedding-result'
@@ -50,25 +49,6 @@ describe('passageRows', () => {
 
   it('refuses a result that does not match the passages', () => {
     expect(() => passageRows(['un', 'deux'], [zeros()])).toThrow()
-  })
-})
-
-describe('resultBytesOf', () => {
-  it('joins the fragment lines in fragment order and skips the final digest line', () => {
-    const text = [
-      'Silicium, résultat du calcul ab',
-      'workload: embedding/e5-small',
-      'fragment 1: 0304',
-      'fragment 0: 0102',
-      'fragment 2: ',
-      'résultat final (sha256 des fragments, dans l\'ordre): 00',
-      '',
-    ].join('\n')
-    expect(Array.from(resultBytesOf(text))).toEqual([1, 2, 3, 4])
-  })
-
-  it('refuses text without any fragment line', () => {
-    expect(() => resultBytesOf('rien ici')).toThrow()
   })
 })
 
