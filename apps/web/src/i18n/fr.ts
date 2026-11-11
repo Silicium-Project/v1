@@ -239,6 +239,8 @@ export const fr = {
     embeddingFileHint: 'Un ou plusieurs fichiers, de tous types. Le texte de chaque fichier est extrait en entier dans votre navigateur (PDF, Word, PowerPoint, Excel, ZIP, texte, HTML, CSV…) ; chaque ligne de texte devient un passage. 32 Mo par fichier au plus. Le fichier ne quitte pas votre appareil.',
     embeddingFileBusy: 'Extraction du texte…',
     embeddingFilesChosen: 'Fichiers : {names}',
+    embeddingFileRemoveLabel: 'Retirer',
+    embeddingFileRemove: 'Retirer {name}',
     embeddingFileUnsupported: 'Pas de texte à extraire de : {names}. Les images et les fichiers binaires ne sont pas pris en charge.',
     embeddingFileInvalid: 'Fichier illisible ou protégé par mot de passe : {names}',
     embeddingFileNoText: 'Aucun texte trouvé dans : {names} (un PDF scanné n’a pas de couche de texte).',

@@ -8,15 +8,16 @@ const props = defineProps<{ maxBytes: number }>()
 const emit = defineEmits<{
   change: [file: File | null, error: string]
   files: [names: string[]]
-  /** Origine de chaque passage (fichier, page, ligne), dans l'ordre du fichier envoyé. */
+  /** Origine de chaque passage (fichier, page, ligne), dans l'ordre des fichiers choisis. */
   origins: [origins: string[]]
 }>()
 
+/** Fichiers choisis, cumulés d'un choix à l'autre (chaque ajout s'ajoute à la liste). */
+const selected = ref<File[]>([])
 /** Texte extrait de tous les fichiers choisis (aucune saisie à la main). */
 const extracted = ref('')
 const busy = ref(false)
 const fileError = ref('')
-const names = ref<string[]>([])
 const check = computed(() => passagesFile(extracted.value, props.maxBytes))
 
 const ERROR_KEYS: Record<string, string> = {
@@ -33,19 +34,26 @@ const errorText = computed(() => {
   return ''
 })
 
-/** Extrait le texte de tous les fichiers choisis, en entier. Un échec nomme les fichiers concernés. */
-async function onFiles(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  if (files.length === 0) return
-  busy.value = true
+/** Clé d'un fichier : même nom, taille et date = même fichier, pas deux fois dans la liste. */
+function sameFile(a: File, b: File): boolean {
+  return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified
+}
+
+/** Extrait le texte de tous les fichiers de la liste, en entier. Un échec nomme les fichiers concernés. */
+async function extract(files: File[]): Promise<void> {
   fileError.value = ''
-  names.value = files.map((file) => file.name)
+  if (files.length === 0) {
+    extracted.value = ''
+    emit('origins', [])
+    emit('files', [])
+    return
+  }
+  busy.value = true
   try {
     const extraction = await passagesWithOrigins(files)
     extracted.value = extraction.text
     emit('origins', extraction.origins)
-    emit('files', names.value)
+    emit('files', files.map((file) => file.name))
   } catch (error) {
     extracted.value = ''
     emit('origins', [])
@@ -54,8 +62,27 @@ async function onFiles(event: Event) {
     fileError.value = t(key ?? 'submit.embeddingFileInvalid', { names: listed })
   } finally {
     busy.value = false
-    input.value = ''
   }
+}
+
+/** Ajoute les fichiers choisis à la liste existante, puis extrait l'ensemble. */
+async function onFiles(event: Event) {
+  const input = event.target as HTMLInputElement
+  const added = Array.from(input.files ?? [])
+  input.value = ''
+  if (added.length === 0) return
+  const merged = [...selected.value]
+  for (const file of added) {
+    if (!merged.some((existing) => sameFile(existing, file))) merged.push(file)
+  }
+  selected.value = merged
+  await extract(merged)
+}
+
+/** Retire un fichier de la liste, puis extrait le reste. */
+async function remove(index: number) {
+  selected.value = selected.value.filter((_, at) => at !== index)
+  await extract(selected.value)
 }
 
 watch(
@@ -78,12 +105,39 @@ watch(
       @change="onFiles"
     />
     <p v-if="busy" class="muted" role="status">{{ t('submit.embeddingFileBusy') }}</p>
-    <p v-else-if="names.length > 0 && !fileError" class="muted" role="status">
-      {{ t('submit.embeddingFilesChosen', { names: names.join(', ') }) }}
-    </p>
+    <ul v-if="selected.length > 0" class="embedding-files">
+      <li v-for="(file, index) in selected" :key="`${file.name}-${file.size}-${file.lastModified}`">
+        <span>{{ file.name }}</span>
+        <button
+          type="button"
+          class="btn"
+          :disabled="busy"
+          :aria-label="t('submit.embeddingFileRemove', { name: file.name })"
+          @click="remove(index)"
+        >
+          {{ t('submit.embeddingFileRemoveLabel') }}
+        </button>
+      </li>
+    </ul>
     <p id="embedding-count" class="muted" role="status">
       {{ t('submit.embeddingCount', { count: check.count, bytes: check.bytes }) }}
     </p>
     <p v-if="errorText" class="field__error" role="alert">{{ errorText }}</p>
   </div>
 </template>
+
+<style scoped>
+.embedding-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.embedding-files li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+</style>

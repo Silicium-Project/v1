@@ -238,6 +238,8 @@ export const en: Messages = {
     embeddingFileHint: 'One or more files, of any type. The text of each file is extracted in full in your browser (PDF, Word, PowerPoint, Excel, ZIP, text, HTML, CSV…); each line of text becomes a passage. 32 MB per file at most. The file never leaves your device.',
     embeddingFileBusy: 'Extracting text…',
     embeddingFilesChosen: 'Files: {names}',
+    embeddingFileRemoveLabel: 'Remove',
+    embeddingFileRemove: 'Remove {name}',
     embeddingFileUnsupported: 'No text to extract from: {names}. Images and binary files are not supported.',
     embeddingFileInvalid: 'Unreadable file or password-protected: {names}',
     embeddingFileNoText: 'No text found in: {names} (a scanned PDF has no text layer).',
