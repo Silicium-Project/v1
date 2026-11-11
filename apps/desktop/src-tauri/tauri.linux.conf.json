@@ -4,7 +4,7 @@
     "beforeBundleCommand": null
   },
   "bundle": {
-    "targets": ["appimage", "deb"],
+    "targets": ["appimage", "deb", "rpm"],
     "resources": { "resources/onnxruntime.dll": null, "resources/libonnxruntime.so": "libonnxruntime.so" }
   }
 }
