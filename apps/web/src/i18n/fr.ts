@@ -75,6 +75,7 @@ export const fr = {
     submitLink: 'Soumettre un calcul',
     noLabel: 'Sans libellé',
     unknownType: 'Type inconnu',
+    countFiltered: 'Nombre de calculs : {shown} sur {count}',
     sortBy: 'Trier par',
     sort: { date: 'Date', status: 'Statut', name: 'Nom', type: 'Type de calcul' },
     order: { asc: 'Croissant', desc: 'Décroissant' },

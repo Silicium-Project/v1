@@ -75,6 +75,7 @@ export const en: Messages = {
     submitLink: 'Submit a job',
     noLabel: 'No label',
     unknownType: 'Unknown type',
+    countFiltered: 'Number of jobs: {shown} of {count}',
     sortBy: 'Sort by',
     sort: { date: 'Date', status: 'Status', name: 'Name', type: 'Task type' },
     order: { asc: 'Ascending', desc: 'Descending' },
