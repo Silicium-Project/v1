@@ -7,6 +7,7 @@ import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { currentToken, endSession } from '@/state/session'
 import Notice from '@/components/Notice.vue'
 import { QUERY_PREFIX, rank, type Hit } from '@/search/semantic'
+import { preload, startPreload } from '@/search/preload'
 import {
   decodeVectors,
   passageRows,
@@ -24,7 +25,6 @@ const loading = ref(true)
 const error = ref('')
 const question = ref('')
 const searching = ref(false)
-const percent = ref<number | null>(null)
 const searchError = ref('')
 const hits = ref<Hit[]>([])
 const answered = ref(false)
@@ -55,10 +55,10 @@ async function ask(): Promise<void> {
   searchError.value = ''
   answered.value = false
   try {
+    // Chargement déjà lancé en arrière-plan : on attend le même modèle, sans le recharger.
+    startPreload()
     const { loadEmbedder } = await import('@/search/embedder')
-    const embedder = await loadEmbedder((loaded, total) => {
-      percent.value = total > 0 ? Math.round((loaded * 100) / total) : null
-    })
+    const embedder = await loadEmbedder(() => undefined)
     const vector = await embedder.embed(text, QUERY_PREFIX)
     hits.value = rank(vector, rows.value)
     answered.value = true
@@ -66,7 +66,6 @@ async function ask(): Promise<void> {
     searchError.value = t('job.search.failed')
   } finally {
     searching.value = false
-    percent.value = null
   }
 }
 
@@ -87,7 +86,11 @@ function exportAs(kind: 'json' | 'csv'): void {
   else download(toCsv(rows.value), 'text/csv;charset=utf-8', 'csv')
 }
 
-onMounted(load)
+// Le modèle de recherche se charge dès l'ouverture du job, en arrière-plan.
+onMounted(() => {
+  void load()
+  startPreload()
+})
 </script>
 
 <template>
@@ -121,11 +124,18 @@ onMounted(load)
             {{ t('job.search.submit') }}
           </button>
         </div>
-        <template v-if="searching && percent !== null">
-          <p class="muted" role="status">{{ t('job.search.loading', { percent }) }}</p>
-          <progress :value="percent" max="100">{{ percent }} %</progress>
-        </template>
-        <p v-else-if="searching" class="muted" role="status">{{ t('job.search.searching') }}</p>
+        <p v-if="preload.state === 'loading'" class="muted" role="status">
+          {{ preload.percent === null ? t('job.search.preparing') : t('job.search.loading', { percent: preload.percent }) }}
+        </p>
+        <progress v-if="preload.state === 'loading' && preload.percent !== null" :value="preload.percent" max="100">
+          {{ preload.percent }} %
+        </progress>
+        <p v-if="preload.state === 'failed'" class="field__error" role="alert">
+          {{ t('job.search.loadFailed') }}
+          <button type="button" class="btn" @click="startPreload">{{ t('job.search.retry') }}</button>
+        </p>
+        <p v-if="preload.state === 'ready' && !searching" class="muted" role="status">{{ t('job.search.ready') }}</p>
+        <p v-if="searching" class="muted" role="status">{{ t('job.search.searching') }}</p>
         <p v-if="searchError" class="field__error" role="alert">{{ searchError }}</p>
         <p v-if="answered && hits.length === 0" class="muted" role="status">{{ t('job.search.notFound') }}</p>
         <ol v-if="hits.length > 0" class="search-hits">

@@ -25,6 +25,7 @@ import SceneEditor from '@/components/scene/SceneEditor.vue'
 import BatchInput from '@/components/batch/BatchInput.vue'
 import EmbeddingInput from '@/components/embedding/EmbeddingInput.vue'
 import { labelOf } from '@/workloads/documents'
+import { startPreload } from '@/search/preload'
 import { batchKindOf } from '@/workloads/batch'
 
 // Fallback upload limit, used only if the workload descriptor has none.
@@ -221,6 +222,8 @@ async function submit(): Promise<void> {
     error.value = t('wallet.noWalletAccount')
     return
   }
+  // Le job met plusieurs minutes : le modèle de recherche se charge pendant ce temps.
+  if (isEmbedding.value) startPreload()
   busy.value = true
   try {
     const key = await connectWallet()
