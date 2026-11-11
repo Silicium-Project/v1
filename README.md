@@ -1,7 +1,6 @@
 # Silicium V1
 
-Réseau de calcul P2P décentralisé et distribué, réécrit de zéro.
-Dossier local pour l'instant (pas encore de dépôt Git).
+Réseau de calcul P2P décentralisé et distribué
 
 - Plan complet : `C:\Users\Thom\.claude\plans\parallel-inventing-rivest.md`
 - Architecture : [docs/technical/architecture.md](docs/technical/architecture.md)
