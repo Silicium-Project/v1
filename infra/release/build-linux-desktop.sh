@@ -22,7 +22,7 @@ DOWNLOADS="$ROOT/apps/web/public/downloads"
 for name in node npm cargo rsync python3; do
   command -v "$name" >/dev/null || { echo "absent du PATH : $name" >&2; exit 1; }
 done
-for file in silicium-node sil-raytracer-block sil-sandbox-launch libonnxruntime.so; do
+for file in silicium-node sil-raytracer-block libonnxruntime.so; do
   test -f "$ROOT/dist/linux-amd64/$file" || { echo "absent : dist/linux-amd64/$file" >&2; exit 1; }
 done
 
@@ -46,8 +46,12 @@ DEB_SRC="$(ls "$BUNDLE"/deb/*.deb | head -n 1)"
 APP_SRC="$(ls "$BUNDLE"/appimage/*.AppImage | head -n 1)"
 
 echo "== contrôle du contenu du .deb"
-for name in silicium-node sil-raytracer-block sil-sandbox-launch libonnxruntime.so; do
-  dpkg-deb -c "$DEB_SRC" | grep -q "/$name\$" || { echo "absent du .deb : $name" >&2; exit 1; }
+LISTING="$(mktemp)"
+trap 'rm -f "$LISTING"' EXIT
+dpkg-deb -c "$DEB_SRC" > "$LISTING"
+# Le paquet de bureau ne contient pas sil-sandbox-launch (il est dans l'archive du nœud).
+for name in silicium-node sil-raytracer-block libonnxruntime.so; do
+  grep -q "/$name\$" "$LISTING" || { echo "absent du .deb : $name" >&2; exit 1; }
 done
 
 echo "== publication dans apps/web/public/downloads"

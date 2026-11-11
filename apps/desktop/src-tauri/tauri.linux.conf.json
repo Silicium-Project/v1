@@ -1,6 +1,6 @@
 {
   "build": {
-    "beforeBuildCommand": "node scripts/prepare-sidecars.mjs && node scripts/prepare-runtime.mjs",
+    "beforeBuildCommand": "node scripts/prepare-sidecars.mjs && node scripts/prepare-runtime.mjs && npm --prefix ../web run build:desktop",
     "beforeBundleCommand": null
   },
   "bundle": {
