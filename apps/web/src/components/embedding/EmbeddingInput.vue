@@ -36,8 +36,10 @@ const errorText = computed(() => {
 /** Extrait le texte de tous les fichiers choisis, en entier. Un échec nomme les fichiers concernés. */
 async function onFiles(event: Event) {
   const input = event.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  if (files.length === 0) return
+  // Un fichier à la fois pour le moment.
+  const chosen = input.files?.[0]
+  if (!chosen) return
+  const files = [chosen]
   busy.value = true
   fileError.value = ''
   names.value = files.map((file) => file.name)
@@ -72,7 +74,6 @@ watch(
     <input
       id="embedding-file"
       type="file"
-      multiple
       :disabled="busy"
       aria-describedby="embedding-file-hint embedding-count"
       @change="onFiles"

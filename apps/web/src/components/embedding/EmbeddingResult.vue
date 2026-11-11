@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { getJobOrigins, jobInput, jobResult } from '@/api/endpoints'
@@ -23,6 +23,8 @@ const router = useRouter()
 const rows = ref<PassageRow[]>([])
 /** Origine de chaque passage, dans l'ordre des passages du job. */
 const origins = ref<string[]>([])
+/** Nom du fichier source, lu sur la première origine (« lot.zip › a.md · ligne 1 » → « lot.zip »). */
+const fileName = computed(() => (origins.value[0] ?? '').split(' › ')[0]?.split(' · ')[0] ?? '')
 const loading = ref(true)
 const error = ref('')
 const question = ref('')
@@ -99,7 +101,7 @@ onMounted(() => {
 
 <template>
   <section class="embedding-result stack" aria-labelledby="embedding-result-title">
-    <h2 id="embedding-result-title">{{ t('job.embedding.title') }}</h2>
+    <h2 id="embedding-result-title">{{ fileName || t('job.embedding.title') }}</h2>
     <Notice kind="error" :message="error" />
     <p v-if="loading" class="muted" role="status">{{ t('job.embedding.loading') }}</p>
     <template v-else-if="rows.length > 0">
