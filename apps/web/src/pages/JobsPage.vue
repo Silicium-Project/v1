@@ -119,7 +119,13 @@ onMounted(load)
     </EmptyState>
 
     <template v-if="jobs.length > 0">
-      <p class="muted">{{ t('jobs.count', { count: jobs.length }) }}</p>
+      <p class="muted">
+        {{
+          statusFilter === 'all'
+            ? t('jobs.count', { count: jobs.length })
+            : t('jobs.countFiltered', { shown: visible.length, count: jobs.length })
+        }}
+      </p>
       <div class="jobs-bar">
         <div class="jobs-sort">
           <label for="jobs-sort">{{ t('jobs.sortBy') }}</label>
@@ -138,25 +144,14 @@ onMounted(load)
             {{ descending ? '↓' : '↑' }}
           </button>
         </div>
-        <div class="jobs-filter" role="group" :aria-label="t('jobs.filter.label')">
-          <button
-            type="button"
-            class="btn"
-            :aria-pressed="statusFilter === 'all'"
-            @click="statusFilter = 'all'"
-          >
-            {{ t('jobs.filter.all') }}
-          </button>
-          <button
-            v-for="state in presentStates"
-            :key="state"
-            type="button"
-            class="btn"
-            :aria-pressed="statusFilter === state"
-            @click="statusFilter = state"
-          >
-            {{ t(stateLabelKey(state)) }}
-          </button>
+        <div class="jobs-filter">
+          <label for="jobs-status">{{ t('jobs.filter.label') }}</label>
+          <select id="jobs-status" v-model="statusFilter" class="input">
+            <option value="all">{{ t('jobs.filter.all') }}</option>
+            <option v-for="state in presentStates" :key="state" :value="state">
+              {{ t(stateLabelKey(state)) }}
+            </option>
+          </select>
         </div>
       </div>
       <p v-if="visible.length === 0" class="muted" role="status">{{ t('jobs.filter.none') }}</p>
@@ -191,7 +186,8 @@ onMounted(load)
   align-items: center;
   gap: 0.5rem;
 }
-.jobs-sort select {
+.jobs-sort select,
+.jobs-filter select {
   width: auto;
 }
 .jobs-arrow {
