@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { jobInput, jobResult } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { currentToken, endSession } from '@/state/session'
 import Notice from '@/components/Notice.vue'
+import { QUERY_PREFIX, rank, type Hit } from '@/search/semantic'
 import {
   decodeVectors,
   passageRows,
@@ -18,16 +19,15 @@ import {
 const props = defineProps<{ jobId: string }>()
 const router = useRouter()
 
-/** Lignes affichées ; l'export contient toujours tous les passages. */
-const SHOWN = 100
 const rows = ref<PassageRow[]>([])
 const loading = ref(true)
 const error = ref('')
-const shown = computed(() => rows.value.slice(0, SHOWN))
-
-function preview(vector: number[]): string {
-  return vector.slice(0, 4).map((value) => value.toFixed(4)).join(' · ') + ' …'
-}
+const question = ref('')
+const searching = ref(false)
+const percent = ref<number | null>(null)
+const searchError = ref('')
+const hits = ref<Hit[]>([])
+const answered = ref(false)
 
 async function load(): Promise<void> {
   const token = currentToken()
@@ -44,6 +44,29 @@ async function load(): Promise<void> {
     else error.value = t(errorMessageKey(failure))
   } finally {
     loading.value = false
+  }
+}
+
+/** Cherche dans les passages : la question est vectorisée dans le navigateur, puis comparée aux vecteurs. */
+async function ask(): Promise<void> {
+  const text = question.value.trim()
+  if (text === '' || searching.value) return
+  searching.value = true
+  searchError.value = ''
+  answered.value = false
+  try {
+    const { loadEmbedder } = await import('@/search/embedder')
+    const embedder = await loadEmbedder((loaded, total) => {
+      percent.value = total > 0 ? Math.round((loaded * 100) / total) : null
+    })
+    const vector = await embedder.embed(text, QUERY_PREFIX)
+    hits.value = rank(vector, rows.value)
+    answered.value = true
+  } catch {
+    searchError.value = t('job.search.failed')
+  } finally {
+    searching.value = false
+    percent.value = null
   }
 }
 
@@ -82,45 +105,48 @@ onMounted(load)
           {{ t('job.embedding.exportJson') }}
         </button>
       </div>
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th scope="col">{{ t('job.embedding.colIndex') }}</th>
-              <th scope="col">{{ t('job.embedding.colText') }}</th>
-              <th scope="col">{{ t('job.embedding.colVector') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in shown" :key="row.index">
-              <td>{{ row.index }}</td>
-              <td>{{ row.text }}</td>
-              <td><code>{{ preview(row.vector) }}</code></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="rows.length > SHOWN" class="muted">{{ t('job.embedding.truncated', { shown: SHOWN, count: rows.length }) }}</p>
+
+      <form class="stack" role="search" @submit.prevent="ask">
+        <label for="embedding-question">{{ t('job.search.label') }}</label>
+        <div class="actions">
+          <input
+            id="embedding-question"
+            v-model="question"
+            type="search"
+            class="input"
+            :placeholder="t('job.search.placeholder')"
+            :disabled="searching"
+          />
+          <button type="submit" class="btn btn-primary" :disabled="searching || question.trim() === ''">
+            {{ t('job.search.submit') }}
+          </button>
+        </div>
+        <template v-if="searching && percent !== null">
+          <p class="muted" role="status">{{ t('job.search.loading', { percent }) }}</p>
+          <progress :value="percent" max="100">{{ percent }} %</progress>
+        </template>
+        <p v-else-if="searching" class="muted" role="status">{{ t('job.search.searching') }}</p>
+        <p v-if="searchError" class="field__error" role="alert">{{ searchError }}</p>
+        <p v-if="answered && hits.length === 0" class="muted" role="status">{{ t('job.search.notFound') }}</p>
+        <ol v-if="hits.length > 0" class="search-hits">
+          <li v-for="hit in hits" :key="hit.index">
+            <span class="muted">{{ t('job.search.passage', { index: hit.index, score: hit.score.toFixed(3) }) }}</span>
+            <p>{{ hit.text }}</p>
+          </li>
+        </ol>
+      </form>
     </template>
   </section>
 </template>
 
 <style scoped>
-.table-wrap {
-  overflow-x: auto;
+.search-hits {
+  padding-left: 1.25rem;
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
+.search-hits li + li {
+  margin-top: 0.75rem;
 }
-th,
-td {
-  text-align: left;
-  vertical-align: top;
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid var(--color-border);
-}
-td code {
-  white-space: nowrap;
+.search-hits p {
+  margin: 0.25rem 0 0;
 }
 </style>

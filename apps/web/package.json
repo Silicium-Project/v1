@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "typecheck": "vue-tsc --noEmit",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "node scripts/copy-ort.mjs && vue-tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "build:desktop": "vue-tsc --noEmit && vite build --config vite.desktop.config.ts --mode desktop",
+    "build:desktop": "node scripts/copy-ort.mjs && vue-tsc --noEmit && vite build --config vite.desktop.config.ts --mode desktop",
     "dev:desktop": "vite --config vite.desktop.config.ts --mode desktop",
     "engine:copy": "node scripts/copy-engine.mjs",
     "downloads:copy": "node scripts/copy-node-bundle.mjs"
@@ -19,8 +19,10 @@
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource/geist": "^5.2.0",
     "@fontsource/geist-mono": "^5.2.0",
+    "@huggingface/tokenizers": "0.2.0",
     "@solana/web3.js": "^1.99.0",
     "@tauri-apps/api": "^2.12.4",
+    "onnxruntime-web": "1.31.1",
     "pdfjs-dist": "6.4.299",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"

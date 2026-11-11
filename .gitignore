@@ -29,6 +29,7 @@ render-work/
 
 # Moteur WASI copié par apps/web/scripts/copy-engine.mjs (artefact de build)
 apps/web/public/engine/
+apps/web/public/ort/
 
 # Paquet « nœud » téléchargeable, copié par apps/web/scripts/copy-node-bundle.mjs (artefact de build)
 apps/web/public/downloads/
