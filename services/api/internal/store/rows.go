@@ -66,10 +66,18 @@ func writeDevice(tx *sql.Tx, d Device) error {
 }
 
 func writeJob(tx *sql.Tx, j Job) error {
-	_, err := tx.Exec(`INSERT INTO jobs (id, user_id, label, created_at) VALUES (?, ?, ?, ?)
+	origins := j.Origins
+	if origins == nil {
+		origins = []string{}
+	}
+	raw, err := json.Marshal(origins)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO jobs (id, user_id, label, created_at, origins) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET user_id = excluded.user_id, label = excluded.label,
-			created_at = excluded.created_at`,
-		j.ID, j.UserID, j.Label, formatTime(j.CreatedAt))
+			created_at = excluded.created_at, origins = excluded.origins`,
+		j.ID, j.UserID, j.Label, formatTime(j.CreatedAt), string(raw))
 	return err
 }
 
@@ -157,11 +165,11 @@ func loadAll(db *sql.DB, d *snapshot) error {
 		}); err != nil {
 		return err
 	}
-	return loadRows(db, `SELECT id, user_id, label, created_at FROM jobs`,
+	return loadRows(db, `SELECT id, user_id, label, created_at, origins FROM jobs`,
 		func(scan func(...any) error) error {
 			var j Job
-			var created string
-			if err := scan(&j.ID, &j.UserID, &j.Label, &created); err != nil {
+			var created, origins string
+			if err := scan(&j.ID, &j.UserID, &j.Label, &created, &origins); err != nil {
 				return err
 			}
 			t, err := parseTime(created)
@@ -169,6 +177,9 @@ func loadAll(db *sql.DB, d *snapshot) error {
 				return err
 			}
 			j.CreatedAt = t
+			if err := json.Unmarshal([]byte(origins), &j.Origins); err != nil {
+				return err
+			}
 			d.Jobs[j.ID] = j
 			return nil
 		})

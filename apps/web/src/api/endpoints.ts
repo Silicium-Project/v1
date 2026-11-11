@@ -115,6 +115,15 @@ export function jobResult(token: string, id: string): Promise<Blob> {
   return requestBlob(`/v1/jobs/${encodeURIComponent(id)}/result`, token)
 }
 
+/** Where each passage of an embedding job comes from (file, page, line), in the order of the passages. Owner only. */
+export function putJobOrigins(token: string, id: string, origins: string[]): Promise<{ count: number }> {
+  return requestJson(`/v1/jobs/${encodeURIComponent(id)}/origins`, { method: 'PUT', token, body: { origins } })
+}
+
+export function getJobOrigins(token: string, id: string): Promise<{ origins: string[] }> {
+  return requestJson(`/v1/jobs/${encodeURIComponent(id)}/origins`, { token })
+}
+
 /** The input of a job as the node stores it (raw bytes; for embedding, the passages file). Owner only. */
 export function jobInput(token: string, id: string): Promise<Blob> {
   return requestBlob(`/v1/jobs/${encodeURIComponent(id)}/input`, token)

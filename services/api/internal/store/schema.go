@@ -87,7 +87,34 @@ func openDB(path string) (*sql.DB, error) {
 			return nil, err
 		}
 	}
+	if err := addColumnIfMissing(db, "jobs", "origins", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return db, nil
+}
+
+// addColumnIfMissing adds a column to an existing table (SQLite has no ADD COLUMN IF NOT EXISTS).
+func addColumnIfMissing(db *sql.DB, table, column, definition string) error {
+	rows, err := db.Query("SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition)
+	return err
 }
 
 // querier is implemented by *sql.DB and *sql.Tx.

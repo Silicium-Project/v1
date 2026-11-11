@@ -18,19 +18,27 @@ export interface PageItem {
  * la termine. Chaque page commence une ligne neuve. Les lignes vides et blanches sont retirées.
  */
 export function linesOfPages(pages: PageItem[][]): string[] {
-  const lines: string[] = []
-  for (const items of pages) {
+  return pagedLines(pages).map((line) => line.text)
+}
+
+/** Lignes avec le numéro de leur page (à partir de 1), dans l'ordre du document. */
+export function pagedLines(pages: PageItem[][]): Array<{ text: string; page: number }> {
+  const lines: Array<{ text: string; page: number }> = []
+  pages.forEach((items, index) => {
     let line = ''
     for (const item of items) {
       line += item.str ?? ''
       if (item.hasEOL) {
-        lines.push(line)
+        lines.push({ text: line, page: index + 1 })
         line = ''
       }
     }
-    lines.push(line)
-  }
-  return lines.map((line) => line.trim()).filter((line) => line !== '')
+    lines.push({ text: line, page: index + 1 })
+  })
+  // Un passage tient sur une ligne : un saut de ligne dans le texte d'un élément devient un espace.
+  return lines
+    .map((line) => ({ text: line.text.replace(/\s*[\r\n]+\s*/g, ' ').trim(), page: line.page }))
+    .filter((line) => line.text !== '')
 }
 
 let loading: Promise<typeof PdfJs> | null = null
@@ -48,7 +56,7 @@ function loadPdfJs(): Promise<typeof PdfJs> {
  * Lignes de texte d'un PDF, page après page. Un PDF illisible, protégé par mot de passe ou
  * corrompu lève `DocumentError('invalid')`. Un PDF sans couche de texte (scan) renvoie [].
  */
-export async function pdfLines(bytes: Uint8Array): Promise<string[]> {
+export async function pdfPassages(bytes: Uint8Array): Promise<Array<{ text: string; page: number }>> {
   const pdfjs = await loadPdfJs()
   // Copie : pdf.js détache le tampon qu'il reçoit, et le fichier source peut resservir.
   const task = pdfjs.getDocument({ data: bytes.slice(), disableFontFace: true, useSystemFonts: false })
@@ -67,7 +75,7 @@ export async function pdfLines(bytes: Uint8Array): Promise<string[]> {
       pages.push(content.items.map((item) => ('str' in item ? { str: item.str, hasEOL: item.hasEOL } : {})))
       page.cleanup()
     }
-    return linesOfPages(pages)
+    return pagedLines(pages)
   } catch {
     throw new DocumentError('invalid')
   } finally {

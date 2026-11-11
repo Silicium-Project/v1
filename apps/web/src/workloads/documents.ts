@@ -2,10 +2,10 @@
  * Texte de tous les fichiers envoyés au workload d'embedding, quel que soit leur type. Chaque fichier
  * est lu en entier et extrait dans le navigateur ; le nœud reçoit `passages.txt`, une ligne par passage.
  * Un fichier sans texte (image, binaire, PDF scanné) fait échouer l'envoi en le nommant : rien n'est
- * ignoré en silence.
+ * ignoré en silence. Chaque passage garde son origine (fichier, page ou ligne), pour l'afficher ensuite.
  */
 import { DocumentError, type DocumentErrorCode } from './errors'
-import { pdfLines } from './pdf'
+import { pdfPassages } from './pdf'
 import { readZip, type ZipEntry } from './zip'
 
 export { DocumentError, type DocumentErrorCode } from './errors'
@@ -24,6 +24,18 @@ interface Item {
   bytes: Uint8Array
 }
 
+/** Un passage et l'endroit où il se trouve : « rapport.pdf · page 3 », « lot.zip › notes.txt · ligne 4 ». */
+export interface Passage {
+  text: string
+  origin: string
+}
+
+/** Texte des passages (une ligne par passage) et leur origine, dans le même ordre. */
+export interface Extraction {
+  text: string
+  origins: string[]
+}
+
 /** Libellé d'un job à partir des noms de fichiers : séparés par des virgules, 64 caractères au plus. */
 export function labelOf(names: string[]): string {
   const runes = Array.from(names.join(', '))
@@ -36,6 +48,21 @@ export function textLines(text: string): string[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line !== '')
+}
+
+/** Passages d'un texte brut, avec leur numéro de ligne dans le fichier. */
+function textPassages(name: string, text: string): Passage[] {
+  const passages: Passage[] = []
+  text.split(/\r?\n/).forEach((raw, index) => {
+    const line = raw.trim()
+    if (line !== '') passages.push({ text: line, origin: `${name} · ligne ${index + 1}` })
+  })
+  return passages
+}
+
+/** Passages numérotés par position (paragraphes, rangées) : « fichier · ligne N ». */
+function numbered(name: string, lines: string[]): Passage[] {
+  return lines.map((text, index) => ({ text, origin: `${name} · ligne ${index + 1}` }))
 }
 
 function startsWith(bytes: Uint8Array, prefix: string): boolean {
@@ -96,20 +123,21 @@ function sheetLines(bytes: Uint8Array, shared: string[]): string[] {
 }
 
 /** Texte d'un document Office (docx, pptx, xlsx) : ce sont des archives ZIP de fichiers XML. */
-async function officeLines(name: string, bytes: Uint8Array): Promise<string[]> {
+async function officePassages(name: string, bytes: Uint8Array): Promise<Passage[]> {
   const entries = await zipEntries(name, bytes)
   const byName = new Map(entries.map((entry): [string, Uint8Array] => [entry.name, entry.data]))
   const xmlNames = [...byName.keys()].filter((entry) => entry.endsWith('.xml')).sort(compareNames)
   const shared = byName.has('xl/sharedStrings.xml')
     ? byLocalName(xmlOf(byName.get('xl/sharedStrings.xml') ?? new Uint8Array()), 'si').map((si) => si.textContent ?? '')
     : []
-  const lines: string[] = []
+  const passages: Passage[] = []
   for (const entry of xmlNames) {
     const data = byName.get(entry) ?? new Uint8Array()
-    if (entry.startsWith('xl/worksheets/')) lines.push(...sheetLines(data, shared))
-    else if (entry.startsWith('word/') || entry.startsWith('ppt/')) lines.push(...paragraphsOf(data))
+    const part = `${name} › ${entry}`
+    if (entry.startsWith('xl/worksheets/')) passages.push(...numbered(part, sheetLines(data, shared)))
+    else if (entry.startsWith('word/') || entry.startsWith('ppt/')) passages.push(...numbered(part, paragraphsOf(data)))
   }
-  return lines
+  return passages
 }
 
 function compareNames(a: string, b: string): number {
@@ -117,7 +145,7 @@ function compareNames(a: string, b: string): number {
 }
 
 /** Texte d'une page HTML, avec un saut de ligne après chaque bloc. */
-function htmlLines(bytes: Uint8Array): string[] {
+function htmlPassages(name: string, bytes: Uint8Array): Passage[] {
   const text = decodeText(bytes)
   if (text === null) throw new DocumentError('invalid')
   const document = new DOMParser().parseFromString(text, 'text/html')
@@ -125,7 +153,7 @@ function htmlLines(bytes: Uint8Array): string[] {
   document.querySelectorAll('p, div, li, tr, br, h1, h2, h3, h4, h5, h6').forEach((element) => {
     element.after('\n')
   })
-  return textLines(document.body?.textContent ?? '')
+  return numbered(name, textLines(document.body?.textContent ?? ''))
 }
 
 async function zipEntries(name: string, bytes: Uint8Array): Promise<ZipEntry[]> {
@@ -137,27 +165,27 @@ async function zipEntries(name: string, bytes: Uint8Array): Promise<ZipEntry[]> 
 }
 
 /**
- * Lignes d'un fichier, selon son type. Un type inconnu qui n'est pas du texte lève `unsupported` : il
+ * Passages d'un fichier, selon son type. Un type inconnu qui n'est pas du texte lève `unsupported` : il
  * n'est jamais ignoré en silence.
  */
-async function extractLines(name: string, bytes: Uint8Array, depth: number): Promise<string[]> {
+async function extractPassages(name: string, bytes: Uint8Array, depth: number): Promise<Passage[]> {
   if (depth > MAX_DEPTH) throw new DocumentError('invalid', [name])
   const lower = name.toLowerCase()
   if (lower.endsWith('.pdf') || startsWith(bytes, '%PDF-')) return pdfOf(name, bytes)
   if (lower.endsWith('.docx') || lower.endsWith('.pptx') || lower.endsWith('.xlsx')) {
-    return named(name, () => officeLines(name, bytes))
+    return named(name, () => officePassages(name, bytes))
   }
   if (lower.endsWith('.zip') || startsWith(bytes, 'PK\u0003\u0004')) return zipOf(name, bytes, depth)
-  if (lower.endsWith('.html') || lower.endsWith('.htm')) return htmlLines(bytes)
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return htmlPassages(name, bytes)
   const text = decodeText(bytes)
   if (text === null) throw new DocumentError('unsupported', [name])
-  return textLines(text)
+  return textPassages(name, text)
 }
 
-async function pdfOf(name: string, bytes: Uint8Array): Promise<string[]> {
-  const lines = await named(name, () => pdfLines(bytes))
-  if (lines.length === 0) throw new DocumentError('noText', [name])
-  return lines
+async function pdfOf(name: string, bytes: Uint8Array): Promise<Passage[]> {
+  const pages = await named(name, () => pdfPassages(bytes))
+  if (pages.length === 0) throw new DocumentError('noText', [name])
+  return pages.map((page) => ({ text: page.text, origin: `${name} · page ${page.page}` }))
 }
 
 /** Ajoute le nom du fichier à une erreur qui ne le porte pas encore. */
@@ -173,16 +201,16 @@ async function named<T>(name: string, work: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Lignes de tous les éléments. Les éléments en échec sont rassemblés et signalés ensemble, pour que
+ * Passages de tous les éléments. Les éléments en échec sont rassemblés et signalés ensemble, pour que
  * l'utilisateur sache exactement lesquels retirer.
  */
-async function eachItem(items: Item[], depth: number): Promise<string[]> {
-  const lines: string[] = []
+async function eachItem(items: Item[], depth: number): Promise<Passage[]> {
+  const passages: Passage[] = []
   const failed: string[] = []
   let code: DocumentErrorCode | null = null
   for (const item of items) {
     try {
-      for (const line of await extractLines(item.name, item.bytes, depth)) lines.push(line)
+      for (const passage of await extractPassages(item.name, item.bytes, depth)) passages.push(passage)
     } catch (error) {
       if (!(error instanceof DocumentError)) throw error
       failed.push(...(error.names.length > 0 ? error.names : [item.name]))
@@ -190,27 +218,35 @@ async function eachItem(items: Item[], depth: number): Promise<string[]> {
     }
   }
   if (failed.length > 0) throw new DocumentError(code ?? 'unsupported', failed)
-  return lines
+  return passages
 }
 
-/** Entrées d'une archive ZIP, de n'importe quel type, lues en entier. */
-async function zipOf(name: string, bytes: Uint8Array, depth: number): Promise<string[]> {
-  const items = (await zipEntries(name, bytes)).map((entry) => ({ name: entry.name, bytes: entry.data }))
+/** Entrées d'une archive ZIP, de n'importe quel type, lues en entier. Leur origine garde le nom de l'archive. */
+async function zipOf(name: string, bytes: Uint8Array, depth: number): Promise<Passage[]> {
+  const items = (await zipEntries(name, bytes)).map((entry) => ({ name: `${name} › ${entry.name}`, bytes: entry.data }))
   return eachItem(items, depth + 1)
 }
 
 /**
- * Texte des passages de tous les fichiers, une ligne par passage, séparées par « \n ». Lève
- * `DocumentError` avec la liste des fichiers concernés si l'un d'eux ne donne pas de texte.
+ * Texte des passages de tous les fichiers, une ligne par passage, et leur origine, dans le même ordre.
+ * Lève `DocumentError` avec la liste des fichiers concernés si l'un d'eux ne donne pas de texte.
  */
-export async function passagesOf(files: File[]): Promise<string> {
+export async function passagesWithOrigins(files: File[]): Promise<Extraction> {
   const tooLarge = files.filter((file) => file.size > MAX_UPLOAD_BYTES).map((file) => file.name)
   if (tooLarge.length > 0) throw new DocumentError('tooLarge', tooLarge)
   const items: Item[] = []
   for (const file of files) {
     items.push({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })
   }
-  const lines = await eachItem(items, 0)
-  if (lines.length === 0) throw new DocumentError('noText')
-  return lines.join('\n')
+  const passages = await eachItem(items, 0)
+  if (passages.length === 0) throw new DocumentError('noText')
+  return {
+    text: passages.map((passage) => passage.text).join('\n'),
+    origins: passages.map((passage) => passage.origin),
+  }
+}
+
+/** Texte des passages seul, une ligne par passage. */
+export async function passagesOf(files: File[]): Promise<string> {
+  return (await passagesWithOrigins(files)).text
 }

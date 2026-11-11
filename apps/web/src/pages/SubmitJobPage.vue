@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
-import { profile } from '@/api/endpoints'
+import { profile, putJobOrigins } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { networkTerms, publishJob, putContent, type TermsAnswer } from '@/api/wallet-endpoints'
 import { currentToken, endSession } from '@/state/session'
@@ -91,6 +91,12 @@ const isEmbedding = computed(() => workload.value === 'embedding/e5-small')
 function onText(chosen: File | null, error: string): void {
   file.value = chosen && !error ? chosen : null
 }
+/** Origine de chaque passage du fichier choisi, envoyée avec le job. */
+const passageOrigins = ref<string[]>([])
+function onOrigins(origins: string[]): void {
+  passageOrigins.value = origins
+}
+
 /** Sans libellé saisi, le job prend le nom du ou des fichiers (64 caractères au plus). */
 function onFileNames(names: string[]): void {
   if (label.value.trim() === '') label.value = labelOf(names)
@@ -251,6 +257,10 @@ async function submit(): Promise<void> {
     }
     const result = await submitJob(input, depsFor(token))
     jobId.value = result.jobId
+    // L'origine des passages est gardée avec le job (propriétaire seulement). Un échec ici ne bloque pas le calcul.
+    if (isEmbedding.value && passageOrigins.value.length > 0) {
+      await putJobOrigins(token, result.jobId, passageOrigins.value).catch(() => undefined)
+    }
     clearDraft()
     await router.push({ name: 'job', params: { id: result.jobId } })
   } catch (failure) {
@@ -307,6 +317,7 @@ onMounted(() => {
         :max-bytes="maxBytes"
         @change="onText"
         @files="onFileNames"
+        @origins="onOrigins"
       />
 
       <div v-else class="field">

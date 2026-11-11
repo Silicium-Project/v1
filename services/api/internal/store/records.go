@@ -201,6 +201,29 @@ func (s *Store) JobOf(userID, id string) (job Job, err error) {
 	return
 }
 
+// SetOrigins records where each passage of a job comes from. Only the owner of the job can set
+// them; the job must exist and belong to the user.
+func (s *Store) SetOrigins(userID, id string, origins []string) error {
+	return s.update(func(d *snapshot) error {
+		job, ok := d.Jobs[id]
+		if !ok || job.UserID != userID {
+			return ErrNotFound
+		}
+		job.Origins = append([]string(nil), origins...)
+		d.Jobs[id] = job
+		return nil
+	})
+}
+
+// OriginsOf returns the origins of a job, only for its owner.
+func (s *Store) OriginsOf(userID, id string) ([]string, error) {
+	job, err := s.JobOf(userID, id)
+	if err != nil {
+		return nil, err
+	}
+	return job.Origins, nil
+}
+
 // Export is everything the service holds about one account, minus secrets (no password
 // hash, no session tokens, no link code hashes).
 type Export struct {

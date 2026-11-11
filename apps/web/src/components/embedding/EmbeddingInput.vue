@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { t } from '@/i18n'
-import { DocumentError, passagesOf } from '@/workloads/documents'
+import { DocumentError, passagesWithOrigins } from '@/workloads/documents'
 import { passagesFile } from '@/workloads/embedding'
 
 const props = defineProps<{ maxBytes: number }>()
 const emit = defineEmits<{
   change: [file: File | null, error: string]
   files: [names: string[]]
+  /** Origine de chaque passage (fichier, page, ligne), dans l'ordre du fichier envoyé. */
+  origins: [origins: string[]]
 }>()
 
 /** Texte extrait de tous les fichiers choisis (aucune saisie à la main). */
@@ -40,10 +42,13 @@ async function onFiles(event: Event) {
   fileError.value = ''
   names.value = files.map((file) => file.name)
   try {
-    extracted.value = await passagesOf(files)
+    const extraction = await passagesWithOrigins(files)
+    extracted.value = extraction.text
+    emit('origins', extraction.origins)
     emit('files', names.value)
   } catch (error) {
     extracted.value = ''
+    emit('origins', [])
     const key = error instanceof DocumentError ? ERROR_KEYS[error.code] : undefined
     const listed = error instanceof DocumentError ? error.names.join(', ') : ''
     fileError.value = t(key ?? 'submit.embeddingFileInvalid', { names: listed })

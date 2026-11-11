@@ -74,4 +74,7 @@ type Job struct {
 	UserID    string    `json:"user_id"`
 	Label     string    `json:"label"`
 	CreatedAt time.Time `json:"created_at"`
+	// Origins gives, for each passage of an embedding job, where it comes from (file, page, line).
+	// Owner only; never part of the job list.
+	Origins []string `json:"origins,omitempty"`
 }

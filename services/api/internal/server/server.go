@@ -103,6 +103,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/jobs/{id}/events", s.authed(s.jobEvent))
 	mux.HandleFunc("GET /v1/jobs", s.authed(s.listJobs))
 	mux.HandleFunc("GET /v1/jobs/{id}", s.authed(s.getJob))
+	mux.HandleFunc("PUT /v1/jobs/{id}/origins", s.authed(s.putOrigins))
+	mux.HandleFunc("GET /v1/jobs/{id}/origins", s.authed(s.getOrigins))
 	mux.HandleFunc("GET /v1/jobs/{id}/result", s.authed(s.result))
 	mux.HandleFunc("GET /v1/jobs/{id}/input", s.authed(s.jobInput))
 	mux.Handle("/v1/", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

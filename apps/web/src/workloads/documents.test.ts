@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DocumentError, MAX_UPLOAD_BYTES, labelOf, passagesOf, textLines } from './documents'
+import { DocumentError, MAX_UPLOAD_BYTES, labelOf, passagesOf, passagesWithOrigins, textLines } from './documents'
 
 const enc = (value: string) => new TextEncoder().encode(value)
 
@@ -78,6 +78,25 @@ describe('labelOf', () => {
   })
 })
 
+describe('passagesWithOrigins', () => {
+  it('gives each passage its line in the file', async () => {
+    const extraction = await passagesWithOrigins([file('notes.md', enc('Premier\n\nSecond\n'))])
+    expect(extraction.text).toBe('Premier\nSecond')
+    expect(extraction.origins).toEqual(['notes.md · ligne 1', 'notes.md · ligne 3'])
+  })
+
+  it('gives the archive and entry names for passages read from a ZIP', async () => {
+    const extraction = await passagesWithOrigins([file('lot.zip', zipOf({ 'b.txt': 'deux', 'a.md': 'un' }))])
+    expect(extraction.origins).toEqual(['lot.zip › a.md · ligne 1', 'lot.zip › b.txt · ligne 1'])
+  })
+
+  it('gives the paragraph or row of an Office passage', async () => {
+    const xml = '<w:document xmlns:w="http://x"><w:body><w:p><w:r><w:t>Premier</w:t></w:r></w:p></w:body></w:document>'
+    const extraction = await passagesWithOrigins([file('rapport.docx', zipOf({ 'word/document.xml': xml }))])
+    expect(extraction.origins).toEqual(['rapport.docx › word/document.xml · ligne 1'])
+  })
+})
+
 describe('passagesOf', () => {
   it('reads a text file of any text format, one passage per line', async () => {
     expect(await passagesOf([file('notes.csv', enc('a,b\n\nc,d\n'))])).toBe('a,b\nc,d')
@@ -97,7 +116,7 @@ describe('passagesOf', () => {
   it('names the files it cannot read, binary ones included, and reads none of them silently', async () => {
     const archive = zipOf({ 'texte.txt': 'ok', 'photo.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0xff]) })
     const failure = await failureOf(passagesOf([file('lot.zip', archive)]))
-    expect(failure).toEqual({ code: 'unsupported', names: ['photo.png'] })
+    expect(failure).toEqual({ code: 'unsupported', names: ['lot.zip › photo.png'] })
   })
 
   it('names an unreadable binary file passed directly', async () => {

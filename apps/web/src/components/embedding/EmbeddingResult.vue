@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
-import { jobInput, jobResult } from '@/api/endpoints'
+import { getJobOrigins, jobInput, jobResult } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { currentToken, endSession } from '@/state/session'
 import Notice from '@/components/Notice.vue'
@@ -21,6 +21,8 @@ const props = defineProps<{ jobId: string }>()
 const router = useRouter()
 
 const rows = ref<PassageRow[]>([])
+/** Origine de chaque passage, dans l'ordre des passages du job. */
+const origins = ref<string[]>([])
 const loading = ref(true)
 const error = ref('')
 const question = ref('')
@@ -39,6 +41,8 @@ async function load(): Promise<void> {
     const passages = passagesOf(await input.text())
     const vectors = decodeVectors(new Uint8Array(await result.arrayBuffer()))
     rows.value = passageRows(passages, vectors)
+    // L'origine (fichier, page, ligne) de chaque passage : facultative, absente pour les anciens jobs.
+    origins.value = await getJobOrigins(token, props.jobId).then((answer) => answer.origins).catch(() => [])
   } catch (failure) {
     if (isSessionEnded(failure)) await endSession(router)
     else error.value = t(errorMessageKey(failure))
@@ -142,6 +146,7 @@ onMounted(() => {
           <li v-for="hit in hits" :key="hit.index">
             <span class="muted">{{ t('job.search.passage', { index: hit.index, score: hit.score.toFixed(3) }) }}</span>
             <p>{{ hit.text }}</p>
+            <p v-if="origins[hit.index]" class="muted search-origin">{{ origins[hit.index] }}</p>
           </li>
         </ol>
       </form>
