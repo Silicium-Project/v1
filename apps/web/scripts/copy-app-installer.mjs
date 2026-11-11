@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const target = join(here, '..', 'public', 'downloads')
-const VERSION = '0.1.1'
+const VERSION = '0.1.2'
 const SETUP = `Silicium_${VERSION}_x64-setup.exe`
 const setup = resolve(here, '..', '..', 'desktop', 'src-tauri', 'target', 'release', 'bundle', 'nsis', SETUP)
 const CERTIFICATE = 'silicium-school-certificate.cer'

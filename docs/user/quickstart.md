@@ -3,7 +3,7 @@
 Pour un poste de travail (votre machine calcule) : installez l'application de bureau, liez la
 machine à votre compte, puis activez-la.
 
-1. Téléchargez `Silicium_0.1.1_x64-setup.exe` sur le site (ou le `.deb` / l'AppImage Linux), vérifiez
+1. Téléchargez `Silicium_0.1.2_x64-setup.exe` sur le site (ou le `.deb` / l'AppImage Linux), vérifiez
    sa somme SHA-256, puis installez-le.
 2. Sur le site, ouvrez **Machines**, générez un code de liaison, puis cliquez sur **Lier cette machine**.
    Détails : [desktop-app.md](desktop-app.md).

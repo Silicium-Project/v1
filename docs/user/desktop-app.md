@@ -4,7 +4,7 @@ L'application de bureau fait tourner **votre nœud** : elle calcule les tâches 
 confie, et vous montre ce que vous avez fait. Vous n'y soumettez pas de calcul : pour cela,
 utilisez le site web.
 
-> **Installeur Windows** (`Silicium_0.1.1_x64-setup.exe`) : téléchargeable sur le site. Il installe le
+> **Installeur Windows** (`Silicium_0.1.2_x64-setup.exe`) : téléchargeable sur le site. Il installe le
 > nœud, le moteur de rendu et le runtime ONNX (embedding). Vérifiez la somme SHA-256 publiée à côté
 > de l'installeur. Un avertissement SmartScreen peut apparaître : le certificat est celui du projet
 > étudiant. Sous Linux, les paquets `.deb` et AppImage contiennent la même chose.
