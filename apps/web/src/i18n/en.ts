@@ -235,7 +235,7 @@ export const en: Messages = {
     workloadSha256: 'SHA-256 digest of each fragment',
     workloadImage: 'Image batch: resize and re-encode',
     embeddingFileLabel: 'Files to embed',
-    embeddingFileHint: 'One file at a time, of any type. The text of each file is extracted in full in your browser (PDF, Word, PowerPoint, Excel, ZIP, text, HTML, CSV…); each line of text becomes a passage. 32 MB per file at most. The file never leaves your device.',
+    embeddingFileHint: 'One or more files, of any type. The text of each file is extracted in full in your browser (PDF, Word, PowerPoint, Excel, ZIP, text, HTML, CSV…); each line of text becomes a passage. 32 MB per file at most. The file never leaves your device.',
     embeddingFileBusy: 'Extracting text…',
     embeddingFilesChosen: 'Files: {names}',
     embeddingFileUnsupported: 'No text to extract from: {names}. Images and binary files are not supported.',

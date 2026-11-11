@@ -23,8 +23,11 @@ const router = useRouter()
 const rows = ref<PassageRow[]>([])
 /** Origine de chaque passage, dans l'ordre des passages du job. */
 const origins = ref<string[]>([])
-/** Nom du fichier source, lu sur la première origine (« lot.zip › a.md · ligne 1 » → « lot.zip »). */
-const fileName = computed(() => (origins.value[0] ?? '').split(' › ')[0]?.split(' · ')[0] ?? '')
+/** Noms des fichiers sources, sans doublon, lus sur les origines (« lot.zip › a.md · ligne 1 » → « lot.zip »). */
+const fileName = computed(() => {
+  const names = new Set(origins.value.map((origin) => origin.split(' › ')[0]?.split(' · ')[0] ?? '').filter((name) => name !== ''))
+  return [...names].join(', ')
+})
 const loading = ref(true)
 const error = ref('')
 const question = ref('')

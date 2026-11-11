@@ -10,7 +10,7 @@ describe('EmbeddingInput', () => {
     expect(wrapper.emitted('change')?.at(-1)).toEqual([null, 'empty'])
     expect(wrapper.find('textarea').exists()).toBe(false)
     const input = wrapper.get('input[type="file"]')
-    expect(input.attributes('multiple')).toBeUndefined()
+    expect(input.attributes('multiple')).toBeDefined()
     expect(input.attributes('accept')).toBeUndefined()
     wrapper.unmount()
   })
