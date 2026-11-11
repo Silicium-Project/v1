@@ -6,7 +6,7 @@ import { formatDateTime } from '@/i18n/format'
 import { getJob, listJobs, type JobSummary } from '@/api/endpoints'
 import { errorMessageKey, isSessionEnded } from '@/api/errors'
 import { currentToken, endSession } from '@/state/session'
-import { normalizeState } from '@/status'
+import { normalizeState, stateLabelKey } from '@/status'
 import { WORKLOADS } from '@/workloads/generated'
 import EmptyState from '@/components/EmptyState.vue'
 import Notice from '@/components/Notice.vue'
@@ -17,7 +17,7 @@ interface Info {
   workload: string
 }
 
-type SortKey = 'date' | 'status' | 'name' | 'type'
+type SortKey = 'date' | 'name' | 'type'
 
 const router = useRouter()
 const jobs = ref<JobSummary[]>([])
@@ -27,7 +27,9 @@ const error = ref('')
 const infos = ref<Record<string, Info>>({})
 const sortKey = ref<SortKey>('date')
 const descending = ref(true)
-/** Ordre d'affichage des états pour le tri par statut. */
+/** Filtre par statut : « all » ou un état normalisé. */
+const statusFilter = ref('all')
+/** Ordre d'affichage des états. */
 const STATE_ORDER = ['running', 'finalized', 'cancelled', 'expired', 'not_on_node', 'unknown']
 
 function infoOf(job: JobSummary): Info {
@@ -40,15 +42,14 @@ function typeLabel(workload: string): string {
   return spec ? t(spec.labelKey) : workload || t('jobs.unknownType')
 }
 
+/** Statuts présents dans la liste, dans l'ordre d'affichage. */
+const presentStates = computed(() => {
+  const seen = new Set(jobs.value.map((job) => infoOf(job).state))
+  return STATE_ORDER.filter((state) => seen.has(state))
+})
+
 function compare(a: JobSummary, b: JobSummary): number {
   switch (sortKey.value) {
-    case 'status': {
-      const rank = (job: JobSummary) => {
-        const index = STATE_ORDER.indexOf(infoOf(job).state)
-        return index === -1 ? STATE_ORDER.length : index
-      }
-      return rank(a) - rank(b)
-    }
     case 'name':
       return (a.label || '').localeCompare(b.label || '', 'fr')
     case 'type':
@@ -58,10 +59,12 @@ function compare(a: JobSummary, b: JobSummary): number {
   }
 }
 
-/** Liste triée : la clé choisie, puis la date la plus récente d'abord en cas d'égalité. */
-const sorted = computed(() => {
+/** Liste filtrée par statut et triée : la clé choisie, puis la date la plus récente d'abord en cas d'égalité. */
+const visible = computed(() => {
   const direction = descending.value ? -1 : 1
-  return [...jobs.value].sort((a, b) => direction * compare(a, b) || b.created_at.localeCompare(a.created_at))
+  return jobs.value
+    .filter((job) => statusFilter.value === 'all' || infoOf(job).state === statusFilter.value)
+    .sort((a, b) => direction * compare(a, b) || b.created_at.localeCompare(a.created_at))
 })
 
 async function loadInfos(token: string, list: JobSummary[]): Promise<void> {
@@ -117,20 +120,48 @@ onMounted(load)
 
     <template v-if="jobs.length > 0">
       <p class="muted">{{ t('jobs.count', { count: jobs.length }) }}</p>
-      <div class="jobs-sort">
-        <label for="jobs-sort">{{ t('jobs.sortBy') }}</label>
-        <select id="jobs-sort" v-model="sortKey" class="input">
-          <option value="date">{{ t('jobs.sort.date') }}</option>
-          <option value="status">{{ t('jobs.sort.status') }}</option>
-          <option value="name">{{ t('jobs.sort.name') }}</option>
-          <option value="type">{{ t('jobs.sort.type') }}</option>
-        </select>
-        <button type="button" class="btn" :aria-pressed="descending" @click="descending = !descending">
-          {{ descending ? t('jobs.order.desc') : t('jobs.order.asc') }}
-        </button>
+      <div class="jobs-bar">
+        <div class="jobs-sort">
+          <label for="jobs-sort">{{ t('jobs.sortBy') }}</label>
+          <select id="jobs-sort" v-model="sortKey" class="input">
+            <option value="date">{{ t('jobs.sort.date') }}</option>
+            <option value="name">{{ t('jobs.sort.name') }}</option>
+            <option value="type">{{ t('jobs.sort.type') }}</option>
+          </select>
+          <button
+            type="button"
+            class="btn jobs-arrow"
+            :aria-label="descending ? t('jobs.order.desc') : t('jobs.order.asc')"
+            :title="descending ? t('jobs.order.desc') : t('jobs.order.asc')"
+            @click="descending = !descending"
+          >
+            {{ descending ? '↓' : '↑' }}
+          </button>
+        </div>
+        <div class="jobs-filter" role="group" :aria-label="t('jobs.filter.label')">
+          <button
+            type="button"
+            class="btn"
+            :aria-pressed="statusFilter === 'all'"
+            @click="statusFilter = 'all'"
+          >
+            {{ t('jobs.filter.all') }}
+          </button>
+          <button
+            v-for="state in presentStates"
+            :key="state"
+            type="button"
+            class="btn"
+            :aria-pressed="statusFilter === state"
+            @click="statusFilter = state"
+          >
+            {{ t(stateLabelKey(state)) }}
+          </button>
+        </div>
       </div>
-      <ul class="list jobs-scroll" tabindex="0" :aria-label="t('jobs.title')">
-        <li v-for="job in sorted" :key="job.id">
+      <p v-if="visible.length === 0" class="muted" role="status">{{ t('jobs.filter.none') }}</p>
+      <ul v-else class="list jobs-scroll" tabindex="0" :aria-label="t('jobs.title')">
+        <li v-for="job in visible" :key="job.id">
           <RouterLink :to="{ name: 'job', params: { id: job.id } }" class="list__link">
             <span class="list__title">{{ job.label || t('jobs.noLabel') }}</span>
             <span class="list__meta">
@@ -146,7 +177,15 @@ onMounted(load)
 </template>
 
 <style scoped>
-.jobs-sort {
+.jobs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.jobs-sort,
+.jobs-filter {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -154,6 +193,9 @@ onMounted(load)
 }
 .jobs-sort select {
   width: auto;
+}
+.jobs-arrow {
+  min-width: 2.5rem;
 }
 .jobs-scroll {
   max-height: 36rem;

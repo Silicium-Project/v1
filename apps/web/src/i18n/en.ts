@@ -78,6 +78,7 @@ export const en: Messages = {
     sortBy: 'Sort by',
     sort: { date: 'Date', status: 'Status', name: 'Name', type: 'Task type' },
     order: { asc: 'Ascending', desc: 'Descending' },
+    filter: { label: 'Filter by status', all: 'All', none: 'No job with this status.' },
     open: 'View job',
   },
   job: {

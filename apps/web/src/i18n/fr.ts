@@ -78,6 +78,7 @@ export const fr = {
     sortBy: 'Trier par',
     sort: { date: 'Date', status: 'Statut', name: 'Nom', type: 'Type de calcul' },
     order: { asc: 'Croissant', desc: 'Décroissant' },
+    filter: { label: 'Filtrer par statut', all: 'Tous', none: 'Aucun calcul dans ce statut.' },
     open: 'Voir le calcul',
   },
   job: {
