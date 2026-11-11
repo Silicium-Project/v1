@@ -40,12 +40,17 @@ echo "== dépendances web et bureau (Linux)"
 (cd "$WORK/apps/desktop" && npm ci)
 
 echo "== build Tauri (deb, rpm et AppImage) : $TARGET"
+# Les sorties précédentes sont retirées : sinon un ancien paquet d'une autre version serait pris.
+rm -rf "$TARGET/release/bundle"
 (cd "$WORK/apps/desktop" && CARGO_TARGET_DIR="$TARGET" npm run build)
 
 BUNDLE="$TARGET/release/bundle"
-DEB_SRC="$(ls "$BUNDLE"/deb/*.deb | head -n 1)"
-RPM_SRC="$(ls "$BUNDLE"/rpm/*.rpm | head -n 1)"
-APP_SRC="$(ls "$BUNDLE"/appimage/*.AppImage | head -n 1)"
+DEB_SRC="$BUNDLE/deb/Silicium_${VERSION}_amd64.deb"
+RPM_SRC="$BUNDLE/rpm/Silicium-${VERSION}-1.x86_64.rpm"
+APP_SRC="$BUNDLE/appimage/Silicium_${VERSION}_amd64.AppImage"
+for file in "$DEB_SRC" "$RPM_SRC" "$APP_SRC"; do
+  test -f "$file" || { echo "paquet absent après build : $file" >&2; exit 1; }
+done
 
 # Le paquet de bureau ne contient pas sil-sandbox-launch (il est dans l'archive du nœud).
 CONTENT=("silicium-node" "sil-raytracer-block" "libonnxruntime.so")
