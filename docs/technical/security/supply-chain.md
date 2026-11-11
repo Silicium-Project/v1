@@ -43,6 +43,15 @@ Ce document liste ce qui entre dans un nœud ou un paquet, d'où ça vient, ce q
 - **Écart** : aucune signature détachée (GPG ou équivalente) sur les paquets et les sommes. C'est la
   phase 9 du plan.
 
+## Extraction de texte PDF (site, navigateur)
+
+- **Source** : npm `pdfjs-dist` 6.4.299 (Mozilla pdf.js, Apache-2.0), version exacte dans `apps/web/package.json`
+  et `package-lock.json` (résolution figée, `npm ci` en CI).
+- **Où ça tourne** : dans le navigateur de l'auteur de la demande, jamais sur un nœud. Le PDF ne quitte
+  pas l'appareil ; seul le texte extrait est envoyé, comme un fichier texte.
+- **Écart** : un PDF malveillant peut faire échouer le moteur dans l'onglet de l'auteur seulement. Le
+  worker est un fichier du site (`script-src 'self'` de l'application bureau le permet).
+
 ## Dépendances Rust et Go
 
 - `Cargo.lock` et `services/api/go.sum` committés ; CI en `--locked`. L'API Go a une seule dépendance

@@ -276,7 +276,7 @@ export const frSite = {
           id: 'embedding',
           title: 'Embeddings de texte',
           summary: 'Transforme chaque passage d’un lot de textes en un vecteur de 384 nombres (multilingual-e5-small). Les vecteurs comparent des textes par leur sens, dans plusieurs langues.',
-          input: 'Un fichier passages.txt : un passage par ligne, en UTF-8. Les lignes vides sont ignorées. 8 Mo au plus.',
+          input: 'Un texte par ligne (passages.txt, UTF-8), ou un fichier PDF, ZIP (PDF, TXT, MD), TXT ou MD : le texte est extrait dans le navigateur. Les lignes vides sont ignorées. 8 Mo de texte au plus, 32 Mo de fichier au plus.',
           options: 'Aucune. Le préfixe « passage: » du modèle est ajouté par le nœud.',
           output: 'Un vecteur de 384 nombres à virgule flottante 32 bits (1 536 octets) par passage, dans l’ordre du fichier. Un passage de plus de 512 tokens est tronqué.',
           verify: 'Tolérance : un vérificateur recalcule un échantillon de passages et compare chaque vecteur par cosinus. Un cosinus sous 0,999 est rejeté ; une fraude de 10 % est détectée avec une probabilité d’au moins 97 %.',

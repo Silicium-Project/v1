@@ -111,6 +111,14 @@ little-endian (1 536 octets). Un passage de plus de 512 tokens est tronqué.
   ou non fini est un rejet.
 - Le site construit le fichier (`apps/web/src/workloads/embedding.ts`, `passagesFile`) et refuse un
   texte vide ou trop gros avant envoi.
+- Le site accepte aussi un fichier PDF, ZIP, TXT ou MD. `apps/web/src/workloads/documents.ts` en extrait
+  le texte dans le navigateur, puis `passagesFile` construit `passages.txt`. Le nœud ne lit jamais de PDF
+  ni de ZIP : il reçoit toujours du texte, donc le descripteur, les hash et le programme on-chain ne
+  changent pas. Un ZIP ne lit que ses entrées `.pdf`, `.txt` et `.md` (sans ZIP imbriqué). Limites :
+  fichier 32 Mo, ZIP décompressé 32 Mo, texte 8 Mo. Un PDF sans couche de texte (scan) est refusé : pas
+  d'OCR. pdf.js (`pdfjs-dist` 6.4.299, épinglé) est chargé à la demande ; le worker est un fichier du site.
+  Limite : un PDF en CJK qui ne porte pas sa table de caractères peut sortir illisible (pas de cMap
+  servie).
 - Le nœud doit avoir ONNX Runtime 1.31.1 à côté du binaire (`runtime_library` dans
   `crates/sil-node/src/cli.rs`). Sans lui, le nœud n'offre pas le workload et journalise
   `embedding non offert par ce nœud`.

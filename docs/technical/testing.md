@@ -56,7 +56,9 @@ de référence, qui passe avec 1.31.1, confirme que la sortie est correcte.
   l'échantillon) n'a pas de test dédié.
 - **Lots** : `crates/sil-batch` (15 tests) et `crates/sil-wl-image` (18 tests) : format, options,
   vérification par image.
-- **Embedding côté site** : 4 tests (`embedding.test.ts`, `EmbeddingInput.test.ts`).
+- **Embedding côté site** : `embedding.test.ts`, `EmbeddingInput.test.ts`, `documents.test.ts` (ZIP, TXT,
+  formats refusés, limites), `pdf.test.ts` (lignes par page). L'extraction PDF réelle (pdf.js et son
+  worker) ne tourne pas sous happy-dom : elle a été vérifiée à la main dans le navigateur.
 - **Site** : contraste WCAG (`palette.ts`), i18n (parité fr/en), axe-core sur les pages de connexion,
   confidentialité et 404 ; `embedding.ts` (comptage, refus d'un texte vide ou trop gros) ;
   `EmbeddingInput.test.ts`.

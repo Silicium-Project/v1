@@ -21,6 +21,7 @@
     "@fontsource/geist-mono": "^5.2.0",
     "@solana/web3.js": "^1.99.0",
     "@tauri-apps/api": "^2.12.4",
+    "pdfjs-dist": "6.4.299",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

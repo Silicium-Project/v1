@@ -17,6 +17,7 @@ Statut (novembre 2026) : **implémenté et publié** (`embedding/e5-small`). Ce 
 
 Écarts avec la spec d'origine :
 - Un passage de plus de 512 tokens est **tronqué** (troncature du tokenizer, `MAX_TOKENS = 512`), pas découpé en chunks.
+- Entrée : un texte, ou un PDF, un ZIP, un TXT ou un MD. Les PDF et ZIP sont convertis en texte dans le navigateur (`documents.ts`) avant envoi ; le nœud reçoit toujours `passages.txt`. Les parseurs ne tournent donc pas sur les nœuds.
 - Le préfixe `passage: ` est ajouté par le nœud à chaque texte. Le site n'envoie pas de préfixe.
 - Le modèle (470 268 510 octets) n'est **pas** dans les paquets : le nœud le télécharge au premier démarrage et refuse tout fichier dont le hash diffère.
 
