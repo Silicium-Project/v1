@@ -1,0 +1,21 @@
+[package]
+name = "sil-wl-embed"
+description = "Workload d'embedding : vecteurs de texte (multilingual-e5-small), pooling et normalisation déterministes."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ort.workspace = true
+ort-sys = "=2.0.0-rc.2"
+sha2.workspace = true
+sil-crypto.workspace = true
+sil-sampling.workspace = true
+sil-types.workspace = true
+sil-workload-api.workspace = true
+sil-workload-spec.workspace = true
+thiserror.workspace = true
+tokenizers.workspace = true
+
+[lints]
+workspace = true

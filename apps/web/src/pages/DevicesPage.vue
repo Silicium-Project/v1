@@ -176,6 +176,22 @@ onMounted(load)
                 ·
                 {{ t('devices.telemetryDone', { done: device.telemetry.tasks_finalized, other: device.telemetry.tasks_other }) }}
               </p>
+              <p v-if="device.telemetry.reputation_score != null" class="muted">
+                {{ t('devices.telemetryReputation', {
+                  score: (device.telemetry.reputation_score * 100).toFixed(0) + ' %',
+                  good: device.telemetry.reputation_good ?? 0,
+                  bad: device.telemetry.reputation_bad ?? 0,
+                }) }}
+              </p>
+              <p v-else class="muted">{{ t('devices.telemetryNoReputation') }}</p>
+              <p v-if="device.telemetry.fragments_settled" class="muted">
+                {{ t('devices.telemetryRewards', {
+                  worker: (device.telemetry.worker_lamports ?? 0).toLocaleString(),
+                  verifier: (device.telemetry.verifier_lamports ?? 0).toLocaleString(),
+                  count: device.telemetry.fragments_settled,
+                }) }}
+              </p>
+              <p v-else class="muted">{{ t('devices.telemetryNoRewards') }}</p>
               <p class="muted">
                 {{ t('devices.telemetryVersion', { version: device.telemetry.version, cores: device.telemetry.cpu_cores }) }}
               </p>

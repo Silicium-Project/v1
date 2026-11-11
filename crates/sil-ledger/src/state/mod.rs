@@ -88,6 +88,55 @@ impl JobParts<'_> {
             .collect()
     }
 
+    /// Approbations tolérance de vérificateurs retenus, pour bâtir un certificat tolérance.
+    pub(crate) fn tolerance_approvals(
+        &self,
+        fragment: u32,
+        attempt: u32,
+        now_ms: u64,
+    ) -> Vec<sil_attest::ToleranceAttestation> {
+        let state = self.task_state(fragment, now_ms);
+        let Some(current) = attempt
+            .checked_sub(1)
+            .and_then(|index| state.attempts.get(index as usize))
+        else {
+            return Vec::new();
+        };
+        let Some(result) = &current.result else {
+            return Vec::new();
+        };
+        let approvers: BTreeSet<PublicKey> = current
+            .verifiers
+            .iter()
+            .filter(|v| v.verdict == Some(true))
+            .map(|v| v.verifier)
+            .collect();
+        let mut found: BTreeMap<PublicKey, (u64, sil_attest::ToleranceAttestation)> =
+            BTreeMap::new();
+        for event in self.events.values() {
+            let EventBody::AttestTolerance { attestation } = &event.body else {
+                continue;
+            };
+            let body = &attestation.body;
+            let relevant = body.task.fragment == fragment
+                && body.attempt == attempt
+                && body.result == result.result
+                && body.approved
+                && approvers.contains(&event.author)
+                && !self.equivocators.contains(&event.author);
+            let earlier = found
+                .get(&event.author)
+                .is_none_or(|(sequence, _)| event.sequence < *sequence);
+            if relevant && earlier {
+                found.insert(event.author, (event.sequence, attestation.clone()));
+            }
+        }
+        found
+            .into_values()
+            .map(|(_, attestation)| attestation)
+            .take(sil_attest::MAX_APPROVALS)
+            .collect()
+    }
     pub(crate) fn open_claims(&self, fragment: u32, now_ms: u64) -> Vec<OpenOffer> {
         let view = self.view();
         let state = task::derive_task(&view, fragment, now_ms);

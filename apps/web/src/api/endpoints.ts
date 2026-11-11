@@ -32,6 +32,12 @@ export interface DeviceTelemetry {
   tasks_in_progress: number
   tasks_finalized: number
   tasks_other: number
+  reputation_score?: number | null
+  reputation_good?: number | null
+  reputation_bad?: number | null
+  worker_lamports?: number
+  verifier_lamports?: number
+  fragments_settled?: number
 }
 
 export interface Device {

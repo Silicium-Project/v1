@@ -15,7 +15,6 @@ use super::{
     types::Finalized,
 };
 use crate::EventBody;
-use sil_attest::Certificate;
 use sil_types::{Hash32, PublicKey};
 use std::collections::BTreeSet;
 
@@ -24,7 +23,12 @@ pub(super) fn find(view: &View<'_>, events: &[Ev<'_>]) -> Option<Finalized> {
     let mut finals: Vec<Ev<'_>> = events
         .iter()
         .copied()
-        .filter(|(_, e)| matches!(e.body, EventBody::Finalize { .. }))
+        .filter(|(_, e)| {
+            matches!(
+                e.body,
+                EventBody::Finalize { .. } | EventBody::FinalizeTolerance { .. }
+            )
+        })
         .collect();
     by_time(&mut finals);
     finals.into_iter().find_map(|(_, event)| match &event.body {
@@ -35,21 +39,80 @@ pub(super) fn find(view: &View<'_>, events: &[Ev<'_>]) -> Option<Finalized> {
             submit,
             verifiers,
             certificate,
-        } => certified(
-            view,
-            events,
-            Designated {
-                fragment: *fragment,
-                attempt: *attempt,
-                claim: *claim,
-                submit: *submit,
-                verifiers,
-            },
+        } => {
+            let facts: Vec<Fact> = certificate
+                .approvals
+                .iter()
+                .map(|a| Fact {
+                    verifier: a.verifier,
+                    fragment: a.body.task.fragment,
+                    attempt: a.body.attempt,
+                    result: a.body.result,
+                    approved: a.body.approved,
+                })
+                .collect();
+            certified(
+                view,
+                events,
+                Designated {
+                    fragment: *fragment,
+                    attempt: *attempt,
+                    claim: *claim,
+                    submit: *submit,
+                    verifiers,
+                },
+                certificate.result,
+                &facts,
+                required,
+            )
+        }
+        EventBody::FinalizeTolerance {
+            fragment,
+            attempt,
+            claim,
+            submit,
+            verifiers,
             certificate,
-            required,
-        ),
+        } => {
+            let facts: Vec<Fact> = certificate
+                .approvals
+                .iter()
+                .map(|a| Fact {
+                    verifier: a.verifier,
+                    fragment: a.body.task.fragment,
+                    attempt: a.body.attempt,
+                    result: a.body.result,
+                    approved: a.body.approved,
+                })
+                .collect();
+            certified(
+                view,
+                events,
+                Designated {
+                    fragment: *fragment,
+                    attempt: *attempt,
+                    claim: *claim,
+                    submit: *submit,
+                    verifiers,
+                },
+                certificate.result,
+                &facts,
+                required,
+            )
+        }
         _ => None,
     })
+}
+
+/// Une approbation réduite à ce que reste la finalisation : qui, sur quoi, et quel verdict.
+/// Valable pour le mode exact comme pour le mode tolérance (la vérification fine est faite à la
+/// réception de l'événement).
+struct Fact {
+    verifier: PublicKey,
+    fragment: u32,
+    attempt: u32,
+    result: Hash32,
+    approved: bool,
 }
 
 /// Ce que désigne un `Finalize`.
@@ -66,7 +129,8 @@ fn certified(
     view: &View<'_>,
     events: &[Ev<'_>],
     designated: Designated<'_>,
-    certificate: &Certificate,
+    certified_result: Hash32,
+    facts: &[Fact],
     required: usize,
 ) -> Option<Finalized> {
     let Designated {
@@ -93,7 +157,7 @@ fn certified(
     };
     if *submitted_fragment != fragment
         || *submitted_attempt != k
-        || *result != certificate.result
+        || *result != certified_result
         || submit.author != claim.author
         || submit.issued_at_ms < claim.issued_at_ms
     {
@@ -116,15 +180,9 @@ fn certified(
         })
         .map(|(_, offer)| offer.author)
         .collect();
-    let approvers: BTreeSet<PublicKey> = certificate
-        .approvals
+    let approvers: BTreeSet<PublicKey> = facts
         .iter()
-        .filter(|a| {
-            a.body.task.fragment == fragment
-                && a.body.attempt == k
-                && a.body.result == *result
-                && a.body.approved
-        })
+        .filter(|a| a.fragment == fragment && a.attempt == k && a.result == *result && a.approved)
         .map(|a| a.verifier)
         .filter(|verifier| designated.contains(verifier))
         .collect();

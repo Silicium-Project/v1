@@ -1,6 +1,6 @@
 use crate::{LedgerError, SignedJobSpec};
 use serde::{Deserialize, Serialize};
-use sil_attest::{Attestation, Certificate};
+use sil_attest::{Attestation, Certificate, ToleranceAttestation, ToleranceCertificate};
 use sil_types::{Hash32, JobId, TaskRef};
 
 /// Plus grand numéro de tentative.
@@ -30,6 +30,17 @@ pub enum EventBody {
     VerifyOffer { fragment: u32, attempt: u32 },
     /// Vérificateur accepté : verdict signé.
     Attest { attestation: Attestation },
+    /// Vérificateur accepté, mode tolérance (embedding) : verdict signé par cosinus.
+    AttestTolerance { attestation: ToleranceAttestation },
+    /// Certificat en mode tolérance : même désignation que `Finalize`, approbations tolérance.
+    FinalizeTolerance {
+        fragment: u32,
+        attempt: u32,
+        claim: Hash32,
+        submit: Hash32,
+        verifiers: Vec<Hash32>,
+        certificate: ToleranceCertificate,
+    },
     /// Tout pair : certifie un résultat (ADR 0005, phases 3-4). `claim` et `submit` désignent le
     /// claim et le résultat de l'auteur ; `verifiers` désigne les offres des vérificateurs qui
     /// approuvent, et le certificat porte leurs approbations. La validité ne lit que ces
@@ -55,8 +66,10 @@ impl EventBody {
             | Self::Release { fragment, .. }
             | Self::Submit { fragment, .. }
             | Self::VerifyOffer { fragment, .. }
-            | Self::Finalize { fragment, .. } => Some(*fragment),
+            | Self::Finalize { fragment, .. }
+            | Self::FinalizeTolerance { fragment, .. } => Some(*fragment),
             Self::Attest { attestation } => Some(attestation.body.task.fragment),
+            Self::AttestTolerance { attestation } => Some(attestation.body.task.fragment),
             Self::JobPublished { .. } | Self::Cancel => None,
         }
     }
@@ -69,8 +82,10 @@ impl EventBody {
             | Self::Release { attempt, .. }
             | Self::Submit { attempt, .. }
             | Self::VerifyOffer { attempt, .. }
-            | Self::Finalize { attempt, .. } => Some(*attempt),
+            | Self::Finalize { attempt, .. }
+            | Self::FinalizeTolerance { attempt, .. } => Some(*attempt),
             Self::Attest { attestation } => Some(attestation.body.attempt),
+            Self::AttestTolerance { attestation } => Some(attestation.body.attempt),
             Self::JobPublished { .. } | Self::Cancel => None,
         }
     }
@@ -96,7 +111,22 @@ impl EventBody {
             {
                 Err(LedgerError::InvalidEvent("certificat incohérent"))
             }
-            Self::Finalize { verifiers, .. } if verifiers.len() > sil_attest::MAX_APPROVALS => {
+            Self::AttestTolerance { attestation } if attestation.body.task.job != *job => {
+                Err(LedgerError::InvalidEvent("attestation d'un autre job"))
+            }
+            Self::FinalizeTolerance {
+                fragment,
+                attempt,
+                certificate,
+                ..
+            } if certificate.task != TaskRef::new(*job, *fragment)
+                || certificate.attempt != *attempt =>
+            {
+                Err(LedgerError::InvalidEvent("certificat incohérent"))
+            }
+            Self::Finalize { verifiers, .. } | Self::FinalizeTolerance { verifiers, .. }
+                if verifiers.len() > sil_attest::MAX_APPROVALS =>
+            {
                 Err(LedgerError::InvalidEvent("trop de vérificateurs désignés"))
             }
             _ => Ok(()),

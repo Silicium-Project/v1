@@ -26,7 +26,9 @@ pub fn kind_of(body: &EventBody) -> &'static str {
         EventBody::Submit { .. } => "submit",
         EventBody::VerifyOffer { .. } => "verify_offer",
         EventBody::Attest { .. } => "attest",
+        EventBody::AttestTolerance { .. } => "attest_tolerance",
         EventBody::Finalize { .. } => "finalize",
+        EventBody::FinalizeTolerance { .. } => "finalize_tolerance",
         EventBody::Cancel => "cancel",
     }
 }

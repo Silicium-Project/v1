@@ -25,6 +25,7 @@ sil-models = { path = "crates/sil-models" }
 sil-net = { path = "crates/sil-net" }
 sil-transfer = { path = "crates/sil-transfer" }
 sil-sampling = { path = "crates/sil-sampling" }
+sil-wl-embed = { path = "crates/sil-wl-embed" }
 sil-workload-api = { path = "crates/sil-workload-api" }
 sil-wl-sha256 = { path = "crates/sil-wl-sha256" }
 sil-wl-render = { path = "crates/sil-wl-render" }
@@ -37,11 +38,14 @@ sil-reputation = { path = "crates/sil-reputation" }
 sil-chain-core = { path = "crates/sil-chain-core" }
 sil-raytracer = { path = "crates/sil-raytracer" }
 sil-workload-spec = { path = "crates/sil-workload-spec" }
+sil-model = { path = "crates/sil-model" }
 sil-settlement = { path = "crates/sil-settlement" }
 sil-control-api = { path = "crates/sil-control-api" }
 sil-node = { path = "crates/sil-node" }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+ort = { version = "=2.0.0-rc.2", default-features = false, features = ["load-dynamic", "ndarray"] }
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 ciborium = "0.2"
 ed25519-dalek = "2"
 sha2 = "0.10"

@@ -21,7 +21,8 @@ const BUNDLES = [
   {
     platform: 'linux-x86_64',
     source: join(root, 'dist', 'linux-amd64'),
-    binaries: ['silicium-node', 'sil-raytracer-block', 'sil-sandbox-launch'],
+    // libonnxruntime.so : runtime de l'embedding, cherché à côté de silicium-node (cli.rs).
+    binaries: ['silicium-node', 'sil-raytracer-block', 'sil-sandbox-launch', 'libonnxruntime.so'],
     archive: 'silicium-node-linux-amd64.tar.gz',
     engine: './sil-raytracer-block',
     readme: `Nœud Silicium, paquet Linux x86-64.
@@ -36,7 +37,7 @@ La clé du nœud est créée dans data/node.seed : sauvegardez-la, elle porte vo
   {
     platform: 'windows-x86_64',
     source: join(root, 'dist', 'windows-amd64'),
-    binaries: ['silicium-node.exe', 'sil-raytracer-block.exe'],
+    binaries: ['silicium-node.exe', 'sil-raytracer-block.exe', 'onnxruntime.dll'],
     archive: 'silicium-node-windows-x86_64.zip',
     engine: './sil-raytracer-block.exe',
     readme: `Nœud Silicium, paquet Windows x86-64.

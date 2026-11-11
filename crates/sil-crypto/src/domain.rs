@@ -12,6 +12,8 @@ pub enum Domain {
     JobSpec,
     /// Attestation d'un vérificateur.
     Attestation,
+    /// Attestation d'un vérificateur en mode tolérance (embedding).
+    AttestationTolerance,
     /// Certificat de finalisation.
     Certificate,
     /// Graine d'échantillonnage d'un vérificateur.
@@ -33,6 +35,7 @@ impl Domain {
             Self::JobId => "sil/v1/job-id",
             Self::JobSpec => "sil/v1/job-spec",
             Self::Attestation => "sil/v1/attestation",
+            Self::AttestationTolerance => "sil/v1/attestation-tolerance",
             Self::Certificate => "sil/v1/certificate",
             Self::Sampling => "sil/v1/sampling",
             Self::Settlement => "sil/v1/settlement",

@@ -24,6 +24,34 @@ pub const CALCUL_SHA256: Spec = Spec {
     deposit_supported: true,
 };
 
+/// `embedding/e5-small` : Une unité = un octet de l'entrée. L'entrée est un lot de textes (un texte par ligne, découpé en chunks de 512 tokens au plus). Chaque chunk reçoit son vecteur à 384 dimensions (multilingual-e5-small, fp32, préfixe « passage: »). Vérification par tolérance : un vérificateur recalcule un échantillon de chunks et compare chaque vecteur par cosinus.
+pub const EMBEDDING_E5_SMALL: Spec = Spec {
+    id: "embedding/e5-small",
+    unit: Unit::BytesInput,
+    label_key: "submit.workloadEmbedding",
+    params: &[],
+    max_input_bytes: 8388608,
+    max_side: 0,
+    block_rows: 0,
+    max_fragments: 16,
+    target_size: 262144,
+    reward_per_unit: 100,
+    verifier_reward_per_unit: 10,
+    verification: Verification::SamplingTolerance {
+        min_cheat_fraction: 0.1,
+        target_detection: 0.97,
+        cos_min: 0.999,
+        model_sha256: "ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665",
+        ort_version: "1.31.1",
+    },
+    limits: Limits {
+        wall_ms: 300000,
+        memory_bytes: 1073741824,
+        output_bytes: 67108864,
+    },
+    deposit_supported: true,
+};
+
 /// `image/batch` : Une unité = un octet de l'entrée. L'entrée est un lot d'images (conteneur SILBATCH) : chaque image est redimensionnée et réencodée (PNG ou JPEG). Chaque fragment est une plage d'images, dont le résultat est publié ; un vérificateur refait le traitement de la plage.
 pub const IMAGE_BATCH: Spec = Spec {
     id: "image/batch",
@@ -75,4 +103,4 @@ pub const RENDU_RAYTRACER: Spec = Spec {
 };
 
 /// Tous les descripteurs, triés par identifiant.
-pub const ALL: &[Spec] = &[CALCUL_SHA256, IMAGE_BATCH, RENDU_RAYTRACER];
+pub const ALL: &[Spec] = &[CALCUL_SHA256, EMBEDDING_E5_SMALL, IMAGE_BATCH, RENDU_RAYTRACER];

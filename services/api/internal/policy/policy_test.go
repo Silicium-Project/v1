@@ -56,7 +56,7 @@ func TestUnknownWorkloadIsRefused(t *testing.T) {
 
 func TestWorkloadIDsListTheOpenDescriptors(t *testing.T) {
 	ids := WorkloadIDs()
-	if len(ids) != 3 || ids[0] != sha256ID || ids[1] != "image/batch" || ids[2] != renderID {
+	if len(ids) != 4 || ids[0] != sha256ID || ids[1] != "embedding/e5-small" || ids[2] != "image/batch" || ids[3] != renderID {
 		t.Fatalf("identifiants : %v", ids)
 	}
 }

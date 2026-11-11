@@ -21,7 +21,7 @@ const outputs = {
 
 const SCHEMA = 'silicium.workload/v1'
 const UNITS = ['bytes_input', 'pixels_band']
-const POLICIES = ['recompute', 'sampling']
+const POLICIES = ['recompute', 'sampling', 'sampling_tolerance']
 const DEPOSITS = ['supported', 'unsupported']
 // Paramètres que la spec du job sait porter (ledger `JobSpec.width` / `height`).
 const PARAMS = ['width', 'height']
@@ -41,6 +41,18 @@ function fraction(value, file, name) {
   if (typeof value !== 'number' || !(value > 0 && value < 1)) {
     fail(file, `${name} : nombre strictement entre 0 et 1 attendu`)
   }
+  return value
+}
+
+function sha256Hex(value, file) {
+  if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
+    fail(file, 'model_sha256 : 64 caractères hexadécimaux minuscules attendus')
+  }
+  return value
+}
+
+function nonEmpty(value, file, name) {
+  if (typeof value !== 'string' || value.trim() === '') fail(file, `${name} : texte non vide attendu`)
   return value
 }
 
@@ -71,7 +83,8 @@ export function normalize(raw, file) {
 
   const policy = raw.verification?.policy
   if (!POLICIES.includes(policy)) fail(file, `politique de vérification inconnue : ${policy}`)
-  const sampling = policy === 'sampling'
+  const tolerance = policy === 'sampling_tolerance'
+  const sampling = policy === 'sampling' || tolerance
   if (!sampling && Object.keys(raw.verification ?? {}).length !== 1) {
     fail(file, 'politique recompute sans paramètres')
   }
@@ -96,6 +109,9 @@ export function normalize(raw, file) {
     policy,
     minCheatFraction: sampling ? fraction(raw.verification.min_cheat_fraction, file, 'min_cheat_fraction') : 0,
     targetDetection: sampling ? fraction(raw.verification.target_detection, file, 'target_detection') : 0,
+    cosMin: tolerance ? fraction(raw.verification.cos_min, file, 'cos_min') : 0,
+    modelSha256: tolerance ? sha256Hex(raw.verification.model_sha256, file) : '',
+    ortVersion: tolerance ? nonEmpty(raw.verification.ort_version, file, 'ort_version') : '',
     wallMs: integer(raw.limits?.wall_ms, file, 'limits.wall_ms', 1),
     memoryBytes: integer(raw.limits?.memory_bytes, file, 'limits.memory_bytes', 1),
     outputBytes: integer(raw.limits?.output_bytes, file, 'limits.output_bytes', 1),

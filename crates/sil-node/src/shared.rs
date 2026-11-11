@@ -35,6 +35,9 @@ pub(crate) struct WorkBook {
     pub(crate) verifying: BTreeSet<(JobId, u32, u32)>,
     /// Vérifications en cours d'exécution (le rendu tourne), au plus `VERIFY_PARALLEL`.
     pub(crate) verify_running: BTreeSet<(JobId, u32, u32)>,
+    /// Instant où ce nœud peut publier le Finalize d'une tentative (job, fragment, tentative).
+    /// Le premier rang publie tout de suite ; les suivants attendent leur tour (voir finalize_loop).
+    pub(crate) finalize_ready: BTreeMap<(JobId, u32, u32), u64>,
     /// Tentatives déjà comptées dans la réputation (job, fragment, tentative).
     pub(crate) observed: BTreeSet<(JobId, u32, u32)>,
     /// Verdicts déjà comptés dans la réputation de vérificateur (job, fragment, tentative, pair).

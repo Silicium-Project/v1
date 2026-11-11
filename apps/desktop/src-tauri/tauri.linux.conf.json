@@ -1,9 +1,10 @@
 {
   "build": {
-    "beforeBuildCommand": "node scripts/prepare-sidecars.mjs",
+    "beforeBuildCommand": "node scripts/prepare-sidecars.mjs && node scripts/prepare-runtime.mjs",
     "beforeBundleCommand": null
   },
   "bundle": {
-    "targets": ["appimage", "deb"]
+    "targets": ["appimage", "deb"],
+    "resources": { "resources/onnxruntime.dll": null, "resources/libonnxruntime.so": "libonnxruntime.so" }
   }
 }

@@ -25,7 +25,7 @@ pub use input::{InputReader, MemoryInput};
 pub use output::{FragmentSpec, Output};
 pub use policy::{Limits, VerificationPolicy};
 pub use registry::Registry;
-pub use workload::Workload;
+pub use workload::{ToleranceJudgement, Workload};
 
 #[cfg(test)]
 mod tests;

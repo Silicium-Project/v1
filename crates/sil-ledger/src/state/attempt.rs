@@ -225,6 +225,11 @@ fn verdict(events: &[Ev<'_>], verifier: &PublicKey, k: u32, result: &Hash32) -> 
             {
                 Some((e.sequence, attestation.body.approved))
             }
+            EventBody::AttestTolerance { attestation }
+                if attestation.body.attempt == k && attestation.body.result == *result =>
+            {
+                Some((e.sequence, attestation.body.approved))
+            }
             _ => None,
         })
         .min_by_key(|(sequence, _)| *sequence)

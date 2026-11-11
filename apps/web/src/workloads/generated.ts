@@ -7,6 +7,7 @@ export type WorkloadUnit = 'bytes_input' | 'pixels_band'
 export type WorkloadVerification =
   | { policy: 'recompute' }
   | { policy: 'sampling'; minCheatFraction: number; targetDetection: number }
+  | { policy: 'sampling_tolerance'; minCheatFraction: number; targetDetection: number; cosMin: number; modelSha256: string; ortVersion: string }
 
 export interface WorkloadSpec {
   id: string
@@ -43,6 +44,23 @@ export const WORKLOADS: readonly WorkloadSpec[] = [
     verifierRewardPerUnit: 10,
     verification: { policy: 'recompute' },
     limits: { wallMs: 120000, memoryBytes: 67108864, outputBytes: 32 },
+    depositSupported: true,
+  },
+  {
+    id: "embedding/e5-small",
+    unit: "bytes_input",
+    description: "Une unité = un octet de l'entrée. L'entrée est un lot de textes (un texte par ligne, découpé en chunks de 512 tokens au plus). Chaque chunk reçoit son vecteur à 384 dimensions (multilingual-e5-small, fp32, préfixe « passage: »). Vérification par tolérance : un vérificateur recalcule un échantillon de chunks et compare chaque vecteur par cosinus.",
+    labelKey: "submit.workloadEmbedding",
+    params: [],
+    maxInputBytes: 8388608,
+    maxSide: 0,
+    blockRows: 0,
+    maxFragments: 16,
+    targetSize: 262144,
+    rewardPerUnit: 100,
+    verifierRewardPerUnit: 10,
+    verification: { policy: 'sampling_tolerance', minCheatFraction: 0.1, targetDetection: 0.97, cosMin: 0.999, modelSha256: "ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665", ortVersion: "1.31.1" },
+    limits: { wallMs: 300000, memoryBytes: 1073741824, outputBytes: 67108864 },
     depositSupported: true,
   },
   {

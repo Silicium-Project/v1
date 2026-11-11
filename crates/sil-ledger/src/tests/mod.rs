@@ -6,5 +6,6 @@ mod ordering;
 mod quotas;
 mod security;
 mod support;
+mod tolerance;
 mod vectors;
 mod verdicts;

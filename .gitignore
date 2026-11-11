@@ -35,6 +35,8 @@ apps/web/public/downloads/
 
 # Binaires embarqués dans l'application de bureau, copiés par apps/desktop/scripts/prepare-sidecars.mjs
 apps/desktop/src-tauri/binaries/
+# Runtime ONNX copié par apps/desktop/scripts/prepare-runtime.mjs
+apps/desktop/src-tauri/resources/
 
 infra/sim/.node-*.hex
 infra/sim/.node-*.addr

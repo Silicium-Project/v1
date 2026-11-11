@@ -1,3 +1,11 @@
+/// Résultat d'un verdict par tolérance : le plus petit cosinus observé et la racine qui engage les
+/// vecteurs recalculés (elle sert de preuve dans le message signé).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToleranceJudgement {
+    pub min_cos_micro: i32,
+    pub sample_root: sil_types::Hash32,
+}
+
 use crate::{
     FragmentSpec, InputReader, Limits, Output, Verdict, VerificationPolicy, WorkloadError,
 };
@@ -49,6 +57,19 @@ pub trait Workload: Send + Sync {
         output: &Output,
         sample: &[u32],
     ) -> Result<Verdict, WorkloadError>;
+
+    /// Verdict par tolérance (mode `SamplingTolerance`, embedding) : recalcule les blocs tirés et
+    /// rend le cosinus minimal observé, en millionièmes, avec une racine qui engage les vecteurs
+    /// recalculés. Par défaut : non supporté.
+    fn verify_tolerance(
+        &self,
+        _input: &dyn InputReader,
+        _spec: &FragmentSpec,
+        _output: &Output,
+        _sample: &[u32],
+    ) -> Result<ToleranceJudgement, WorkloadError> {
+        Err(WorkloadError::Unsupported)
+    }
 
     /// Assemble les résultats des fragments (dans l'ordre) en résultat du job.
     fn combine(&self, _outputs: &[Output]) -> Result<Vec<u8>, WorkloadError> {

@@ -90,6 +90,16 @@ fn snapshot(shared: &Shared, system: &System) -> Value {
         "tasks_in_progress": report["in_progress"].as_array().map_or(0, Vec::len),
         "tasks_finalized": totals["finalized"],
         "tasks_other": totals["other"],
+        "reputation": {
+            "score": report["reputation_derived"]["score"],
+            "good": report["reputation_derived"]["evidence"]["successes"],
+            "bad": report["reputation_derived"]["evidence"]["failures"],
+        },
+        "earnings": {
+            "worker_lamports": report["earnings"]["worker_lamports"],
+            "verifier_lamports": report["earnings"]["verifier_lamports"],
+            "fragments_settled": report["earnings"]["fragments_settled"],
+        },
     })
 }
 

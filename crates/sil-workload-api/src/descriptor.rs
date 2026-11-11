@@ -24,6 +24,19 @@ pub fn policy_of(spec: &Spec) -> VerificationPolicy {
             min_cheat_fraction,
             target_detection,
         },
+        Verification::SamplingTolerance {
+            min_cheat_fraction,
+            target_detection,
+            cos_min,
+            model_sha256,
+            ort_version,
+        } => VerificationPolicy::SamplingTolerance {
+            min_cheat_fraction,
+            target_detection,
+            cos_min,
+            model_sha256,
+            ort_version,
+        },
     }
 }
 
@@ -46,6 +59,16 @@ mod tests {
                 target_detection: 0.99,
             }
         );
+    }
+
+    #[test]
+    fn embedding_is_verified_by_tolerance_with_the_descriptor_pins() {
+        let policy = policy_of(&sil_workload_spec::EMBEDDING_E5_SMALL);
+        assert!(matches!(
+            policy,
+            VerificationPolicy::SamplingTolerance { cos_min, ort_version, .. }
+                if cos_min == 0.999 && ort_version == "1.31.1"
+        ));
     }
 
     #[test]

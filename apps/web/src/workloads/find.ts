@@ -10,3 +10,7 @@ export function isImageSide(value: number, spec: WorkloadSpec): boolean {
   return Number.isInteger(value) && value >= 1 && value <= spec.maxSide
 }
 
+
+// Workloads the site offers for a new job. embedding/e5-small stays closed until a node runs it.
+export const CLOSED_WORKLOADS: readonly string[] = []
+export const OPEN_WORKLOADS: readonly WorkloadSpec[] = WORKLOADS.filter((spec) => !CLOSED_WORKLOADS.includes(spec.id))

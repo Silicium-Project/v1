@@ -28,16 +28,31 @@ var (
 
 // telemetryPayload is what a machine reports about itself. Unknown fields are refused.
 type telemetryPayload struct {
-	ObservedAtMs    int64   `json:"observed_at_ms"`
-	Version         string  `json:"version"`
-	CPUPct          float64 `json:"cpu_pct"`
-	MemPct          float64 `json:"mem_pct"`
-	CPUCores        int     `json:"cpu_cores"`
-	Roles           roles   `json:"roles"`
-	TasksActive     int     `json:"tasks_active"`
-	TasksInProgress int     `json:"tasks_in_progress"`
-	TasksFinalized  uint64  `json:"tasks_finalized"`
-	TasksOther      uint64  `json:"tasks_other"`
+	ObservedAtMs    int64      `json:"observed_at_ms"`
+	Version         string     `json:"version"`
+	CPUPct          float64    `json:"cpu_pct"`
+	MemPct          float64    `json:"mem_pct"`
+	CPUCores        int        `json:"cpu_cores"`
+	Roles           roles      `json:"roles"`
+	TasksActive     int        `json:"tasks_active"`
+	TasksInProgress int        `json:"tasks_in_progress"`
+	TasksFinalized  uint64     `json:"tasks_finalized"`
+	TasksOther      uint64     `json:"tasks_other"`
+	Reputation      reputation `json:"reputation"`
+	Earnings        earnings   `json:"earnings"`
+}
+
+// reputation and earnings are optional: a node that predates them does not send them.
+type reputation struct {
+	Score *float64 `json:"score"`
+	Good  *float64 `json:"good"`
+	Bad   *float64 `json:"bad"`
+}
+
+type earnings struct {
+	WorkerLamports   *uint64 `json:"worker_lamports"`
+	VerifierLamports *uint64 `json:"verifier_lamports"`
+	FragmentsSettled *uint64 `json:"fragments_settled"`
 }
 
 type roles struct {
@@ -84,6 +99,10 @@ func (s *Service) ReportTelemetry(publicKeyHex, payload, signatureHex string) er
 		Compute: in.Roles.Compute, Verify: in.Roles.Verify,
 		TasksActive: in.TasksActive, TasksInProgress: in.TasksInProgress,
 		TasksFinalized: in.TasksFinalized, TasksOther: in.TasksOther,
+		ReputationScore: finiteOrNil(in.Reputation.Score), ReputationGood: finiteOrNil(in.Reputation.Good),
+		ReputationBad:  finiteOrNil(in.Reputation.Bad),
+		WorkerLamports: in.Earnings.WorkerLamports, VerifierLamports: in.Earnings.VerifierLamports,
+		FragmentsSettled: in.Earnings.FragmentsSettled,
 	}
 	err = s.store.SetTelemetry(publicKeyHex, report)
 	switch {
@@ -93,6 +112,14 @@ func (s *Service) ReportTelemetry(publicKeyHex, payload, signatureHex string) er
 		return ErrStaleReport
 	}
 	return err
+}
+
+// finiteOrNil keeps a reported number only when it is a usable value (not NaN or infinite).
+func finiteOrNil(value *float64) *float64 {
+	if value == nil || math.IsNaN(*value) || math.IsInf(*value, 0) {
+		return nil
+	}
+	return value
 }
 
 func validPercent(value float64) bool {

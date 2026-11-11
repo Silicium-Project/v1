@@ -16,10 +16,12 @@
 mod draw;
 mod math;
 mod seed;
+mod tolerance;
 
 pub use draw::sample_indices;
 pub use math::{detection_probability, samples_needed};
 pub use seed::{SamplingSeed, SeedError, challenge_message};
+pub use tolerance::{accepts, cosine};
 
 #[cfg(test)]
 mod tests;

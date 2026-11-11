@@ -1,0 +1,98 @@
+name: deliver
+# Branche dev : build puis déploiement sur l'environnement development (site et nœud de test).
+# Branche main : build puis déploiement sur l'environnement production. Même chaîne, deux cibles.
+on:
+  push:
+    branches: [dev, main]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: deliver-${{ github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust stable (rustup préinstallé sur le runner, pas d'action tierce)
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+      - name: Runtime ONNX Runtime 1.31.1 (épinglé, hash vérifié)
+        run: python3 tools/runtime/fetch_onnxruntime.py linux dist/linux-amd64
+      - name: Nœud, sandbox, moteur de rendu, API
+        run: |
+          mkdir -p dist/linux-amd64
+          cargo build --release --locked --manifest-path chain/node/Cargo.toml
+          cp chain/node/target/release/silicium-node dist/linux-amd64/
+          cargo build --release --locked -p sil-raytracer --bin sil-raytracer-block
+          cp target/release/sil-raytracer-block dist/linux-amd64/
+          cargo build --release --locked -p sil-sandbox --bin sil-sandbox-launch
+          cp target/release/sil-sandbox-launch dist/linux-amd64/
+          (cd services/api && go build -o ../../dist/linux-amd64/silicium-api ./cmd/silicium-api)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: dist/linux-amd64/
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust stable (rustup préinstallé sur le runner, pas d'action tierce)
+        shell: bash
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Runtime ONNX Runtime 1.31.1 (épinglé, hash vérifié)
+        run: python tools/runtime/fetch_onnxruntime.py windows dist/windows-amd64
+      - name: Nœud et moteur de rendu
+        shell: bash
+        run: |
+          mkdir -p dist/windows-amd64
+          cargo build --release --locked --manifest-path chain/node/Cargo.toml
+          cp chain/node/target/release/silicium-node.exe dist/windows-amd64/
+          cargo build --release --locked -p sil-raytracer --bin sil-raytracer-block
+          cp target/release/sil-raytracer-block.exe dist/windows-amd64/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/windows-amd64/
+          if-no-files-found: error
+
+  deploy:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Environnement GitHub : development (dev) ou production (main). Hôte et clé SSH par environnement.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          path: dist/linux-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/windows-amd64
+      - name: Clé SSH et hôte de connaissance
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 0700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 0600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host *\n  IdentityFile ~/.ssh/deploy_key\n  UserKnownHostsFile ~/.ssh/known_hosts\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
+          chmod 0600 ~/.ssh/config ~/.ssh/known_hosts
+      - name: Déploiement du nœud et de l'API sur le VPS
+        env:
+          DEPLOY_SSH_HOST: ${{ vars.DEPLOY_SSH_HOST }}
+        run: |
+          chmod +x infra/vps/deploy.sh
+          infra/vps/deploy.sh "$DEPLOY_SSH_HOST"

@@ -203,7 +203,58 @@ fn registry_for(config: &NodeConfig) -> Result<Registry, String> {
         }
         registry = registry.with(Arc::new(RenderWorkload::new(engine)));
     }
+    // Embedding : offert par défaut comme les autres workloads. Le nœud ne le réclame que si son
+    // modèle et son runtime sont prêts ; sinon il le signale et continue sans lui.
+    match embedding_workload(&config.data_dir) {
+        Ok(workload) => registry = registry.with(Arc::new(workload)),
+        Err(error) => tracing::warn!(%error, "embedding non offert par ce nœud"),
+    }
     Ok(registry)
+}
+
+fn embedding_workload(data_dir: &std::path::Path) -> Result<sil_wl_embed::EmbedWorkload, String> {
+    let (model_hash, _, _) = sil_ledger::tolerance_rules(sil_workload_spec::EMBEDDING_E5_SMALL.id)
+        .ok_or("descripteur embedding sans mode tolérance")?;
+    let tokenizer_hash = sil_model::hash_from_hex(sil_wl_embed::TOKENIZER_SHA256)
+        .ok_or("empreinte du tokenizer invalide")?;
+    let dir = data_dir.join("embed");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("dossier du modèle : {e}"))?;
+    let model = dir.join("multilingual-e5-small.onnx");
+    let tokenizer = dir.join("tokenizer.json");
+    sil_model::ensure(sil_wl_embed::MODEL_URL, &model, model_hash)
+        .map_err(|e| format!("modèle d'embedding : {e}"))?;
+    sil_model::ensure(sil_wl_embed::TOKENIZER_URL, &tokenizer, tokenizer_hash)
+        .map_err(|e| format!("tokenizer d'embedding : {e}"))?;
+    let runtime = runtime_library()?;
+    let engine = sil_wl_embed::Engine::open(&runtime, &model, &tokenizer)
+        .map_err(|e| format!("moteur d'embedding : {e}"))?;
+    Ok(sil_wl_embed::EmbedWorkload::new(engine))
+}
+
+/// ONNX Runtime 1.31.1 livré avec l'installeur. Cherché à côté du binaire (Windows, AppImage
+/// dans son dossier), puis dans `../lib/Silicium` (paquet deb : ressources sous /usr/lib).
+fn runtime_library() -> Result<std::path::PathBuf, String> {
+    let name = if cfg!(windows) {
+        "onnxruntime.dll"
+    } else {
+        "libonnxruntime.so"
+    };
+    let exe = std::env::current_exe().map_err(|e| format!("emplacement du binaire : {e}"))?;
+    let dir = exe.parent().ok_or("dossier du binaire introuvable")?;
+    let candidates = [dir.join(name), dir.join("..").join("lib").join("Silicium").join(name)];
+    for path in &candidates {
+        if path.is_file() {
+            return Ok(path.clone());
+        }
+    }
+    Err(format!(
+        "runtime absent : {}",
+        candidates
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    ))
 }
 
 /// Affiche la clé publique du nœud (identité de signature, utile au diagnostic).

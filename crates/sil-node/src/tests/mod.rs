@@ -1,5 +1,6 @@
 mod api;
 mod client;
+mod embedding;
 mod free_work;
 mod liar;
 mod network;

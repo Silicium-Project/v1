@@ -85,6 +85,12 @@ impl JobLedger {
                 ));
             }
             EventBody::Attest { attestation } => {
+                // Un workload en mode tolérance n'accepte que des verdicts tolérance.
+                if crate::tolerance::rules_of(&spec.workload).is_some() {
+                    return Err(LedgerError::InvalidEvent(
+                        "attestation exacte sur un workload tolérance",
+                    ));
+                }
                 if event.author != attestation.verifier {
                     return Err(LedgerError::NotAuthorized(
                         "l'attestation n'est pas la sienne",
@@ -93,10 +99,50 @@ impl JobLedger {
                 attestation.verify()?;
             }
             EventBody::Finalize { certificate, .. } => {
+                if crate::tolerance::rules_of(&spec.workload).is_some() {
+                    return Err(LedgerError::InvalidEvent(
+                        "certificat exact sur un workload tolérance",
+                    ));
+                }
                 certificate.verify(&CertRules {
                     required: spec.verifications_required,
                     excluded: &[],
                     eligible: &|_| true,
+                })?;
+            }
+            EventBody::AttestTolerance { attestation } => {
+                // Modèle, runtime et seuil viennent du descripteur signé, jamais du verdict.
+                let (model, runtime, cos_min_micro) = crate::tolerance::rules_of(&spec.workload)
+                    .ok_or(LedgerError::InvalidEvent("workload sans mode tolérance"))?;
+                if event.author != attestation.verifier {
+                    return Err(LedgerError::NotAuthorized(
+                        "l'attestation n'est pas la sienne",
+                    ));
+                }
+                let body = &attestation.body;
+                if body.model != model || body.runtime != runtime {
+                    return Err(LedgerError::InvalidEvent(
+                        "modèle ou runtime hors descripteur",
+                    ));
+                }
+                if body.approved && body.min_cos_micro < cos_min_micro {
+                    return Err(LedgerError::InvalidEvent(
+                        "approbation sous le seuil de cosinus",
+                    ));
+                }
+                attestation.verify()?;
+            }
+            EventBody::FinalizeTolerance { certificate, .. } => {
+                // Le mode vient du workload signé dans le JobSpec : jamais du certificat.
+                let (model, runtime, cos_min_micro) = crate::tolerance::rules_of(&spec.workload)
+                    .ok_or(LedgerError::InvalidEvent("workload sans mode tolérance"))?;
+                certificate.verify(&sil_attest::ToleranceRules {
+                    required: spec.verifications_required,
+                    excluded: &[],
+                    eligible: &|_| true,
+                    model,
+                    runtime,
+                    cos_min_micro,
                 })?;
             }
             _ => {}

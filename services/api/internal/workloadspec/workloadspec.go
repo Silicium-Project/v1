@@ -29,6 +29,9 @@ type Spec struct {
 	Policy                string
 	MinCheatFraction      float64
 	TargetDetection       float64
+	CosMin                float64
+	ModelSha256           string
+	OrtVersion            string
 	WallMs                uint64
 	MemoryBytes           uint64
 	OutputBytes           uint64

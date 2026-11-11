@@ -27,7 +27,10 @@ func linkVector(t *testing.T, svc *Service) ed25519.PrivateKey {
 func signedReport(key ed25519.PrivateKey, observed time.Time, extra string) (pub, payload, sig string) {
 	payload = fmt.Sprintf(`{"observed_at_ms":%d,"version":"0.1.0","cpu_pct":31.2,"mem_pct":46.0,`+
 		`"cpu_cores":8,"roles":{"compute":true,"verify":false},"tasks_active":2,`+
-		`"tasks_in_progress":1,"tasks_finalized":128,"tasks_other":1%s}`, observed.UnixMilli(), extra)
+		`"tasks_in_progress":1,"tasks_finalized":128,"tasks_other":1,`+
+		`"reputation":{"score":0.75,"good":5,"bad":1},`+
+		`"earnings":{"worker_lamports":1200,"verifier_lamports":30,"fragments_settled":3}%s}`,
+		observed.UnixMilli(), extra)
 	pub = hex.EncodeToString(key.Public().(ed25519.PublicKey))
 	sig = hex.EncodeToString(ed25519.Sign(key, []byte(TelemetryContext+payload)))
 	return pub, payload, sig
@@ -46,6 +49,13 @@ func TestAMachineReportIsKeptForItsDevice(t *testing.T) {
 	}
 	if !device.Telemetry.Compute || device.Telemetry.Verify {
 		t.Fatalf("roles not kept: %+v", device.Telemetry)
+	}
+	tel := device.Telemetry
+	if tel.ReputationScore == nil || *tel.ReputationScore != 0.75 || tel.ReputationBad == nil || *tel.ReputationBad != 1 {
+		t.Fatalf("reputation not kept: %+v", tel)
+	}
+	if tel.WorkerLamports == nil || *tel.WorkerLamports != 1200 || tel.FragmentsSettled == nil || *tel.FragmentsSettled != 3 {
+		t.Fatalf("earnings not kept: %+v", tel)
 	}
 }
 

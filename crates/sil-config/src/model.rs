@@ -22,10 +22,10 @@ pub struct NodeConfig {
     pub telemetry: Option<TelemetryConfig>,
 }
 
-/// Envoi périodique de l'état de la machine (CPU, mémoire, rôles, tâches) à l'API. Le message est
-/// signé par la clé du nœud ; l'API ne l'accepte que pour un appareil lié à un compte.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// Envoi périodique de l'état de la machine (CPU, mémoire, rôles, tâches) à l'API. Le message est
+/// signé par la clé du nœud ; l'API ne l'accepte que pour un appareil lié à un compte.
 pub struct TelemetryConfig {
     /// Adresse de base de l'API (https://…). Le chemin /v1/devices/telemetry y est ajouté.
     pub api_url: String,

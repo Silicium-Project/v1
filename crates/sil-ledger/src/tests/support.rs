@@ -19,6 +19,7 @@ pub struct Params {
     pub fragments: u32,
     pub max_attempts: u32,
     pub expires_at_ms: u64,
+    pub workload: String,
 }
 
 impl Default for Params {
@@ -28,6 +29,7 @@ impl Default for Params {
             fragments: 1,
             max_attempts: 3,
             expires_at_ms: u64::MAX / 2,
+            workload: "calcul/sha256".into(),
         }
     }
 }
@@ -37,7 +39,7 @@ pub fn spec_for(requester: &SigningIdentity, p: &Params) -> JobSpec {
         version: SPEC_VERSION,
         requester: requester.public(),
         nonce: 1,
-        workload: "calcul/sha256".into(),
+        workload: p.workload.clone(),
         input: hash(1),
         input_size: 100,
         width: 0,

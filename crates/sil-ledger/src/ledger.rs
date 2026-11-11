@@ -179,6 +179,24 @@ impl Ledger {
             })
     }
 
+    /// Approbations tolérance à mettre dans un certificat tolérance.
+    pub fn tolerance_approvals(
+        &self,
+        job: &JobId,
+        fragment: u32,
+        attempt: u32,
+        now_ms: u64,
+    ) -> Vec<sil_attest::ToleranceAttestation> {
+        self.jobs
+            .get(job)
+            .filter(|ledger| fragment < ledger.signed_spec.spec.fragments)
+            .map(|ledger| {
+                ledger
+                    .parts()
+                    .tolerance_approvals(fragment, attempt, now_ms)
+            })
+            .unwrap_or_default()
+    }
     /// Attestations d'approbation à mettre dans un certificat de finalisation.
     pub fn approvals(
         &self,

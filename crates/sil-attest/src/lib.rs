@@ -10,10 +10,12 @@
 mod attestation;
 mod certificate;
 mod error;
+mod tolerance;
 
 pub use attestation::{Attestation, AttestationBody};
 pub use certificate::{CertRules, Certificate, MAX_APPROVALS};
 pub use error::AttestError;
+pub use tolerance::{ToleranceAttestation, ToleranceBody, ToleranceCertificate, ToleranceRules};
 
 #[cfg(test)]
 mod tests;

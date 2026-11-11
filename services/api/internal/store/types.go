@@ -57,6 +57,14 @@ type Telemetry struct {
 	TasksInProgress int       `json:"tasks_in_progress"`
 	TasksFinalized  uint64    `json:"tasks_finalized"`
 	TasksOther      uint64    `json:"tasks_other"`
+	// Reputation as the ledger shows it: score and the good and bad attempts behind it.
+	ReputationScore *float64 `json:"reputation_score,omitempty"`
+	ReputationGood  *float64 `json:"reputation_good,omitempty"`
+	ReputationBad   *float64 `json:"reputation_bad,omitempty"`
+	// Earnings confirmed on chain only: nothing counts before its fragment is settled.
+	WorkerLamports   *uint64 `json:"worker_lamports,omitempty"`
+	VerifierLamports *uint64 `json:"verifier_lamports,omitempty"`
+	FragmentsSettled *uint64 `json:"fragments_settled,omitempty"`
 }
 
 // Job is local bookkeeping of the jobs a user submitted. It is an index for "my jobs",

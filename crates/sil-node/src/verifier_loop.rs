@@ -6,13 +6,15 @@ use crate::{
     input::{StoreInput, read_all},
     shared::{Shared, lock},
 };
-use sil_attest::{Attestation, AttestationBody};
+use sil_attest::{Attestation, AttestationBody, ToleranceAttestation, ToleranceBody};
 use sil_content::ContentStore;
 use sil_crypto::SigningIdentity;
 use sil_ledger::{EventBody, TaskState, TaskStatus};
 use sil_sampling::{SamplingSeed, sample_indices, samples_needed};
 use sil_types::{ContentId, Hash32, JobId, TaskRef};
-use sil_workload_api::{Evidence, Output, Verdict, VerificationPolicy, Workload};
+use sil_workload_api::{
+    Evidence, Output, ToleranceJudgement, Verdict, VerificationPolicy, Workload,
+};
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::watch, time::interval};
 
@@ -183,6 +185,42 @@ async fn verify(
         committed_root: submitted.milestones_root,
     };
     let identity = shared.fresh_identity();
+    if let Some((model, runtime, cos_min_micro)) = sil_ledger::tolerance_rules(&spec.workload) {
+        let judged = tokio::task::spawn_blocking(move || {
+            judge_tolerance(&*workload, &identity, &case, &output)
+        })
+        .await
+        .map_err(|_| "vérification interrompue")??;
+        let approved = judged.min_cos_micro >= cos_min_micro;
+        let claimant = lock(&shared.ledger)
+            .task_state(job, fragment, now)
+            .and_then(|s| s.attempts.get(attempt as usize - 1).map(|a| a.claimant))
+            .ok_or("claimant inconnu")?;
+        let body = ToleranceBody {
+            task,
+            attempt,
+            result: submitted.result,
+            model,
+            runtime,
+            sample_root: judged.sample_root,
+            min_cos_micro: judged.min_cos_micro,
+            approved,
+            evidence: (!approved).then_some(judged.sample_root),
+        };
+        let attestation =
+            ToleranceAttestation::sign(&shared.identity, body).map_err(|e| e.to_string())?;
+        let settlement = sil_settlement::SettlementClaim {
+            job: *job,
+            fragment,
+            attempt,
+            result: submitted.result,
+            claimant,
+            approvers: Vec::new(),
+        }
+        .bytes();
+        let attestation = attestation.with_settlement(&shared.identity, &settlement);
+        return Ok(EventBody::AttestTolerance { attestation });
+    }
     let verdict = tokio::task::spawn_blocking(move || judge(&*workload, &identity, &case, &output))
         .await
         .map_err(|_| "vérification interrompue")??;
@@ -238,12 +276,45 @@ fn sample_for(
         VerificationPolicy::Sampling {
             min_cheat_fraction,
             target_detection,
+        }
+        | VerificationPolicy::SamplingTolerance {
+            min_cheat_fraction,
+            target_detection,
+            ..
         } => {
             let (seed, _) = SamplingSeed::draw(identity, &case.task, case.attempt, &case.result);
             let wanted = samples_needed(blocks, min_cheat_fraction, target_detection);
             sample_indices(&seed, blocks, wanted)
         }
     }
+}
+
+/// Verdict par tolérance : même désignation que `judge` (fragment, racine des milestones), puis le
+/// cosinus minimal sur les blocs tirés. Une racine fausse donne un rejet sans recalcul.
+fn judge_tolerance(
+    workload: &dyn Workload,
+    identity: &SigningIdentity,
+    case: &Case,
+    output: &Output,
+) -> Result<ToleranceJudgement, String> {
+    let reader = StoreInput::open(case.store.clone(), case.input).map_err(|e| e.to_string())?;
+    let specs = workload
+        .split(&reader, case.fragments)
+        .map_err(|e| e.to_string())?;
+    let spec = specs
+        .get(case.fragment as usize)
+        .ok_or("fragment absent du découpage")?;
+    if output.milestones_root() != case.committed_root {
+        return Ok(ToleranceJudgement {
+            min_cos_micro: i32::MIN,
+            sample_root: case.committed_root,
+        });
+    }
+    let blocks = workload.block_count(spec).map_err(|e| e.to_string())?;
+    let sample = sample_for(workload.policy(), identity, case, blocks);
+    workload
+        .verify_tolerance(&reader, spec, output, &sample)
+        .map_err(|e| e.to_string())
 }
 
 /// Tout ce qu'il faut pour juger un résultat (propriétaire de ses données : passe en thread).

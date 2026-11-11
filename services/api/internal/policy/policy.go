@@ -34,10 +34,20 @@ const (
 // ErrUnknownWorkload means the network has no descriptor for this workload.
 var ErrUnknownWorkload = errors.New("workload inconnu")
 
+// ErrClosedWorkload means the descriptor exists but the network takes no jobs for it yet: no node runs it.
+var ErrClosedWorkload = errors.New("workload non ouvert : bientôt disponible")
+
+// closedWorkloads keeps descriptors without offering them. embedding/e5-small stays closed until a node
+// runs it and the tolerance attestation is in place.
+var closedWorkloads = map[string]bool{}
+
 // WorkloadIDs lists the workloads the network runs, in descriptor order.
 func WorkloadIDs() []string {
 	ids := make([]string, 0, len(workloadspec.Workloads))
 	for _, spec := range workloadspec.Workloads {
+		if closedWorkloads[spec.ID] {
+			continue
+		}
 		ids = append(ids, spec.ID)
 	}
 	return ids
@@ -49,6 +59,9 @@ func For(workload string, inputSize uint64, width, height uint32) (Terms, error)
 	spec, ok := workloadspec.Find(workload)
 	if !ok {
 		return Terms{}, ErrUnknownWorkload
+	}
+	if closedWorkloads[workload] {
+		return Terms{}, ErrClosedWorkload
 	}
 	measure, err := measureOf(spec, inputSize, width, height)
 	if err != nil {

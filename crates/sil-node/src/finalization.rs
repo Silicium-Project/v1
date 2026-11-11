@@ -4,7 +4,7 @@
 //! règlement on-chain est signé par ces mêmes approbateurs : chacun a signé `Domain::Settlement`
 //! quand il a approuvé (voir `sil_attest::Attestation::with_settlement`).
 
-use sil_attest::{Certificate, MAX_APPROVALS};
+use sil_attest::{Certificate, MAX_APPROVALS, ToleranceCertificate};
 use sil_ledger::{EventBody, Ledger, TaskStatus};
 use sil_settlement::{Authorization, SettlementClaim};
 use sil_types::{Hash32, JobId, PublicKey, TaskRef};
@@ -37,6 +37,30 @@ pub fn finalization(ledger: &Ledger, job: &JobId, fragment: u32, now_ms: u64) ->
     }
     let last = state.attempts.last()?;
     let submitted = last.result.as_ref()?;
+    if tolerance_mode(ledger, job) {
+        let mut approvals = ledger.tolerance_approvals(job, fragment, last.attempt, now_ms);
+        approvals.truncate(MAX_APPROVALS);
+        if approvals.len() < required as usize {
+            return None;
+        }
+        let verifiers: Vec<Hash32> = approvals
+            .iter()
+            .filter_map(|approval| offer_of(ledger, job, fragment, last.attempt, approval.verifier))
+            .collect();
+        return Some(EventBody::FinalizeTolerance {
+            fragment,
+            attempt: last.attempt,
+            claim: last.claim_event,
+            submit: submitted.event,
+            verifiers,
+            certificate: ToleranceCertificate {
+                task: TaskRef::new(*job, fragment),
+                attempt: last.attempt,
+                result: submitted.result,
+                approvals,
+            },
+        });
+    }
     let mut approvals = ledger.approvals(job, fragment, last.attempt, now_ms);
     approvals.truncate(MAX_APPROVALS);
     if approvals.len() < required as usize {
@@ -73,10 +97,29 @@ pub fn authorization(
     let finalized = ledger.task_state(job, fragment, now_ms)?.finalized?;
     let claim = SettlementClaim::from_finalized(job, fragment, &finalized, required)?;
     let mut auth = Authorization::new(claim.clone());
-    for approval in ledger.approvals(job, fragment, finalized.attempt, now_ms) {
-        if let Some(signature) = approval.settlement {
-            let _ = auth.add(approval.verifier, signature);
-        }
+    // Les signatures de règlement viennent des approbations du mode du workload.
+    let settlements: Vec<_> = if tolerance_mode(ledger, job) {
+        ledger
+            .tolerance_approvals(job, fragment, finalized.attempt, now_ms)
+            .into_iter()
+            .filter_map(|approval| approval.settlement.map(|s| (approval.verifier, s)))
+            .collect()
+    } else {
+        ledger
+            .approvals(job, fragment, finalized.attempt, now_ms)
+            .into_iter()
+            .filter_map(|approval| approval.settlement.map(|s| (approval.verifier, s)))
+            .collect()
+    };
+    for (verifier, signature) in settlements {
+        let _ = auth.add(verifier, signature);
     }
     Some(auth)
+}
+
+/// Le workload de ce job est-il en mode tolérance ? Le mode vient du JobSpec signé.
+fn tolerance_mode(ledger: &Ledger, job: &JobId) -> bool {
+    ledger
+        .spec(job)
+        .is_some_and(|signed| sil_ledger::tolerance_rules(&signed.spec.workload).is_some())
 }

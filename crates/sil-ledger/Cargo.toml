@@ -11,6 +11,7 @@ sil-crypto.workspace = true
 sil-codec.workspace = true
 sil-attest.workspace = true
 sil-quota.workspace = true
+sil-workload-spec.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 

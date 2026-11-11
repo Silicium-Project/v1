@@ -32,6 +32,17 @@ pub enum Verification {
         /// Probabilité de détection visée pour cette fraction.
         target_detection: f64,
     },
+    /// Le vérificateur refait un échantillon d'éléments et compare par cosinus (embedding).
+    SamplingTolerance {
+        min_cheat_fraction: f64,
+        target_detection: f64,
+        /// Cosinus minimal entre le vecteur reçu et le recalcul.
+        cos_min: f64,
+        /// SHA-256 du fichier modèle, figé.
+        model_sha256: &'static str,
+        /// Version d'ONNX Runtime qui produit les vecteurs de référence.
+        ort_version: &'static str,
+    },
 }
 
 /// Bornes d'exécution d'un fragment.

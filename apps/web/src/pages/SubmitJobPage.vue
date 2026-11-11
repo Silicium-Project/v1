@@ -12,7 +12,7 @@ import { connectWallet, signWithWallet, WalletFailure } from '@/platform/wallet'
 import { encodeBase58 } from '@/signing/base58'
 import { fromHex } from '@/signing/cbor'
 import { submitJob, type SubmitDeps, type SubmitInput } from '@/signing/submit'
-import { WORKLOADS } from '@/workloads/generated'
+import { OPEN_WORKLOADS as WORKLOADS } from '@/workloads/find'
 import { findWorkload, isImageSide } from '@/workloads/find'
 import { sceneToCfg } from '@/scene/cfg'
 import { sceneTemplate } from '@/scene/templates'
@@ -23,6 +23,7 @@ import FormField from '@/components/FormField.vue'
 import Notice from '@/components/Notice.vue'
 import SceneEditor from '@/components/scene/SceneEditor.vue'
 import BatchInput from '@/components/batch/BatchInput.vue'
+import EmbeddingInput from '@/components/embedding/EmbeddingInput.vue'
 import { batchKindOf } from '@/workloads/batch'
 
 // Fallback upload limit, used only if the workload descriptor has none.
@@ -84,6 +85,10 @@ function onFile(event: Event): void {
 
 /** Lot construit par le formulaire de lots : son fichier d'entrée, ou rien tant qu'il est invalide. */
 const batchKind = computed(() => batchKindOf(workload.value))
+const isEmbedding = computed(() => workload.value === 'embedding/e5-small')
+function onText(chosen: File | null, error: string): void {
+  file.value = chosen && !error ? chosen : null
+}
 function onBatch(payload: Uint8Array<ArrayBuffer> | null, error: string): void {
   file.value = payload && !error ? new File([payload], 'lot.silbatch', { type: 'application/octet-stream' }) : null
 }
@@ -287,6 +292,12 @@ onMounted(() => {
         :kind="batchKind"
         :max-bytes="maxBytes"
         @change="onBatch"
+      />
+
+      <EmbeddingInput
+        v-else-if="isEmbedding"
+        :max-bytes="maxBytes"
+        @change="onText"
       />
 
       <div v-else class="field">

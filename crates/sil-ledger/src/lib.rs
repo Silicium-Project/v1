@@ -22,6 +22,8 @@ mod ledger;
 mod receipt;
 mod spec;
 mod state;
+mod tolerance;
+pub use tolerance::{rules_of as tolerance_rules, runtime_hash};
 mod wallet_text;
 
 pub use admission::{Admission, AllowAll};

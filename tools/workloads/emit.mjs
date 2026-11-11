@@ -15,12 +15,22 @@ export function emitRust(specs) {
     const verification =
       spec.policy === 'recompute'
         ? ['    verification: Verification::Recompute,']
-        : [
-            '    verification: Verification::Sampling {',
-            `        min_cheat_fraction: ${float(spec.minCheatFraction)},`,
-            `        target_detection: ${float(spec.targetDetection)},`,
-            '    },',
-          ]
+        : spec.policy === 'sampling_tolerance'
+          ? [
+              '    verification: Verification::SamplingTolerance {',
+              `        min_cheat_fraction: ${float(spec.minCheatFraction)},`,
+              `        target_detection: ${float(spec.targetDetection)},`,
+              `        cos_min: ${float(spec.cosMin)},`,
+              `        model_sha256: ${quote(spec.modelSha256)},`,
+              `        ort_version: ${quote(spec.ortVersion)},`,
+              '    },',
+            ]
+          : [
+              '    verification: Verification::Sampling {',
+              `        min_cheat_fraction: ${float(spec.minCheatFraction)},`,
+              `        target_detection: ${float(spec.targetDetection)},`,
+              '    },',
+            ]
     const params = `&[${spec.params.map(quote).join(', ')}]`
     out.push(`/// \`${spec.id}\` : ${spec.description}`)
     out.push(`pub const ${constName(spec.id)}: Spec = Spec {`)
@@ -67,6 +77,9 @@ export function emitGo(specs) {
     ['Policy', (s) => quote(s.policy)],
     ['MinCheatFraction', (s) => float(s.minCheatFraction)],
     ['TargetDetection', (s) => float(s.targetDetection)],
+    ['CosMin', (s) => float(s.cosMin)],
+    ['ModelSha256', (s) => quote(s.modelSha256)],
+    ['OrtVersion', (s) => quote(s.ortVersion)],
     ['WallMs', (s) => String(s.wallMs)],
     ['MemoryBytes', (s) => String(s.memoryBytes)],
     ['OutputBytes', (s) => String(s.outputBytes)],
@@ -98,7 +111,11 @@ export function emitTs(specs) {
   out.push('/** Vérification d\'un résultat (sil-workload-api::VerificationPolicy). */')
   out.push('export type WorkloadVerification =')
   out.push("  | { policy: 'recompute' }")
-  out.push("  | { policy: 'sampling'; minCheatFraction: number; targetDetection: number }", '')
+  out.push("  | { policy: 'sampling'; minCheatFraction: number; targetDetection: number }")
+  out.push(
+    "  | { policy: 'sampling_tolerance'; minCheatFraction: number; targetDetection: number; cosMin: number; modelSha256: string; ortVersion: string }",
+    '',
+  )
   out.push('export interface WorkloadSpec {')
   out.push('  id: string')
   out.push('  unit: WorkloadUnit')
@@ -122,7 +139,9 @@ export function emitTs(specs) {
     const verification =
       spec.policy === 'recompute'
         ? "{ policy: 'recompute' }"
-        : `{ policy: 'sampling', minCheatFraction: ${float(spec.minCheatFraction)}, targetDetection: ${float(spec.targetDetection)} }`
+        : spec.policy === 'sampling_tolerance'
+          ? `{ policy: 'sampling_tolerance', minCheatFraction: ${float(spec.minCheatFraction)}, targetDetection: ${float(spec.targetDetection)}, cosMin: ${float(spec.cosMin)}, modelSha256: ${quote(spec.modelSha256)}, ortVersion: ${quote(spec.ortVersion)} }`
+          : `{ policy: 'sampling', minCheatFraction: ${float(spec.minCheatFraction)}, targetDetection: ${float(spec.targetDetection)} }`
     out.push('  {')
     out.push(`    id: ${quote(spec.id)},`)
     out.push(`    unit: ${quote(spec.unit)},`)
