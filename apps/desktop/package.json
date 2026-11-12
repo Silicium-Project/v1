@@ -1,7 +1,7 @@
 {
   "name": "silicium-desktop",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "description": "Application de bureau Silicium : installeur Windows qui embarque le nœud et son moteur de rendu.",
   "scripts": {

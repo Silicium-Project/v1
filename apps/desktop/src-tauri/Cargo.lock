@@ -3278,7 +3278,7 @@ dependencies = [
 
 [[package]]
 name = "silicium-desktop"
-version = "0.1.4"
+version = "0.1.7"
 dependencies = [
  "ed25519-dalek",
  "getrandom 0.2.17",
