@@ -61,6 +61,8 @@ type Telemetry struct {
 	ReputationScore *float64 `json:"reputation_score,omitempty"`
 	ReputationGood  *float64 `json:"reputation_good,omitempty"`
 	ReputationBad   *float64 `json:"reputation_bad,omitempty"`
+	// Network reputation: the on-chain verifier score (0 to 10 000), absent until the account exists.
+	StandingOnchain *int64 `json:"standing_onchain,omitempty"`
 	// Earnings confirmed on chain only: nothing counts before its fragment is settled.
 	WorkerLamports   *uint64 `json:"worker_lamports,omitempty"`
 	VerifierLamports *uint64 `json:"verifier_lamports,omitempty"`

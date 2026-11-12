@@ -146,6 +146,7 @@ impl NodeProcess {
             .arg(self.config_path())
             .arg("--roles")
             .arg("worker,verifier")
+            .env("SIL_APP_VERSION", env!("CARGO_PKG_VERSION"))
             .stdin(Stdio::null())
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(log_err));

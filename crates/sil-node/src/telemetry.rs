@@ -78,6 +78,16 @@ fn describe(error: ureq::Error) -> String {
     }
 }
 
+/// Version de l'application qui fait tourner ce nœud : `SIL_APP_VERSION` (fixé par le bureau et par
+/// l'unité systemd du VPS), à défaut la version du crate. Sans cela, un paquet 1.6 rapporte 0.1.0.
+fn app_version() -> String {
+    std::env::var("SIL_APP_VERSION")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
+}
+
 /// Ce que la machine dit d'elle-même à cet instant. Les compteurs viennent du rapport du nœud.
 fn snapshot(shared: &Shared, system: &System) -> Value {
     let report = worker_data::report(shared);
@@ -91,7 +101,8 @@ fn snapshot(shared: &Shared, system: &System) -> Value {
     };
     json!({
         "observed_at_ms": shared.now_ms(),
-        "version": env!("CARGO_PKG_VERSION"),
+        "standing_onchain": report["standing_onchain"],
+        "version": app_version(),
         "cpu_pct": round(f64::from(system.global_cpu_usage())),
         "mem_pct": round(mem_pct),
         "cpu_cores": capacity["cpu_cores"],

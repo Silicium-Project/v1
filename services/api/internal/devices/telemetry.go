@@ -39,7 +39,9 @@ type telemetryPayload struct {
 	TasksFinalized  uint64     `json:"tasks_finalized"`
 	TasksOther      uint64     `json:"tasks_other"`
 	Reputation      reputation `json:"reputation"`
-	Earnings        earnings   `json:"earnings"`
+	// Score on-chain of this machine as a verifier (0 to 10 000), null until its account exists.
+	StandingOnchain *int64   `json:"standing_onchain"`
+	Earnings        earnings `json:"earnings"`
 }
 
 // reputation and earnings are optional: a node that predates them does not send them.
@@ -100,8 +102,9 @@ func (s *Service) ReportTelemetry(publicKeyHex, payload, signatureHex string) er
 		TasksActive: in.TasksActive, TasksInProgress: in.TasksInProgress,
 		TasksFinalized: in.TasksFinalized, TasksOther: in.TasksOther,
 		ReputationScore: finiteOrNil(in.Reputation.Score), ReputationGood: finiteOrNil(in.Reputation.Good),
-		ReputationBad:  finiteOrNil(in.Reputation.Bad),
-		WorkerLamports: in.Earnings.WorkerLamports, VerifierLamports: in.Earnings.VerifierLamports,
+		ReputationBad:   finiteOrNil(in.Reputation.Bad),
+		StandingOnchain: in.StandingOnchain,
+		WorkerLamports:  in.Earnings.WorkerLamports, VerifierLamports: in.Earnings.VerifierLamports,
 		FragmentsSettled: in.Earnings.FragmentsSettled,
 	}
 	err = s.store.SetTelemetry(publicKeyHex, report)
