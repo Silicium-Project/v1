@@ -31,6 +31,7 @@ export const enSite = {
       installCta: 'Install a node',
       liveTitle: 'Live network',
       liveNote: 'Samples received since the page was opened. No history is invented.',
+      liveWaiting: 'The curve appears at the second sample, about 30 seconds after opening.',
       valuesKicker: 'Tracking and transparency',
       valuesTitle: 'See where your resources go.',
       values: [

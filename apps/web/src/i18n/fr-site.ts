@@ -32,6 +32,7 @@ export const frSite = {
       installCta: 'Installer un nœud',
       liveTitle: 'Réseau en direct',
       liveNote: 'Mesures reçues depuis l’ouverture de la page. Aucun historique n’est inventé.',
+      liveWaiting: 'La courbe apparaît à la deuxième mesure, environ 30 secondes après l’ouverture.',
       valuesKicker: 'Suivi et transparence',
       valuesTitle: 'Voyez où passent vos ressources.',
       values: [

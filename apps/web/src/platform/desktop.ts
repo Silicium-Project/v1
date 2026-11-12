@@ -127,7 +127,8 @@ export interface WorkerReport {
   /** Decayed, weighted counts behind `reputation`. */
   reputation_evidence: { successes: number; failures: number }
   /** `active`: tasks and verifications running now. `max_parallel`: what the reputation allows. */
-  capacity: { active: number; max_parallel: number; cpu_cores: number }
+  /** `node_cpu_pct`: load of the silicium-node process, % of all cores. `machine_cpu_pct`: whole PC, %. */
+  capacity: { active: number; max_parallel: number; cpu_cores: number; node_cpu_pct: number; machine_cpu_pct: number }
   in_progress: WorkerTask[]
   history: WorkerHistoryEntry[]
   history_totals: { finalized: number; other: number }

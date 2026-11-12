@@ -35,6 +35,19 @@
   overflow-x: auto;
 }
 
+/* Historique : une zone qui défile, dix lignes visibles, en-tête fixe (comme la liste des calculs). */
+.worker-scroll {
+  max-height: 27rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.worker-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+}
+
 .worker-table {
   width: 100%;
   border-collapse: collapse;

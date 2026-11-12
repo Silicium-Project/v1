@@ -43,7 +43,7 @@ function isoOf(ms: number): string {
     <section class="card stack" aria-labelledby="tasks-history">
       <h2 id="tasks-history">{{ t('worker.historyTitle') }}</h2>
       <p v-if="report.history.length === 0" class="muted">{{ t('worker.noHistory') }}</p>
-      <div v-else class="worker-table-wrap">
+      <div v-else class="worker-table-wrap worker-scroll" tabindex="0" :aria-label="t('worker.historyTitle')">
         <table class="worker-table">
           <thead>
             <tr>

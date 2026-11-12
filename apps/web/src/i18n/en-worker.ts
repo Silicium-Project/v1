@@ -23,6 +23,8 @@ export const enWorker = {
     powerTitle: 'Power used',
     powerText: '{active} task(s) running out of {allowed} allowed by your reputation and your cores.',
     powerCores: '{cores} CPU core(s) on this machine.',
+    powerLoad: 'Node {node} % · PC {machine} %',
+    powerLoadHelp: 'Node: load of the silicium-node program. PC: load of the whole processor; when it is high, computing slows down.',
     gainsTitle: 'Earnings',
     gainsText: 'Confirmed on-chain: only settled fragments count.',
     gainsDetail: '{count} fragment(s) settled: {worker} lamports as worker, {verifier} lamports as verifier.',

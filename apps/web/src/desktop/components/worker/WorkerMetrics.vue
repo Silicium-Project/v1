@@ -39,6 +39,8 @@ const sol = (lamports: number) => `${(lamports / 1_000_000_000).toFixed(6)} SOL`
         {{ t('worker.powerText', { active: capacity.active, allowed: capacity.max_parallel }) }}
       </p>
       <p class="muted">{{ t('worker.powerCores', { cores: capacity.cpu_cores }) }}</p>
+      <p>{{ t('worker.powerLoad', { node: capacity.node_cpu_pct, machine: capacity.machine_cpu_pct }) }}</p>
+      <p class="muted">{{ t('worker.powerLoadHelp') }}</p>
     </section>
 
     <section class="card stack" aria-labelledby="metric-gains">

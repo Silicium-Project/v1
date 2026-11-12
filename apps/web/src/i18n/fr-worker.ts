@@ -23,6 +23,8 @@ export const frWorker = {
     powerTitle: 'Puissance utilisée',
     powerText: '{active} tâche(s) en cours sur {allowed} autorisée(s) par votre réputation et vos cœurs.',
     powerCores: '{cores} cœur(s) de processeur sur cette machine.',
+    powerLoad: 'Nœud {node} % · PC {machine} %',
+    powerLoadHelp: 'Nœud : charge du programme silicium-node. PC : charge de tout le processeur ; si elle est haute, le calcul ralentit.',
     gainsTitle: 'Gains',
     gainsText: 'Confirmés on-chain : seuls les fragments réglés comptent.',
     gainsDetail: '{count} fragment(s) réglé(s) : {worker} lamports comme worker, {verifier} lamports comme vérificateur.',

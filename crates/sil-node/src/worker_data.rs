@@ -12,9 +12,38 @@ use sil_types::JobId;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
+use std::sync::{Mutex, OnceLock};
+use sysinfo::{Pid, ProcessesToUpdate, System};
 
 /// Nombre d'événements récents renvoyés (le reste est dans les compteurs).
 const RECENT: usize = 50;
+
+/// Échantillonneur CPU : sysinfo calcule l'usage entre deux rafraîchissements, il vit donc avec le nœud.
+fn cpu_sampler() -> &'static Mutex<System> {
+    static SAMPLER: OnceLock<Mutex<System>> = OnceLock::new();
+    SAMPLER.get_or_init(|| Mutex::new(System::new()))
+}
+
+/// Charge du processus `silicium-node` (en % de l'ensemble des cœurs) et du PC entier, en %.
+/// Le premier appel n'a pas encore d'intervalle : il renvoie des valeurs proches de zéro.
+fn cpu_load(cores: usize) -> (f64, f64) {
+    let mut system = lock(cpu_sampler());
+    let pid = Pid::from_u32(std::process::id());
+    system.refresh_cpu_usage();
+    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    let machine = f64::from(system.global_cpu_usage());
+    // sysinfo compte 100 % pour un cœur entier : on ramène à l'ensemble des cœurs.
+    let node = system
+        .process(pid)
+        .map_or(0.0, |p| f64::from(p.cpu_usage()))
+        / cores.max(1) as f64;
+    (round1(node), round1(machine))
+}
+
+/// Un chiffre après la virgule, pour un affichage stable.
+fn round1(value: f64) -> f64 {
+    (value * 10.0).round() / 10.0
+}
 
 /// Nom stable d'un type d'événement, tel que l'API et l'interface le montrent.
 pub fn kind_of(body: &EventBody) -> &'static str {
@@ -98,6 +127,7 @@ pub fn report(shared: &Shared) -> Value {
     // Réputation réseau, lue on-chain (ADR 0006) : `null` tant que le compte n'existe pas.
     let standing_onchain = shared.chain.verifier_standing(&me).ok().flatten();
     let cores = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
+    let (node_cpu_pct, machine_cpu_pct) = cpu_load(cores);
     let mut settlements: BTreeMap<String, u64> = BTreeMap::new();
     for (_, status) in shared.settlement_report() {
         *settlements.entry(format!("{status:?}")).or_insert(0) += 1;
@@ -124,6 +154,8 @@ pub fn report(shared: &Shared) -> Value {
             "active": shared.active.load(Ordering::Relaxed),
             "max_parallel": max_parallel,
             "cpu_cores": cores,
+            "node_cpu_pct": node_cpu_pct,
+            "machine_cpu_pct": machine_cpu_pct,
         },
         "in_progress": running,
         "history": history.into_iter().map(|(_, entry)| entry).collect::<Vec<_>>(),
