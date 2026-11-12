@@ -198,14 +198,16 @@ onMounted(load)
                 ·
                 {{ t('devices.telemetryDone', { done: device.telemetry.tasks_finalized, other: device.telemetry.tasks_other }) }}
               </p>
-              <p v-if="device.telemetry.reputation_score != null" class="muted">
-                {{ t('devices.telemetryReputation', {
-                  score: (device.telemetry.reputation_score * 100).toFixed(0) + ' %',
-                  good: device.telemetry.reputation_good ?? 0,
-                  bad: device.telemetry.reputation_bad ?? 0,
-                }) }}
+              <p class="muted">
+                {{
+                  device.telemetry.standing_onchain != null
+                    ? t('devices.telemetryNetwork', { score: Math.round(device.telemetry.standing_onchain / 100) + ' %' })
+                    : t('devices.telemetryNoNetwork')
+                }}
               </p>
-              <p v-else class="muted">{{ t('devices.telemetryNoReputation') }}</p>
+              <p v-if="device.telemetry.reputation_score != null" class="muted">
+                {{ t('devices.telemetryLocal', { score: Math.round(device.telemetry.reputation_score * 100) + ' %' }) }}
+              </p>
               <p v-if="device.telemetry.fragments_settled" class="muted">
                 {{ t('devices.telemetryRewards', {
                   worker: sol(device.telemetry.worker_lamports ?? 0),

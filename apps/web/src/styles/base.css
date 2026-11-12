@@ -87,20 +87,11 @@ code {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* En-tête en trois colonnes fixes : marque, navigation centrée, outils. La colonne des outils a une
-   largeur fixe : changer de langue ne décale plus la navigation. */
+/* L'en-tête est mis en forme dans AppHeader.vue. */
 .site-header__inner {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 0.75rem var(--gutter);
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.75rem 1.25rem;
-  align-items: center;
-}
-
-.nav a {
-  white-space: nowrap;
 }
 
 .site-footer__inner {
@@ -113,38 +104,9 @@ code {
   align-items: start;
 }
 
-.header-nav {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.25rem 1.5rem;
-  min-width: 0;
-}
-
-@media (max-width: 960px) {
-  .site-header__inner {
-    grid-template-columns: 1fr auto;
-  }
-
-  .site-header__inner > .header-nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-start;
-  }
-}
-
 @media (max-width: 640px) {
-  .site-header__inner,
   .site-footer__inner {
     grid-template-columns: 1fr;
-  }
-
-  .site-header__inner > .header-nav {
-    grid-row: auto;
-  }
-
-  .header-tools {
-    justify-content: flex-start;
   }
 }
 

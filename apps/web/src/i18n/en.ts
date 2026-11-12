@@ -15,6 +15,9 @@ export const en: Messages = {
   },
   common: {
     skipToContent: 'Skip to content',
+    account: 'My account',
+    menu: 'Menu',
+    closeMenu: 'Close',
     loading: 'Loading…',
     retry: 'Try again',
     refresh: 'Refresh',
@@ -189,8 +192,10 @@ export const en: Messages = {
     telemetryRoleVerify: 'Verification',
     telemetryTasks: 'Active tasks: {active} · in progress: {progress}',
     telemetryDone: 'Finished: {done} · other outcomes: {other}',
-    telemetryReputation: 'Reputation: {score} · {good} succeeded, {bad} failed',
-    telemetryNoReputation: 'Reputation: no verified computation yet',
+    telemetryNetwork: 'Network reputation: {score}',
+    telemetryNoNetwork: 'Network reputation: no account yet (first approved settlement)',
+    telemetryLocal: 'Local reliability: {score}',
+
     telemetryRewards: 'Confirmed rewards: {worker} SOL (work) · {verifier} SOL (verification) · {count} fragment(s) settled',
     telemetryNoRewards: 'No reward settled on chain yet.',
     rewardsTitle: 'Confirmed rewards',

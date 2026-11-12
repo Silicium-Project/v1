@@ -35,6 +35,8 @@ export interface DeviceTelemetry {
   reputation_score?: number | null
   reputation_good?: number | null
   reputation_bad?: number | null
+  /** Network reputation: on-chain verifier score, 0 to 10 000. Absent until the account exists. */
+  standing_onchain?: number | null
   worker_lamports?: number
   verifier_lamports?: number
   fragments_settled?: number
