@@ -1,7 +1,7 @@
 /**
  * Vectorisation d'une question dans le navigateur, avec le même modèle que les passages (multilingual-e5-small,
  * fp32, ONNX Runtime 1.31.1). Le modèle et le tokenizer sont servis par le site, vérifiés par SHA-256
- * avant usage. Le cache du navigateur garde les fichiers entre deux visites. Chargés à la première question
+ * avant usage (à l'écriture dans le cache). Le cache du navigateur garde les fichiers entre deux visites. Chargés à la première question
  * seulement, puis gardés en mémoire tant que la page est ouverte (navigation dans le site comprise).
  */
 import { meanPoolNormalize, truncateIds } from './semantic'
@@ -62,13 +62,29 @@ async function readStream(body: ReadableStream<Uint8Array>, total: number, onPro
   return out.buffer
 }
 
-/** Octets d'un fichier du site, vérifiés par empreinte. Le cache HTTP du navigateur évite le retéléchargement. */
+/**
+ * Cache Storage du navigateur, versionné : la clé contient l'empreinte, donc un nouveau modèle ne
+ * réutilise jamais l'ancien. Le hash est vérifié à l'écriture seulement ; une lecture du cache est directe.
+ */
+const CACHE_NAME = 'silicium-models-v2'
+
+/** Octets d'un fichier du site : cache du navigateur si présent, sinon téléchargement vérifié puis mis en cache. */
 async function fetchVerified(url: string, expected: string, onProgress: Progress): Promise<ArrayBuffer> {
-  const response = await fetch(url, { cache: 'force-cache' })
+  const key = `${url}?sha256=${expected}`
+  const cache = await caches.open(CACHE_NAME).catch(() => null)
+  const cached = await cache?.match(key).catch(() => undefined)
+  if (cached) {
+    const bytes = await cached.arrayBuffer()
+    onProgress(bytes.byteLength, bytes.byteLength)
+    return bytes
+  }
+  const response = await fetch(url)
   if (!response.ok || !response.body) throw new Error(`fichier indisponible : ${response.status}`)
   const total = Number(response.headers.get('content-length')) || 0
   const bytes = await readStream(response.body, total, onProgress)
   if ((await sha256Hex(bytes)) !== expected) throw new Error(`empreinte incorrecte : ${url}`)
+  // Un cache plein (quota) ne bloque pas le chargement : le fichier reste utilisable en mémoire.
+  await cache?.put(key, new Response(bytes)).catch(() => undefined)
   return bytes
 }
 
