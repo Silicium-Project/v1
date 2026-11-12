@@ -82,7 +82,6 @@ const DNF_SETUP = [
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ install.kicker }}</p>
       <h1>{{ install.title }}</h1>
       <p class="site-lede">{{ install.lede }}</p>
     </section>

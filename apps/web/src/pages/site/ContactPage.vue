@@ -22,7 +22,6 @@ function prepare(): void {
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ contact.kicker }}</p>
       <h1 id="contact-title" tabindex="-1">{{ contact.title }}</h1>
       <p class="site-lede">{{ contact.lede }}</p>
     </section>

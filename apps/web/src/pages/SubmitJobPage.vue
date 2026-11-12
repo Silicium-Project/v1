@@ -52,6 +52,10 @@ let termsRequest = 0
 const spec = computed(() => findWorkload(workload.value))
 const params = computed(() => spec.value?.params ?? [])
 const maxBytes = computed(() => spec.value?.maxInputBytes ?? DEFAULT_MAX_BYTES)
+// Format attendu du fichier : une scène .cfg pour le rendu, n'importe quel fichier sinon.
+const isScene = computed(() => workload.value === 'rendu/raytracer')
+const fileAccept = computed(() => (isScene.value ? '.cfg,text/plain' : undefined))
+const fileHintKey = computed(() => (isScene.value ? 'submit.fileHintScene' : 'submit.fileHintAny'))
 const canSubmit = computed(() => terms.value !== null && file.value !== null)
 /** Bytes the node stores as the input: the file, with each declared parameter (u32) in front. */
 const payloadSize = computed(() => (file.value ? file.value.size + 4 * params.value.length : 0))
@@ -322,11 +326,12 @@ onMounted(() => {
 
       <div v-else class="field">
         <label for="input-file">{{ t('submit.file') }}</label>
-        <p id="file-hint" class="field__hint">{{ t('submit.fileHint') }}</p>
+        <p id="file-hint" class="field__hint">{{ t(fileHintKey) }}</p>
         <input
           id="input-file"
           class="input"
           type="file"
+          :accept="fileAccept"
           aria-describedby="file-hint"
           :aria-invalid="fileError ? 'true' : undefined"
           @change="onFile"

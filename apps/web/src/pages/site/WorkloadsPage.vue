@@ -8,7 +8,6 @@ const page = computed(() => messages().site.workloadsPage)
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ page.kicker }}</p>
       <h1 id="workloads-title" tabindex="-1">{{ page.title }}</h1>
       <p class="site-lede">{{ page.lede }}</p>
     </section>

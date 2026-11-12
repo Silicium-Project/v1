@@ -8,7 +8,6 @@ const chain = computed(() => messages().site.chain)
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ chain.kicker }}</p>
       <h1>{{ chain.title }}</h1>
       <p class="site-lede">{{ chain.lede }}</p>
       <p class="site-note">{{ t('site.testnet') }}</p>

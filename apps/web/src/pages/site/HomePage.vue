@@ -10,7 +10,6 @@ const home = computed(() => messages().site.home)
   <div class="site-page">
     <section class="site-hero site-container">
       <div class="site-hero__copy">
-        <p class="site-kicker">{{ home.kicker }}</p>
         <h1>{{ home.title }}</h1>
         <p class="site-lede">{{ home.lede }}</p>
         <div class="site-actions">
@@ -25,7 +24,6 @@ const home = computed(() => messages().site.home)
     </section>
 
     <section class="site-section site-container" aria-labelledby="home-values">
-      <p class="site-kicker">{{ home.valuesKicker }}</p>
       <h2 id="home-values">{{ home.valuesTitle }}</h2>
       <ul class="site-values">
         <li v-for="item in home.values" :key="item.title" class="site-value">
@@ -36,7 +34,6 @@ const home = computed(() => messages().site.home)
     </section>
 
     <section class="site-section site-container" aria-labelledby="home-uses">
-      <p class="site-kicker">{{ home.usesKicker }}</p>
       <h2 id="home-uses">{{ home.usesTitle }}</h2>
       <ul class="site-cards">
         <li v-for="item in home.uses" :key="item.tag" class="site-card">
@@ -53,7 +50,6 @@ const home = computed(() => messages().site.home)
 
     <section class="site-section site-container site-band" aria-labelledby="home-worker">
       <div>
-        <p class="site-kicker">{{ home.workerKicker }}</p>
         <h2 id="home-worker">{{ home.workerTitle }}</h2>
         <p>{{ home.workerText }}</p>
       </div>
@@ -69,7 +65,7 @@ const home = computed(() => messages().site.home)
         </details>
       </div>
       <p class="site-inline-link">
-        <RouterLink to="/a-propos#faq">{{ messages().site.faqPage.title }}</RouterLink>
+        <RouterLink to="/faq">{{ messages().site.faqPage.title }}</RouterLink>
       </p>
     </section>
   </div>

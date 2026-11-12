@@ -3,13 +3,11 @@ import { computed } from 'vue'
 import { messages } from '@/i18n'
 
 const about = computed(() => messages().site.about)
-const faq = computed(() => messages().site.faqPage)
 </script>
 
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ about.kicker }}</p>
       <h1>{{ about.title }}</h1>
       <p class="site-lede">{{ about.lede }}</p>
     </section>
@@ -31,16 +29,5 @@ const faq = computed(() => messages().site.faqPage)
       </ul>
     </section>
 
-    <section id="faq" class="site-section site-container" aria-labelledby="about-faq">
-      <p class="site-kicker">{{ faq.kicker }}</p>
-      <h2 id="about-faq">{{ faq.title }}</h2>
-      <p class="site-lede">{{ faq.lede }}</p>
-      <div class="site-faq">
-        <details v-for="item in faq.items" :key="item.question">
-          <summary>{{ item.question }}</summary>
-          <p>{{ item.answer }}</p>
-        </details>
-      </div>
-    </section>
   </div>
 </template>

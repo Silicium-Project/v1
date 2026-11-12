@@ -42,8 +42,12 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/site/NetworkPage.vue'),
     meta: { title: 'site.titles.network' },
   },
-  // Les questions fréquentes sont sur la page À propos ; l'ancien lien reste valable.
-  { path: '/faq', redirect: '/a-propos#faq' },
+  {
+    path: '/faq',
+    name: 'faq',
+    component: () => import('@/pages/site/FaqPage.vue'),
+    meta: { title: 'site.titles.faq' },
+  },
   {
     path: '/types-de-calcul',
     name: 'workloads',

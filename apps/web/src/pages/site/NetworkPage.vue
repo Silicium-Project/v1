@@ -58,7 +58,6 @@ onBeforeUnmount(() => {
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ t('site.network.kicker') }}</p>
       <h1 id="network-title" tabindex="-1">{{ t('site.network.title') }}</h1>
       <p class="site-lede">{{ t('site.network.lede') }}</p>
     </section>

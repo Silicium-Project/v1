@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import { formatDateTime, formatTime } from '@/i18n/format'
@@ -12,6 +12,22 @@ import Notice from '@/components/Notice.vue'
 
 const router = useRouter()
 const devices = ref<Device[]>([])
+
+// 1 SOL = 1 000 000 000 lamports. Les gains viennent des machines, lus sur la chaîne par le nœud.
+const LAMPORTS_PER_SOL = 1_000_000_000
+function sol(lamports: number): string {
+  return (lamports / LAMPORTS_PER_SOL).toFixed(6)
+}
+const totals = computed(() =>
+  devices.value.reduce(
+    (sum, device) => ({
+      lamports:
+        sum.lamports + (device.telemetry?.worker_lamports ?? 0) + (device.telemetry?.verifier_lamports ?? 0),
+      fragments: sum.fragments + (device.telemetry?.fragments_settled ?? 0),
+    }),
+    { lamports: 0, fragments: 0 },
+  ),
+)
 const loading = ref(true)
 const error = ref('')
 const success = ref('')
@@ -104,6 +120,12 @@ onMounted(load)
     <Notice kind="error" :message="error" />
     <Notice kind="success" :message="success" />
 
+    <div v-if="devices.length > 0" class="card stack">
+      <h2>{{ t('devices.rewardsTitle') }}</h2>
+      <p class="metric-value">{{ sol(totals.lamports) }} SOL</p>
+      <p class="muted">{{ t('devices.rewardsTotal', { count: totals.fragments }) }}</p>
+    </div>
+
     <div class="card stack">
       <h2>{{ t('devices.linkTitle') }}</h2>
       <p>{{ t('devices.linkText') }}</p>
@@ -186,8 +208,8 @@ onMounted(load)
               <p v-else class="muted">{{ t('devices.telemetryNoReputation') }}</p>
               <p v-if="device.telemetry.fragments_settled" class="muted">
                 {{ t('devices.telemetryRewards', {
-                  worker: (device.telemetry.worker_lamports ?? 0).toLocaleString(),
-                  verifier: (device.telemetry.verifier_lamports ?? 0).toLocaleString(),
+                  worker: sol(device.telemetry.worker_lamports ?? 0),
+                  verifier: sol(device.telemetry.verifier_lamports ?? 0),
                   count: device.telemetry.fragments_settled,
                 }) }}
               </p>

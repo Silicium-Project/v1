@@ -13,7 +13,7 @@ import BrandMark from '@/components/BrandMark.vue'
       <nav :aria-label="t('footer.navLabel')">
         <ul class="footer-links">
           <li><RouterLink to="/types-de-calcul">{{ t('footer.workloads') }}</RouterLink></li>
-          <li><RouterLink to="/a-propos#faq">{{ t('footer.faq') }}</RouterLink></li>
+          <li><RouterLink to="/faq">{{ t('footer.faq') }}</RouterLink></li>
           <li><RouterLink to="/contact">{{ t('footer.contact') }}</RouterLink></li>
           <li><RouterLink to="/confidentialite">{{ t('footer.privacy') }}</RouterLink></li>
           <li><RouterLink to="/mentions-legales">{{ t('footer.legal') }}</RouterLink></li>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { t } from '@/i18n'
-import NumberField from './NumberField.vue'
+import SliderField from './SliderField.vue'
 import { RENDER_QUALITIES, RESOLUTION_PRESETS, renderCost, type RenderQuality, type SceneModel } from '@/scene/types'
 
 // Image, caméra, qualité du rendu final, ciel et exposition.
@@ -31,9 +31,9 @@ function applyResolution(id: string): void {
       </select>
     </div>
     <div class="scene-form__grid">
-      <NumberField id="scene-width" :label="t('scene.settings.width')" v-model="model.width" :min="1" :max="4096" :step="1" />
-      <NumberField id="scene-height" :label="t('scene.settings.height')" v-model="model.height" :min="1" :max="4096" :step="1" />
-      <NumberField id="scene-fov" :label="t('scene.settings.fov')" v-model="model.fov" :min="1" :max="179" :step="1" />
+      <SliderField id="scene-width" :label="t('scene.settings.width')" v-model="model.width" :min="1" :max="4096" :step="1" />
+      <SliderField id="scene-height" :label="t('scene.settings.height')" v-model="model.height" :min="1" :max="4096" :step="1" />
+      <SliderField id="scene-fov" :label="t('scene.settings.fov')" v-model="model.fov" :min="1" :max="179" :step="1" />
     </div>
 
     <h4>{{ t('scene.settings.camera') }}</h4>

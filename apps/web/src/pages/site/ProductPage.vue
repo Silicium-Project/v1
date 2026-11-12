@@ -8,13 +8,11 @@ const product = computed(() => messages().site.product)
 <template>
   <div class="site-page">
     <section class="site-hero site-container site-hero--plain">
-      <p class="site-kicker">{{ product.kicker }}</p>
       <h1>{{ product.title }}</h1>
       <p class="site-lede">{{ product.lede }}</p>
     </section>
 
     <section class="site-section site-container" aria-labelledby="product-process">
-      <p class="site-kicker">{{ product.processKicker }}</p>
       <h2 id="product-process">{{ product.processTitle }}</h2>
       <ol class="site-flow">
         <li v-for="(step, index) in product.processSteps" :key="step.title" class="site-flow__step">
@@ -26,7 +24,6 @@ const product = computed(() => messages().site.product)
     </section>
 
     <section class="site-section site-container" aria-labelledby="product-ledger">
-      <p class="site-kicker">{{ product.ledgerKicker }}</p>
       <h2 id="product-ledger">{{ product.ledgerTitle }}</h2>
       <div class="site-ledger">
         <dl>

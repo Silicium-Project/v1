@@ -87,16 +87,65 @@ code {
   border-bottom: 1px solid var(--color-border);
 }
 
-.site-header__inner,
-.site-footer__inner {
+/* En-tête en trois colonnes fixes : marque, navigation centrée, outils. La colonne des outils a une
+   largeur fixe : changer de langue ne décale plus la navigation. */
+.site-header__inner {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 0.75rem var(--gutter);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+}
+
+.nav a {
+  white-space: nowrap;
+}
+
+.site-footer__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 2rem var(--gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem 2.5rem;
+  align-items: start;
+}
+
+.header-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 0.25rem 1.5rem;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .site-header__inner {
+    grid-template-columns: 1fr auto;
+  }
+
+  .site-header__inner > .header-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-header__inner,
+  .site-footer__inner {
+    grid-template-columns: 1fr;
+  }
+
+  .site-header__inner > .header-nav {
+    grid-row: auto;
+  }
+
+  .header-tools {
+    justify-content: flex-start;
+  }
 }
 
 .brand {
@@ -133,6 +182,7 @@ code {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .lang {
@@ -140,6 +190,11 @@ code {
   border: 1px solid var(--color-input-border);
   border-radius: var(--radius);
   overflow: hidden;
+}
+
+/* Largeur fixe des deux langues : le libellé ne fait pas bouger la barre. */
+.lang__btn {
+  min-width: 5.5rem;
 }
 
 .lang__btn {
@@ -236,6 +291,14 @@ code {
 .btn-primary:hover:not(:disabled) {
   background: var(--color-accent-strong);
   border-color: var(--color-accent-strong);
+}
+
+/* Désactivé : pas de bleu délavé (le texte blanc disparaissait avec l'opacité). */
+.btn-primary:disabled {
+  background: var(--color-neutral-soft);
+  border-color: var(--color-border);
+  color: var(--color-neutral);
+  opacity: 1;
 }
 
 .btn-danger {
