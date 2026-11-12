@@ -7,7 +7,7 @@ use crate::{
 use sil_ledger::{AttemptState, EventBody, TaskStatus};
 use sil_settlement::check_escrow;
 use sil_types::JobId;
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::{sync::watch, time::interval};
 
 /// Durée pendant laquelle on réutilise le verdict de la garde d'escrow d'un job.
@@ -179,19 +179,27 @@ pub(crate) fn lease_held(lease_expires_at_ms: u64, now: u64) -> bool {
 /// Nombre de noeuds qui calculent (ce noeud compris) et ont donne signe de vie recemment.
 fn live_compute_workers(shared: &Shared, now: u64) -> usize {
     let work = lock(&shared.work);
-    let others = work
-        .presence
+    compute_peers_alive(&work.presence, now) + 1
+}
+
+/// Pairs qui calculent et dont la dernière présence date de moins de `PRESENCE_FRESH_MS`.
+pub(crate) fn compute_peers_alive(
+    presence: &BTreeMap<sil_net::PeerId, (sil_net::Presence, u64)>,
+    now: u64,
+) -> usize {
+    presence
         .values()
         .filter(|(presence, seen)| {
             presence.roles & sil_net::ROLE_COMPUTE != 0
                 && now.saturating_sub(*seen) < PRESENCE_FRESH_MS
         })
-        .count();
-    others + 1
+        .count()
 }
 
 /// Un noeud dont la presence date de plus de cette duree n'est plus compte comme actif.
+/// Au moins 4 fois la période de présence : trois présences perdues d'affilée restent tolérées.
 const PRESENCE_FRESH_MS: u64 = 60_000;
+const _: () = assert!(PRESENCE_FRESH_MS >= 4 * crate::presence_loop::MAX_SILENCE_MS);
 
 /// Une seule tache a la fois tant qu'il reste des fragments sans preneur et qu'un autre noeud calcule ;
 /// sinon le plafond normal. Un noeud seul garde son parallelisme (personne d'autre ne prendra les taches).
@@ -392,6 +400,23 @@ mod tests {
     #[test]
     fn a_banned_worker_stays_at_zero() {
         assert_eq!(claim_cap(5, 2, 0), 0);
+    }
+
+    #[test]
+    fn a_worker_is_still_counted_after_three_lost_presence_messages() {
+        // Présence toutes les 15 s : trois messages perdus, la dernière reçue il y a 50 s.
+        let peer = sil_net::PeerId::random();
+        let presence = sil_net::Presence {
+            version: 1,
+            roles: sil_net::ROLE_COMPUTE,
+            load: 0,
+            workloads: Vec::new(),
+        };
+        let mut book = BTreeMap::new();
+        book.insert(peer, (presence, 1_000_000));
+        assert_eq!(compute_peers_alive(&book, 1_050_000), 1);
+        // Au-delà de la fenêtre, le pair est bien compté comme parti.
+        assert_eq!(compute_peers_alive(&book, 1_000_000 + PRESENCE_FRESH_MS), 0);
     }
 
     #[test]

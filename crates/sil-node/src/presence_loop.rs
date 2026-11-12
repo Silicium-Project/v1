@@ -7,7 +7,9 @@ use tokio::{sync::watch, time::interval};
 
 const EVERY: Duration = Duration::from_secs(2);
 const MIN_GAP_MS: u64 = 2_000;
-const MAX_SILENCE_MS: u64 = 30_000;
+/// Présence republiée au moins toutes les 15 s, même sans changement : un message perdu
+/// (file d'envoi pleine sur un relais) ne doit pas faire croire qu'un pair a disparu.
+pub(crate) const MAX_SILENCE_MS: u64 = 15_000;
 /// Présences conservées au plus, et durée après laquelle un pair silencieux est oublié.
 const MAX_TRACKED: usize = 1024;
 const FORGET_AFTER_MS: u64 = 180_000;
