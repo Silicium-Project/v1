@@ -15,7 +15,9 @@ const source = join(root, 'dist', LINUX ? 'linux-amd64' : 'windows-amd64')
 const target = join(here, '..', 'src-tauri', 'binaries')
 const TRIPLE = LINUX ? 'x86_64-unknown-linux-gnu' : 'x86_64-pc-windows-msvc'
 const EXT = LINUX ? '' : '.exe'
-const SIDECARS = ['silicium-node', 'sil-raytracer-block']
+// Sous Linux, le lanceur d'isolation doit être à côté du nœud : sans lui, le nœud refuse de
+// démarrer dès qu'un moteur de rendu est configuré (cli.rs : « lanceur sil-sandbox-launch introuvable »).
+const SIDECARS = LINUX ? ['silicium-node', 'sil-raytracer-block', 'sil-sandbox-launch'] : ['silicium-node', 'sil-raytracer-block']
 
 mkdirSync(target, { recursive: true })
 for (const name of SIDECARS) {

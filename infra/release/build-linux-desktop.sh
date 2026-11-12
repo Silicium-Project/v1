@@ -23,7 +23,7 @@ DOWNLOADS="$ROOT/apps/web/public/downloads"
 for name in node npm cargo rsync python3 rpmbuild rpm; do
   command -v "$name" >/dev/null || { echo "absent du PATH : $name" >&2; exit 1; }
 done
-for file in silicium-node sil-raytracer-block libonnxruntime.so; do
+for file in silicium-node sil-raytracer-block sil-sandbox-launch libonnxruntime.so; do
   test -f "$ROOT/dist/linux-amd64/$file" || { echo "absent : dist/linux-amd64/$file" >&2; exit 1; }
 done
 
@@ -52,8 +52,8 @@ for file in "$DEB_SRC" "$RPM_SRC" "$APP_SRC"; do
   test -f "$file" || { echo "paquet absent après build : $file" >&2; exit 1; }
 done
 
-# Le paquet de bureau ne contient pas sil-sandbox-launch (il est dans l'archive du nœud).
-CONTENT=("silicium-node" "sil-raytracer-block" "libonnxruntime.so")
+# Le lanceur d'isolation doit être dans le paquet : le nœud le cherche à côté de lui (cli.rs).
+CONTENT=("silicium-node" "sil-raytracer-block" "sil-sandbox-launch" "libonnxruntime.so")
 echo "== contrôle du contenu du .deb"
 LISTING="$(mktemp)"
 trap 'rm -f "$LISTING"' EXIT

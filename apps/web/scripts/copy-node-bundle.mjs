@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..', '..', '..')
@@ -16,6 +17,40 @@ const target = join(here, '..', 'public', 'downloads')
 const isWindows = process.platform === 'win32'
 // tar.exe du système : celui de Git confond « C: » avec une machine distante.
 const tar = isWindows ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+
+/** Chiffre octal sur `width` caractères, terminé par NUL (format ustar). */
+function octal(value, width) {
+  return `${value.toString(8).padStart(width - 1, '0')}\0`
+}
+
+/**
+ * Archive .tar.gz écrite ici, sans le tar du système : tar.exe de Windows ne garde pas le bit
+ * exécutable (les binaires Linux sortaient en 644 et « Permission denied »). Chaque fichier
+ * reçoit son mode : 755 pour les binaires, 644 pour la configuration et le README.
+ */
+function tarGz(files) {
+  const blocks = []
+  for (const { name, data, mode } of files) {
+    const header = Buffer.alloc(512)
+    header.write(name, 0, 100, 'utf8')
+    header.write(octal(mode, 8), 100, 8)
+    header.write(octal(0, 8), 108, 8)
+    header.write(octal(0, 8), 116, 8)
+    header.write(octal(data.length, 12), 124, 12)
+    header.write(octal(Math.floor(Date.now() / 1000), 12), 136, 12)
+    header.fill(0x20, 148, 156)
+    header.write('0', 156, 1)
+    header.write('ustar\0' + '00', 257, 8)
+    header.write('root', 265, 32)
+    header.write('root', 297, 32)
+    let sum = 0
+    for (const byte of header) sum += byte
+    header.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148, 8)
+    blocks.push(header, data, Buffer.alloc((512 - (data.length % 512)) % 512))
+  }
+  blocks.push(Buffer.alloc(1024))
+  return gzipSync(Buffer.concat(blocks))
+}
 
 const BUNDLES = [
   {
@@ -92,11 +127,16 @@ for (const bundle of BUNDLES) {
   writeFileSync(join(dir, 'node.toml'), configFor(bundle.engine))
   writeFileSync(join(dir, 'README.txt'), bundle.readme)
 
-  const parent = join(staging, bundle.platform)
-  const args = bundle.archive.endsWith('.zip')
-    ? ['-a', '-c', '-f', join(target, bundle.archive), '-C', parent, 'silicium-node']
-    : ['-czf', join(target, bundle.archive), '-C', parent, 'silicium-node']
-  execFileSync(tar, args, { stdio: 'inherit' })
+  if (bundle.archive.endsWith('.zip')) {
+    const parent = join(staging, bundle.platform)
+    execFileSync(tar, ['-a', '-c', '-f', join(target, bundle.archive), '-C', parent, 'silicium-node'], { stdio: 'inherit' })
+  } else {
+    const files = [...bundle.binaries.map((name) => ({ name, mode: 0o755 })), { name: 'node.toml', mode: 0o644 }, { name: 'README.txt', mode: 0o644 }]
+    writeFileSync(
+      join(target, bundle.archive),
+      tarGz(files.map(({ name, mode }) => ({ name: `silicium-node/${name}`, mode, data: readFileSync(join(dir, name)) }))),
+    )
+  }
 
   const bytes = readFileSync(join(target, bundle.archive))
   const sha256 = createHash('sha256').update(bytes).digest('hex')
