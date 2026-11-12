@@ -54,6 +54,20 @@ pub(crate) struct WorkBook {
     pub(crate) escrow_seen: BTreeMap<JobId, (u64, Option<sil_chain_core::Escrow>)>,
     /// Un verrou par contenu en cours de téléchargement : les demandeurs suivants attendent.
     pub(crate) fetching: BTreeMap<sil_types::ContentId, Arc<tokio::sync::Mutex<()>>>,
+    /// Tentatives vues par ce nœud (job, fragment, tentative) : heure locale du claim et du résultat.
+    /// Mesure la vitesse des pairs sans faire confiance aux horodatages déclarés.
+    pub(crate) attempt_seen: BTreeMap<(JobId, u32, u32), AttemptSeen>,
+    /// Premier instant où ce nœud a vu un fragment sans preneur (job, fragment).
+    pub(crate) waiting_since: BTreeMap<(JobId, u32), u64>,
+}
+
+/// Une tentative vue par ce nœud. `claim_ms` est absent si le résultat était déjà là à la première
+/// observation : la durée n'est alors pas mesurable.
+#[derive(Clone)]
+pub(crate) struct AttemptSeen {
+    pub(crate) claimant: sil_types::PublicKey,
+    pub(crate) claim_ms: Option<u64>,
+    pub(crate) result_ms: Option<u64>,
 }
 
 /// État partagé du nœud. Les verrous sont tenus brièvement et jamais à travers un `await`.

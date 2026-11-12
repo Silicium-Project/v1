@@ -1,10 +1,10 @@
 //! Worker : réclame les fragments ouverts (si l'escrow est sain), lance ceux qu'on lui a attribués.
 
 use crate::{
-    shared::{Shared, lock},
+    shared::{AttemptSeen, Shared, WorkBook, lock},
     work,
 };
-use sil_ledger::{EventBody, TaskStatus};
+use sil_ledger::{AttemptState, EventBody, TaskStatus};
 use sil_settlement::check_escrow;
 use sil_types::JobId;
 use std::{sync::Arc, time::Duration};
@@ -58,9 +58,18 @@ async fn scan_job(shared: &Arc<Shared>, job: &JobId) {
         let Some(state) = lock(&shared.ledger).task_state(job, fragment, now) else {
             continue;
         };
+        observe(
+            shared,
+            job,
+            fragment,
+            &state.attempts,
+            state.next_attempt.is_some(),
+            now,
+        );
         if let Some(attempt) = state.next_attempt
             && !state.attempts.iter().any(|a| a.claimant == me)
             && open_claims(shared, &me, now) < cap
+            && may_claim_now(shared, &me, job, fragment, now)
             && lock(&shared.work).claimed.insert((*job, fragment, attempt))
         {
             let ok = match escrow_checked {
@@ -194,6 +203,138 @@ pub(crate) fn claim_cap(waiting: usize, live_workers: usize, max: usize) -> usiz
     }
 }
 
+/// Un nœud est lent si sa médiane dépasse celle d'un pair rapide de plus de 50 % (150 %).
+const SLOW_PERCENT: u64 = 150;
+/// Délai avant qu'un nœud lent réclame un fragment resté sans preneur, quand un pair rapide existe.
+const SLOW_GRACE_MS: u64 = 15_000;
+/// Durées retenues par nœud, et minimum pour juger sa vitesse.
+const SPEED_SAMPLES: usize = 8;
+const SPEED_MIN_SAMPLES: usize = 2;
+/// Un pair compte comme rapide seulement s'il a réclamé récemment.
+const FAST_RECENT_MS: u64 = 120_000;
+/// Nombre maximal de tentatives gardées en mémoire pour mesurer les pairs.
+const ATTEMPTS_SEEN_MAX: usize = 4096;
+
+/// Met à jour ce que ce nœud observe d'un fragment : tentatives vues (heure locale) et attente.
+fn observe(
+    shared: &Shared,
+    job: &JobId,
+    fragment: u32,
+    attempts: &[AttemptState],
+    waiting: bool,
+    now: u64,
+) {
+    let mut book = lock(&shared.work);
+    if waiting {
+        book.waiting_since.entry((*job, fragment)).or_insert(now);
+    } else {
+        book.waiting_since.remove(&(*job, fragment));
+    }
+    for attempt in attempts {
+        let key = (*job, fragment, attempt.attempt);
+        let has_result = attempt.result.is_some();
+        let seen = book.attempt_seen.entry(key).or_insert_with(|| AttemptSeen {
+            claimant: attempt.claimant,
+            claim_ms: (!has_result).then_some(now),
+            result_ms: None,
+        });
+        if has_result && seen.result_ms.is_none() && seen.claim_ms.is_some() {
+            seen.result_ms = Some(now);
+        }
+    }
+    prune_attempts(&mut book);
+}
+
+/// Garde au plus `ATTEMPTS_SEEN_MAX` tentatives, les plus anciennes d'abord.
+fn prune_attempts(book: &mut WorkBook) {
+    if book.attempt_seen.len() <= ATTEMPTS_SEEN_MAX {
+        return;
+    }
+    let mut ages: Vec<(u64, (JobId, u32, u32))> = book
+        .attempt_seen
+        .iter()
+        .map(|(key, seen)| (seen.claim_ms.unwrap_or(0), *key))
+        .collect();
+    ages.sort_unstable();
+    let excess = book.attempt_seen.len() - ATTEMPTS_SEEN_MAX;
+    for (_, key) in ages.into_iter().take(excess) {
+        book.attempt_seen.remove(&key);
+    }
+}
+
+/// Vitesse d'un nœud à partir de ses durées (claim -> résultat, en ms) : médiane des dernières
+/// tentatives et heure du dernier claim. `None` tant qu'il n'y a pas assez de mesures.
+pub(crate) fn speed_from(samples: &[(u64, u64)]) -> Option<(u64, u64)> {
+    if samples.len() < SPEED_MIN_SAMPLES {
+        return None;
+    }
+    let mut by_claim = samples.to_vec();
+    by_claim.sort_unstable();
+    let recent = &by_claim[by_claim.len().saturating_sub(SPEED_SAMPLES)..];
+    let last_claim = recent.last()?.0;
+    let mut durations: Vec<u64> = recent
+        .iter()
+        .map(|(claim, result)| result.saturating_sub(*claim))
+        .collect();
+    durations.sort_unstable();
+    Some((durations[durations.len() / 2], last_claim))
+}
+
+/// Vitesse observée d'un nœud dans le carnet local.
+fn speed_of(book: &WorkBook, who: &sil_types::PublicKey) -> Option<(u64, u64)> {
+    let samples: Vec<(u64, u64)> = book
+        .attempt_seen
+        .values()
+        .filter(|seen| seen.claimant == *who)
+        .filter_map(|seen| Some((seen.claim_ms?, seen.result_ms?)))
+        .collect();
+    speed_from(&samples)
+}
+
+/// Vrai si `mine` dépasse `fastest` de plus de la marge (`SLOW_PERCENT`).
+pub(crate) fn slower(mine: u64, fastest: u64) -> bool {
+    mine.saturating_mul(100) > fastest.saturating_mul(SLOW_PERCENT)
+}
+
+/// Un nœud plus lent qu'un pair rapide récent attend `SLOW_GRACE_MS` après l'apparition du fragment,
+/// pour laisser le pair rapide le prendre. Le délai est borné : un fragment n'est jamais bloqué.
+fn may_claim_now(
+    shared: &Shared,
+    me: &sil_types::PublicKey,
+    job: &JobId,
+    fragment: u32,
+    now: u64,
+) -> bool {
+    let book = lock(&shared.work);
+    let Some((mine, _)) = speed_of(&book, me) else {
+        return true;
+    };
+    let mut others: Vec<sil_types::PublicKey> = Vec::new();
+    for seen in book.attempt_seen.values() {
+        if seen.claimant != *me && !others.contains(&seen.claimant) {
+            others.push(seen.claimant);
+        }
+    }
+    let fastest = others
+        .iter()
+        .filter_map(|who| speed_of(&book, who))
+        .filter(|(_, last_claim)| now.saturating_sub(*last_claim) < FAST_RECENT_MS)
+        .map(|(median, _)| median)
+        .min();
+    let Some(fastest) = fastest else {
+        return true;
+    };
+    if !slower(mine, fastest) {
+        return true;
+    }
+    let since = book
+        .waiting_since
+        .get(&(*job, fragment))
+        .copied()
+        .unwrap_or(now);
+    now.saturating_sub(since) >= SLOW_GRACE_MS
+}
+
 /// Plafond pur : 0 si la reputation l'interdit, sinon au moins `START_PARALLEL`, borne aux coeurs.
 pub(crate) fn allowed_parallel(reputation: usize, cpu: usize) -> usize {
     if reputation == 0 {
@@ -251,5 +392,35 @@ mod tests {
     #[test]
     fn a_banned_worker_stays_at_zero() {
         assert_eq!(claim_cap(5, 2, 0), 0);
+    }
+
+    #[test]
+    fn slower_needs_a_fifty_percent_margin() {
+        assert!(!slower(100, 100));
+        assert!(!slower(150, 100));
+        assert!(slower(151, 100));
+    }
+
+    #[test]
+    fn speed_needs_a_few_samples() {
+        assert_eq!(speed_from(&[(0, 10)]), None);
+    }
+
+    #[test]
+    fn speed_is_the_median_of_the_recent_durations() {
+        // Durées 10, 30, 60 ms : médiane 30 ; dernier claim à 200 ms.
+        assert_eq!(
+            speed_from(&[(0, 10), (100, 130), (200, 260)]),
+            Some((30, 200))
+        );
+    }
+
+    #[test]
+    fn old_slow_samples_stop_counting() {
+        let mut samples: Vec<(u64, u64)> =
+            (0..4).map(|i| (i * 10_000, i * 10_000 + 90_000)).collect();
+        samples.extend((4..12).map(|i| (i * 10_000, i * 10_000 + 1_000)));
+        let (median, _) = speed_from(&samples).expect("assez de mesures");
+        assert_eq!(median, 1_000);
     }
 }
