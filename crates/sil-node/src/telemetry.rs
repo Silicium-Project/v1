@@ -54,7 +54,7 @@ pub(crate) async fn run(
                 .timeout(TIMEOUT)
                 .send_json(body)
                 .map(|_| ())
-                .map_err(|error| error.to_string())
+                .map_err(describe)
         })
         .await;
         match sent {
@@ -62,6 +62,19 @@ pub(crate) async fn run(
             Ok(Err(error)) => tracing::warn!(%error, "télémétrie non envoyée"),
             Err(error) => tracing::warn!(%error, "envoi de télémétrie interrompu"),
         }
+    }
+}
+
+/// Message d'erreur d'un envoi. Une réponse refusée par l'API garde son code (`invalid_input`,
+/// `invalid_proof`…) et le début de son corps : sans cela, un 400 ne dit pas pourquoi il est refusé.
+fn describe(error: ureq::Error) -> String {
+    match error {
+        ureq::Error::Status(status, response) => {
+            let body = response.into_string().unwrap_or_default();
+            let body: String = body.chars().take(200).collect();
+            format!("http {status} : {body}")
+        }
+        other => other.to_string(),
     }
 }
 
@@ -116,5 +129,13 @@ mod tests {
     fn values_are_rounded_to_one_decimal() {
         assert_eq!(round(31.26), 31.3);
         assert_eq!(round(0.0), 0.0);
+    }
+
+    #[test]
+    fn a_refused_report_says_why() {
+        let response = ureq::Response::new(400, "Bad Request", r#"{"code":"invalid_input"}"#)
+            .expect("réponse de test");
+        let text = describe(ureq::Error::Status(400, response));
+        assert_eq!(text, r#"http 400 : {"code":"invalid_input"}"#);
     }
 }
