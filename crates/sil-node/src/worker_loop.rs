@@ -141,6 +141,7 @@ fn open_claims(shared: &Arc<Shared>, me: &sil_types::PublicKey, now: u64) -> usi
                 && last.claimant == *me
                 && last.result.is_none()
                 && !last.released
+                && lease_held(last.lease_expires_at_ms, now)
             {
                 open += 1;
             }
@@ -158,6 +159,12 @@ const START_PARALLEL: usize = 4;
 pub(crate) fn max_parallel(shared: &Shared, me: &sil_types::PublicKey, now: u64) -> usize {
     let reputation = lock(&shared.reputation).max_parallel(me, now) as usize;
     allowed_parallel(reputation, cpu_limit())
+}
+
+/// Un claim compte comme tache en cours tant que son bail court. Un bail expire (noeud arrete en pleine
+/// tache) ne bloque plus ce noeud : le reseau peut reprendre le fragment.
+pub(crate) fn lease_held(lease_expires_at_ms: u64, now: u64) -> bool {
+    lease_expires_at_ms > now
 }
 
 /// Nombre de noeuds qui calculent (ce noeud compris) et ont donne signe de vie recemment.
@@ -232,6 +239,13 @@ mod tests {
     #[test]
     fn nothing_waiting_means_the_normal_cap() {
         assert_eq!(claim_cap(0, 2, 3), 3);
+    }
+
+    #[test]
+    fn an_expired_lease_no_longer_counts_as_a_running_task() {
+        assert!(lease_held(2_000, 1_000));
+        assert!(!lease_held(1_000, 1_000));
+        assert!(!lease_held(500, 1_000));
     }
 
     #[test]
