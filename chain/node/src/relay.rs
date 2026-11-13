@@ -77,4 +77,16 @@ impl Chain for RelayChain {
     fn verifier_standing(&self, verifier: &PublicKey) -> Result<Option<i64>, ChainError> {
         self.reader.verifier_standing(verifier)
     }
+
+    // Ancrage des claims (ADR 0009) : lu sur le RPC, sans quoi ce nœud ne réclame plus rien.
+    fn current_slot(&self) -> Result<u64, ChainError> {
+        self.reader.current_slot()
+    }
+
+    // Une pénalité part seulement d'un nœud qui paie les frais (`pays_fees`), jamais d'un relais.
+    fn penalize(&self, _penalty: &sil_settlement::PenaltyClaim) -> Result<TxId, ChainError> {
+        Err(ChainError::Transient(
+            "pénalité : seul un nœud qui paie les frais la soumet".into(),
+        ))
+    }
 }
