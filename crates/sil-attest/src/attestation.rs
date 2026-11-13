@@ -1,6 +1,5 @@
 use crate::AttestError;
 use serde::{Deserialize, Serialize};
-use sil_codec::encode;
 use sil_crypto::{Domain, SigningIdentity, verify};
 use sil_types::{Hash32, PublicKey, Signature, TaskRef};
 
@@ -26,8 +25,36 @@ impl AttestationBody {
     }
 
     fn bytes(&self) -> Result<Vec<u8>, AttestError> {
-        encode(self).map_err(|_| AttestError::Encode)
+        Ok(verdict_message(
+            &self.task,
+            self.attempt,
+            &self.result,
+            self.approved,
+            self.evidence.as_ref(),
+        ))
     }
+}
+
+/// Octets signés d'un verdict (ADR 0012), dans un format binaire fixe que le programme on-chain
+/// peut reconstruire : `job ‖ fragment LE ‖ tentative LE ‖ résultat ‖ approved (1) ‖ présence de la
+/// preuve (1) ‖ preuve (32, zéros si absente)`. Sans préfixe de domaine : `Domain::Attestation`
+/// le préfixe.
+pub fn verdict_message(
+    task: &TaskRef,
+    attempt: u32,
+    result: &Hash32,
+    approved: bool,
+    evidence: Option<&Hash32>,
+) -> Vec<u8> {
+    let mut out = Vec::with_capacity(106);
+    out.extend_from_slice(task.job.as_bytes());
+    out.extend_from_slice(&task.fragment.to_le_bytes());
+    out.extend_from_slice(&attempt.to_le_bytes());
+    out.extend_from_slice(result.as_bytes());
+    out.push(u8::from(approved));
+    out.push(u8::from(evidence.is_some()));
+    out.extend_from_slice(evidence.map_or(&[0u8; 32][..], |e| e.as_bytes()));
+    out
 }
 
 /// Verdict signé d'un vérificateur. Une approbation porte en plus la signature de règlement du

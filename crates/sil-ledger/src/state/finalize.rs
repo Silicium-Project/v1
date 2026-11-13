@@ -141,7 +141,7 @@ fn certified(
         verifiers: offer_ids,
     } = designated;
     let claim = attempt::find(events, &claim_id)?;
-    if !matches!(claim.body, EventBody::Claim { fragment: f, attempt: a } if f == fragment && a == k)
+    if !matches!(claim.body, EventBody::Claim { fragment: f, attempt: a, .. } if f == fragment && a == k)
     {
         return None;
     }

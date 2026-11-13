@@ -62,20 +62,32 @@ fn standing(chain: &SolanaChain, program: &Pubkey, verifier: &SigningIdentity) -
     Some(i64::from_le_bytes(bytes))
 }
 
-/// Pénalité signée par le requester (ADR 0008) : envoyée telle quelle, erreur du programme décodée.
+/// Pénalité (ADR 0012) : preuve = signature du vote contraire du vérificateur. Envoyée par `payer`,
+/// erreur du programme décodée.
 fn penalize(
     chain: &SolanaChain,
-    signer: &Keypair,
+    payer: &Keypair,
     job: sil_types::JobId,
     args: &PenaltyArgs,
+    requester: &sil_types::PublicKey,
+    approvers: &[sil_types::PublicKey],
+    signature: sil_types::Signature,
 ) -> Result<TxId, ChainError> {
-    let ix = tx::penalize_ix(&chain.program(), &signer.pubkey(), &job, args)?;
+    let ixs = tx::penalize_instructions(
+        &chain.program(),
+        &payer.pubkey(),
+        &job,
+        args,
+        requester,
+        approvers,
+        (args.verifier, signature),
+    )?;
     let blockhash = chain
         .rpc()
         .get_latest_blockhash()
         .map_err(map_client)?;
     let transaction =
-        Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &[signer], blockhash);
+        Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[payer], blockhash);
     let signature = chain
         .rpc()
         .send_and_confirm_transaction(&transaction)
@@ -157,29 +169,49 @@ fn escrow_lifecycle_on_devnet() {
         other => panic!("remboursement anticipé refusé attendu, reçu {other:?}"),
     }
 
-    // 7. Pénalité par le requester (ADR 0008) : le score baisse de 1 000, une seule fois.
+    // 7. Pénalité (ADR 0012) : un approbateur ne peut pas être pénalisé par son propre vote contraire,
+    //    puisqu'il fait partie de la majorité. Refusé, le score ne bouge pas.
+    //    La pénalité réussie (vote contraire signé par un vérificateur hors majorité, avec réserve)
+    //    est couverte par les tests de sil-chain-core ; elle demande un vérificateur qui a déjà réglé
+    //    un autre fragment, donc un scénario plus long que celui-ci.
+    let other_result = sil_types::Hash32::from_bytes([0xD1; 32]);
     let penalty = PenaltyArgs {
         fragment: 0,
+        attempt: 1,
+        result: other_result,
+        approved: true,
+        evidence: None,
+        tolerance: None,
         verifier: approver.public(),
     };
-    penalize(&chain, &requester, job, &penalty).expect("pénalité acceptée");
+    let own_dissent = approver.sign_raw(&sil_chain_core::wire::attestation_frame(
+        &job,
+        0,
+        1,
+        &other_result,
+        true,
+        None,
+    ));
+    let requester_key = requester.pubkey();
+    let requester_key = sil_types::PublicKey::from_bytes(requester_key.to_bytes());
+    let approvers = [approver.public()];
+    match penalize(
+        &chain,
+        &payer,
+        job,
+        &penalty,
+        &requester_key,
+        &approvers,
+        own_dissent,
+    ) {
+        Err(ChainError::Rejected(text)) => assert_eq!(text, "pénalité refusée", "{text}"),
+        other => panic!("pénalité d'un approbateur refusée attendue, reçu {other:?}"),
+    }
     assert_eq!(
         standing(&chain, &program, &approver),
-        Some(reputation::VERIFIER_START + reputation::VERIFIED_STEP - reputation::PENALTY_STEP),
-        "score après pénalité"
+        Some(reputation::VERIFIER_START + reputation::VERIFIED_STEP),
+        "score inchangé après pénalité refusée"
     );
-    match penalize(&chain, &requester, job, &penalty) {
-        Err(ChainError::Rejected(text)) => assert_eq!(text, "pénalité refusée", "{text}"),
-        other => panic!("seconde pénalité refusée attendue, reçu {other:?}"),
-    }
-
-    // 8. Pénalité par un autre que le requester : refusée (NotRequester).
-    match penalize(&chain, &payer, job, &penalty) {
-        Err(ChainError::Rejected(text)) => {
-            assert_eq!(text, "seul le requester peut faire cette opération", "{text}")
-        }
-        other => panic!("pénalité d'un tiers refusée attendue, reçu {other:?}"),
-    }
 
     // Le remboursement après échéance et délai de grâce n'est pas testé ici : il faudrait attendre
     // le délai de grâce du programme (24 h).

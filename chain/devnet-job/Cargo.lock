@@ -3140,6 +3140,7 @@ dependencies = [
  "sil-crypto",
  "sil-quota",
  "sil-types",
+ "sil-workload-spec",
  "thiserror 2.0.21",
 ]
 

@@ -27,6 +27,8 @@ pub enum RuleError {
     IneligibleVerifier { have: Option<i64>, need: i64 },
     #[error("pénalité refusée : {0}")]
     BadPenalty(&'static str),
+    #[error("réserve non libérable : {0}")]
+    ReserveNotDue(&'static str),
     #[error("fonds insuffisants dans l'escrow")]
     Insufficient,
     #[error("remboursement trop tôt")]

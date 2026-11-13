@@ -24,6 +24,7 @@ mod claim;
 mod error;
 mod guard;
 mod outbox;
+mod penalty;
 mod store;
 
 #[cfg(any(test, feature = "testing"))]
@@ -35,6 +36,7 @@ pub use claim::{Authorization, IntentId, SettlementClaim};
 pub use error::SettlementError;
 pub use guard::{GuardError, check_escrow, terms_of};
 pub use outbox::{Outbox, Phase, Status};
+pub use penalty::{PenaltyBox, PenaltyClaim, PenaltyPhase};
 pub use store::OutboxFile;
 
 #[cfg(test)]

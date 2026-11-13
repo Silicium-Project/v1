@@ -72,7 +72,7 @@ pub(super) fn accepted<'a>(
         .copied()
         .filter(|(_, event)| matches!(event.body, EventBody::Claim { attempt, .. } if attempt == k))
         .collect();
-    by_time(&mut claims);
+    claim_order(&mut claims);
     claims
         .into_iter()
         .find(|(_, claim)| {
@@ -83,6 +83,19 @@ pub(super) fn accepted<'a>(
             claim_id: *id,
             claim,
         })
+}
+
+/// Ordre des claims (ADR 0009) : slot d'ancrage signé, puis heure déclarée, puis identifiant. Le
+/// slot d'ancrage est fixé par l'auteur à partir d'une horloge externe ; l'heure déclarée ne sert
+/// qu'à départager deux claims dans le même slot.
+pub(super) fn claim_order(events: &mut [Ev<'_>]) {
+    events.sort_by_key(|(id, event)| {
+        let anchor = match event.body {
+            EventBody::Claim { anchor_slot, .. } => anchor_slot,
+            _ => 0,
+        };
+        (anchor, event.issued_at_ms, **id)
+    });
 }
 
 /// Résultat désigné par un `Submit`, si l'événement en est un.

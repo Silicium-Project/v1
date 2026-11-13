@@ -15,13 +15,13 @@ fn finalized(approvers: Vec<u8>) -> Finalized {
 #[test]
 fn a_claim_takes_exactly_the_required_approvers_in_a_canonical_order() {
     let f = finalized(vec![72, 70, 71, 70]);
-    let claim = SettlementClaim::from_finalized(&job(), 0, &f, 2).unwrap();
-    assert_eq!(claim.approvers, vec![key(70), key(71)]);
+    let claim = SettlementClaim::from_finalized(&job(), 0, &f, 3).unwrap();
+    assert_eq!(claim.approvers, vec![key(70), key(71), key(72)]);
     // Même résultat quel que soit l'ordre vu par le nœud : même identifiant partout.
     let other =
-        SettlementClaim::from_finalized(&job(), 0, &finalized(vec![71, 72, 70]), 2).unwrap();
+        SettlementClaim::from_finalized(&job(), 0, &finalized(vec![71, 72, 70]), 3).unwrap();
     assert_eq!(claim.id(), other.id());
-    assert!(SettlementClaim::from_finalized(&job(), 0, &finalized(vec![70]), 2).is_none());
+    assert!(SettlementClaim::from_finalized(&job(), 0, &finalized(vec![70, 71]), 3).is_none());
 }
 
 #[test]

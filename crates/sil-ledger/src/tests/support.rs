@@ -109,7 +109,7 @@ impl World {
     pub fn claim_and_accept(&mut self, worker: &SigningIdentity, attempt: u32) -> Hash32 {
         let claim = self.emit(
             worker,
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 0,
                 attempt,
             },

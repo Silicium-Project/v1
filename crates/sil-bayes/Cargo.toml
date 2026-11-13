@@ -1,0 +1,12 @@
+[package]
+name = "sil-bayes"
+description = "Primitives bayésiennes déterministes (Beta-Bernoulli, Normal-Gamma) en entiers fixes : même résultat sur tout nœud (ADR 0013)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[lints]
+workspace = true

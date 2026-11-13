@@ -12,6 +12,15 @@ const (
 	UnitPixelsBand UnitKind = "pixels_band"
 )
 
+// Resources is the relative intensity (0 to 100) a workload solicits on each dimension, never
+// its name (ADR 0013 §3) : lets the network learn resources → result without naming task types.
+type Resources struct {
+	Compute uint8
+	Memory  uint8
+	Network uint8
+	Storage uint8
+}
+
 // Spec is one workload descriptor (see contracts/workloads/ for the meaning of each field).
 type Spec struct {
 	ID                    string
@@ -36,6 +45,7 @@ type Spec struct {
 	MemoryBytes           uint64
 	OutputBytes           uint64
 	DepositSupported      bool
+	Resources             Resources
 }
 
 // Find returns the descriptor of an identifier, if the network knows it.

@@ -12,5 +12,8 @@ sil-codec.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+sil-chain-core.workspace = true
+
 [lints]
 workspace = true

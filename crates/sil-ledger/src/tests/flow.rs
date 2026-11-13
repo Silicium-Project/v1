@@ -11,7 +11,7 @@ fn full_lifecycle_needs_verifier_votes_and_a_certificate() {
     // Phase 2 : le premier claim valide retient la tentative, sans vote du comité.
     world.emit(
         &worker,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 1,
         },
@@ -70,7 +70,7 @@ fn expired_lease_opens_the_next_attempt_to_other_workers() {
     // w1 ne reprend pas sa propre tentative : son claim est ignoré.
     world.emit(
         &w1,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 2,
         },
@@ -84,7 +84,7 @@ fn expired_lease_opens_the_next_attempt_to_other_workers() {
     // w2 réclame après l'échéance du bail de w1 : la tentative 2 lui revient.
     world.emit(
         &w2,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 2,
         },

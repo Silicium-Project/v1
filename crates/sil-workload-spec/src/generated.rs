@@ -1,6 +1,6 @@
 // GÉNÉRÉ par tools/workloads/generate.mjs depuis contracts/workloads/*.json. Ne pas modifier à la main.
 
-use crate::{Limits, Spec, Unit, Verification};
+use crate::{Limits, Resources, Spec, Unit, Verification};
 
 /// `calcul/sha256` : Une unité = un octet de l'entrée. Chaque fragment est une plage d'octets dont le SHA-256 est publié ; un vérificateur refait le hash de la plage.
 pub const CALCUL_SHA256: Spec = Spec {
@@ -22,6 +22,12 @@ pub const CALCUL_SHA256: Spec = Spec {
         output_bytes: 32,
     },
     deposit_supported: true,
+    resources: Resources {
+        compute: 70,
+        memory: 10,
+        network: 20,
+        storage: 20,
+    },
 };
 
 /// `embedding/e5-small` : Une unité = un octet de l'entrée. L'entrée est un lot de textes (un texte par ligne, découpé en chunks de 512 tokens au plus). Chaque chunk reçoit son vecteur à 384 dimensions (multilingual-e5-small, fp32, préfixe « passage: »). Vérification par tolérance : un vérificateur recalcule un échantillon de chunks et compare chaque vecteur par cosinus.
@@ -50,6 +56,12 @@ pub const EMBEDDING_E5_SMALL: Spec = Spec {
         output_bytes: 67108864,
     },
     deposit_supported: true,
+    resources: Resources {
+        compute: 80,
+        memory: 60,
+        network: 20,
+        storage: 40,
+    },
 };
 
 /// `image/batch` : Une unité = un octet de l'entrée. L'entrée est un lot d'images (conteneur SILBATCH) : chaque image est redimensionnée et réencodée (PNG ou JPEG). Chaque fragment est une plage d'images, dont le résultat est publié ; un vérificateur refait le traitement de la plage.
@@ -75,6 +87,12 @@ pub const IMAGE_BATCH: Spec = Spec {
         output_bytes: 67108864,
     },
     deposit_supported: true,
+    resources: Resources {
+        compute: 60,
+        memory: 30,
+        network: 20,
+        storage: 30,
+    },
 };
 
 /// `rendu/raytracer` : Une unité = un pixel de la bande du fragment. L'entrée est une scène .cfg, rendue par le moteur raytracing déterministe (sil-raytracer) ; un vérificateur recalcule un échantillon de blocs de 8 lignes.
@@ -100,6 +118,12 @@ pub const RENDU_RAYTRACER: Spec = Spec {
         output_bytes: 268435456,
     },
     deposit_supported: true,
+    resources: Resources {
+        compute: 90,
+        memory: 40,
+        network: 10,
+        storage: 30,
+    },
 };
 
 /// Tous les descripteurs, triés par identifiant.

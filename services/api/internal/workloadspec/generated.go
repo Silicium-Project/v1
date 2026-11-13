@@ -27,6 +27,7 @@ var Workloads = []Spec{
 		MemoryBytes:           67108864,
 		OutputBytes:           32,
 		DepositSupported:      true,
+		Resources:             Resources{Compute: 70, Memory: 10, Network: 20, Storage: 20},
 	},
 	{
 		ID:                    "embedding/e5-small",
@@ -51,6 +52,7 @@ var Workloads = []Spec{
 		MemoryBytes:           1073741824,
 		OutputBytes:           67108864,
 		DepositSupported:      true,
+		Resources:             Resources{Compute: 80, Memory: 60, Network: 20, Storage: 40},
 	},
 	{
 		ID:                    "image/batch",
@@ -75,6 +77,7 @@ var Workloads = []Spec{
 		MemoryBytes:           536870912,
 		OutputBytes:           67108864,
 		DepositSupported:      true,
+		Resources:             Resources{Compute: 60, Memory: 30, Network: 20, Storage: 30},
 	},
 	{
 		ID:                    "rendu/raytracer",
@@ -99,5 +102,6 @@ var Workloads = []Spec{
 		MemoryBytes:           1073741824,
 		OutputBytes:           268435456,
 		DepositSupported:      true,
+		Resources:             Resources{Compute: 90, Memory: 40, Network: 10, Storage: 30},
 	},
 }

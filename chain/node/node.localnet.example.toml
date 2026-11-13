@@ -1,0 +1,18 @@
+# Nœud qui règle sur le validateur local (chain/scripts/localnet.sh). Voir chain/README.md.
+# Tout worker et tout vérificateur doit avoir cette section : sans RPC, aucun claim n'est
+# signé et aucun claim reçu en direct n'est validé (ADR 0009).
+
+data_dir = "data"
+
+[network]
+listen = ["/ip4/127.0.0.1/tcp/4101"]
+enable_mdns = false
+
+[control]
+bind = "127.0.0.1"
+port = 8851
+
+[chain]
+rpc_url = "http://127.0.0.1:8899"
+program_id = "<identifiant du programme, base58 : sortie de solana-keygen pubkey>"
+payer_keypair = "payer.json"   # ce compte paie les frais ; il doit avoir du SOL

@@ -10,26 +10,27 @@ fn completed(p: Params) -> (World, sil_types::Hash32, sil_crypto::SigningIdentit
     (world, result, worker)
 }
 
-/// Phase 3 : les k = 2 premières offres sont retenues. Un saboteur qui propose en dernier n'est
+/// Phase 3 : les k = 3 premières offres sont retenues. Un saboteur qui propose en dernier n'est
 /// pas retenu, donc son rejet ne compte pas.
 #[test]
-fn a_late_sybil_rejection_cannot_kill_a_result_that_needs_two_approvals() {
+fn a_late_sybil_rejection_cannot_kill_a_result_that_needs_three_approvals() {
     let (mut world, result, _) = completed(Params {
-        verifications: 2,
+        verifications: 3,
         ..Params::default()
     });
-    let (griefer, honest_a, honest_b) = (ident(61), ident(62), ident(63));
-    for verifier in [&honest_a, &honest_b, &griefer] {
+    let (honest_a, honest_b, honest_c, griefer) = (ident(62), ident(63), ident(64), ident(61));
+    for verifier in [&honest_a, &honest_b, &honest_c, &griefer] {
         world.accept_verifier(verifier, 1);
     }
     world.attest(&griefer, 1, result, false);
     world.attest(&honest_a, 1, result, true);
+    world.attest(&honest_b, 1, result, true);
     assert_eq!(
         world.status(),
         TaskStatus::Completed,
-        "1 approbation < 2 requises"
+        "2 approbations < 3 requises"
     );
-    world.attest(&honest_b, 1, result, true);
+    world.attest(&honest_c, 1, result, true);
     assert_eq!(world.status(), TaskStatus::Verified);
 }
 
@@ -87,10 +88,10 @@ fn a_verdict_on_another_result_is_ignored() {
 #[test]
 fn open_verifications_exclude_claimant_and_accepted_verifiers() {
     let (mut world, _, worker) = completed(Params {
-        verifications: 2,
+        verifications: 3,
         ..Params::default()
     });
-    let (v1, v2) = (ident(61), ident(62));
+    let (v1, v2, v3) = (ident(61), ident(62), ident(63));
     world.emit(
         &worker,
         EventBody::VerifyOffer {
@@ -112,13 +113,20 @@ fn open_verifications_exclude_claimant_and_accepted_verifiers() {
             attempt: 1,
         },
     );
-    // Phase 3 : v1 et v2 sont les deux premières offres : retenues, donc plus « ouvertes ».
+    world.emit(
+        &v3,
+        EventBody::VerifyOffer {
+            fragment: 0,
+            attempt: 1,
+        },
+    );
+    // Phase 3 : v1, v2 et v3 sont les trois premières offres : retenues, donc plus « ouvertes ».
     let verifiers: Vec<_> = world.task().attempts[0]
         .verifiers
         .iter()
         .map(|v| v.verifier)
         .collect();
-    assert_eq!(verifiers, vec![v1.public(), v2.public()]);
+    assert_eq!(verifiers, vec![v1.public(), v2.public(), v3.public()]);
     assert!(
         world
             .ledger
@@ -131,18 +139,21 @@ fn open_verifications_exclude_claimant_and_accepted_verifiers() {
 #[test]
 fn approvals_returns_only_attestations_of_accepted_verifiers_that_approved() {
     let (mut world, result, _) = completed(Params {
-        verifications: 2,
+        verifications: 3,
         ..Params::default()
     });
-    let (yes, no, stranger) = (ident(61), ident(62), ident(66));
+    let (yes, no, also_yes, stranger) = (ident(61), ident(62), ident(63), ident(66));
     world.accept_verifier(&yes, 1);
     world.accept_verifier(&no, 1);
+    world.accept_verifier(&also_yes, 1);
     world.attest(&yes, 1, result, true);
     world.attest(&no, 1, result, false);
+    world.attest(&also_yes, 1, result, true);
     world.attest(&stranger, 1, result, true);
     let approvals = world.ledger.approvals(&world.job, 0, 1, world.now);
-    assert_eq!(approvals.len(), 1);
+    assert_eq!(approvals.len(), 2);
     assert_eq!(approvals[0].verifier, yes.public());
+    assert_eq!(approvals[1].verifier, also_yes.public());
     assert!(
         world
             .ledger

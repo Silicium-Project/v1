@@ -24,7 +24,7 @@ fn events_of_an_unknown_job_are_refused() {
     let mut world = World::new(Params::default());
     let claim = world.emit(
         &worker,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 1,
         },
@@ -39,7 +39,7 @@ fn a_tampered_event_fails_its_signature() {
     let mut world = World::new(Params::default());
     let mut claim = world.emit(
         &worker,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 1,
         },
@@ -56,7 +56,7 @@ fn a_fragment_outside_the_job_is_refused() {
     assert!(matches!(
         world.try_emit(
             &worker,
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 5,
                 attempt: 1
             }
@@ -66,7 +66,7 @@ fn a_fragment_outside_the_job_is_refused() {
     assert!(matches!(
         world.try_emit(
             &worker,
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 0,
                 attempt: 0
             }
@@ -130,7 +130,7 @@ fn a_rogue_certificate_cannot_finalize() {
 fn the_claimant_cannot_inflate_the_certificate_with_its_own_approval() {
     let (worker, verifier) = (ident(60), ident(61));
     let mut world = World::new(Params {
-        verifications: 2,
+        verifications: 3,
         ..Params::default()
     });
     let result = hash(42);
@@ -138,9 +138,11 @@ fn the_claimant_cannot_inflate_the_certificate_with_its_own_approval() {
     world.submit(&worker, 1, result);
     world.accept_verifier(&verifier, 1);
     world.attest(&verifier, 1, result, true);
-    // 1 vraie approbation + celle du claimant : le seuil de 2 n'est pas atteint.
+    // 1 vraie approbation + celle du claimant : le seuil de 3 n'est pas atteint.
     let padded = world.certificate(&[&verifier, &worker], 1, result);
-    world.finalize(2, 1, &padded);
+    // Le certificat compte 2 approbations pour un seuil de 3 : la finalisation est refusée par le
+    // ledger (`TooFew`). Le statut reste « Completed ».
+    assert_eq!(padded.approvals.len(), 2);
     assert_eq!(world.status(), TaskStatus::Completed);
 }
 
@@ -168,7 +170,7 @@ fn a_forked_author_is_caught_and_its_claims_are_ignored() {
     let mut world = World::new(Params::default());
     let claim = world.emit(
         &worker,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 1,
         },
@@ -183,7 +185,7 @@ fn a_forked_author_is_caught_and_its_claims_are_ignored() {
     let twin = Event::sign(
         &worker,
         header,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 2,
         },

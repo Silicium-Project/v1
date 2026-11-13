@@ -9,7 +9,7 @@ const constName = (id) => id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
 
 export function emitRust(specs) {
   const out = []
-  out.push(`// ${GENERATED}`, '', 'use crate::{Limits, Spec, Unit, Verification};', '')
+  out.push(`// ${GENERATED}`, '', 'use crate::{Limits, Resources, Spec, Unit, Verification};', '')
   for (const spec of specs) {
     const unit = spec.unit === 'bytes_input' ? 'Unit::BytesInput' : 'Unit::PixelsBand'
     const verification =
@@ -52,6 +52,12 @@ export function emitRust(specs) {
     out.push(`        output_bytes: ${spec.outputBytes},`)
     out.push('    },')
     out.push(`    deposit_supported: ${spec.depositSupported},`)
+    out.push('    resources: Resources {')
+    out.push(`        compute: ${spec.resources.compute},`)
+    out.push(`        memory: ${spec.resources.memory},`)
+    out.push(`        network: ${spec.resources.network},`)
+    out.push(`        storage: ${spec.resources.storage},`)
+    out.push('    },')
     out.push('};', '')
   }
   const names = specs.map((spec) => constName(spec.id))
@@ -84,6 +90,8 @@ export function emitGo(specs) {
     ['MemoryBytes', (s) => String(s.memoryBytes)],
     ['OutputBytes', (s) => String(s.outputBytes)],
     ['DepositSupported', (s) => String(s.depositSupported)],
+    ['Resources', (s) =>
+      `Resources{Compute: ${s.resources.compute}, Memory: ${s.resources.memory}, Network: ${s.resources.network}, Storage: ${s.resources.storage}}`],
   ]
   // gofmt aligne les valeurs d'un même littéral : la colonne suit la clé la plus longue.
   const column = Math.max(...rows.map(([key]) => key.length + 1)) + 1
@@ -132,6 +140,8 @@ export function emitTs(specs) {
   out.push('  verification: WorkloadVerification')
   out.push('  limits: { wallMs: number; memoryBytes: number; outputBytes: number }')
   out.push('  depositSupported: boolean')
+  out.push('  /** Intensité relative sollicitée (0 à 100), jamais le nom du workload (ADR 0013 §3). */')
+  out.push('  resources: { compute: number; memory: number; network: number; storage: number }')
   out.push('}', '')
   out.push('/** Tous les workloads du réseau, triés par identifiant. */')
   out.push('export const WORKLOADS: readonly WorkloadSpec[] = [')
@@ -160,6 +170,9 @@ export function emitTs(specs) {
       `    limits: { wallMs: ${spec.wallMs}, memoryBytes: ${spec.memoryBytes}, outputBytes: ${spec.outputBytes} },`,
     )
     out.push(`    depositSupported: ${spec.depositSupported},`)
+    out.push(
+      `    resources: { compute: ${spec.resources.compute}, memory: ${spec.resources.memory}, network: ${spec.resources.network}, storage: ${spec.resources.storage} },`,
+    )
     out.push('  },')
   }
   out.push(']', '')

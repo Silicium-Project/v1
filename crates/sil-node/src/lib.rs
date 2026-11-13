@@ -52,4 +52,6 @@ pub use shared::Shared;
 pub use wire::Envelope;
 
 #[cfg(test)]
+mod ingest_clock_tests;
+#[cfg(test)]
 mod tests;

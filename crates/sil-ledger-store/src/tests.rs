@@ -15,7 +15,7 @@ fn event(sequence: u64, attempt: u32) -> Event {
     Event::sign(
         &identity,
         header,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt,
         },

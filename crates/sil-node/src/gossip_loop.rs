@@ -55,7 +55,7 @@ pub(crate) async fn run(
 fn on_message(shared: &Arc<Shared>, data: &[u8]) {
     match Envelope::from_bytes(data) {
         Ok(Envelope::Event(event)) => {
-            if let Err(error) = shared.ingest(*event) {
+            if let Err(error) = shared.ingest_live(*event) {
                 tracing::debug!(%error, "événement reçu non retenu");
             }
         }

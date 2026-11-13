@@ -1,6 +1,7 @@
 use crate::{
     Escrow, RuleError, SettledFragment,
     reputation::{self, VERIFIER_ELIGIBLE},
+    reserve,
     terms::{MAX_APPROVERS, SETTLEMENT_FEE},
 };
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,9 @@ pub struct Payout {
 pub struct Settlement {
     pub payouts: Vec<Payout>,
     pub credited: Vec<(PublicKey, i64)>,
+    /// Part de la récompense de chaque vérificateur gardée en réserve on-chain (ADR 0010). Elle
+    /// n'est pas dans `payouts` : le programme la verse au compte du vérificateur.
+    pub reserved: Vec<(PublicKey, u64)>,
 }
 
 /// Paramètres d'un règlement (ceux que les approbateurs ont signés).
@@ -91,11 +95,22 @@ impl Escrow {
                 amount: claimant_amount,
             });
         }
+        // Une part de la récompense reste en réserve au nom du vérificateur (ADR 0010). Le budget
+        // du fragment ne change pas : seule la destination d'une partie de la somme.
+        let (verifier_paid, verifier_held) = reserve::split(verifier_amount);
+        let mut reserved = Vec::new();
         if verifier_amount > 0 {
-            payouts.extend(args.approvers.iter().map(|to| Payout {
-                to: *to,
-                amount: verifier_amount,
-            }));
+            for to in &args.approvers {
+                if verifier_paid > 0 {
+                    payouts.push(Payout {
+                        to: *to,
+                        amount: verifier_paid,
+                    });
+                }
+                if verifier_held > 0 {
+                    reserved.push((*to, verifier_held));
+                }
+            }
         }
         payouts.push(Payout {
             to: *submitter,
@@ -111,7 +126,11 @@ impl Escrow {
                 approvers: args.approvers.clone(),
             },
         );
-        Ok(Settlement { payouts, credited })
+        Ok(Settlement {
+            payouts,
+            credited,
+            reserved,
+        })
     }
 
     pub(crate) fn check_approvers(&self, args: &SettleArgs) -> Result<(), RuleError> {

@@ -25,6 +25,8 @@ export interface WorkloadSpec {
   verification: WorkloadVerification
   limits: { wallMs: number; memoryBytes: number; outputBytes: number }
   depositSupported: boolean
+  /** Intensité relative sollicitée (0 à 100), jamais le nom du workload (ADR 0013 §3). */
+  resources: { compute: number; memory: number; network: number; storage: number }
 }
 
 /** Tous les workloads du réseau, triés par identifiant. */
@@ -45,6 +47,7 @@ export const WORKLOADS: readonly WorkloadSpec[] = [
     verification: { policy: 'recompute' },
     limits: { wallMs: 120000, memoryBytes: 67108864, outputBytes: 32 },
     depositSupported: true,
+    resources: { compute: 70, memory: 10, network: 20, storage: 20 },
   },
   {
     id: "embedding/e5-small",
@@ -62,6 +65,7 @@ export const WORKLOADS: readonly WorkloadSpec[] = [
     verification: { policy: 'sampling_tolerance', minCheatFraction: 0.1, targetDetection: 0.97, cosMin: 0.999, modelSha256: "ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665", ortVersion: "1.31.1" },
     limits: { wallMs: 300000, memoryBytes: 1073741824, outputBytes: 67108864 },
     depositSupported: true,
+    resources: { compute: 80, memory: 60, network: 20, storage: 40 },
   },
   {
     id: "image/batch",
@@ -79,6 +83,7 @@ export const WORKLOADS: readonly WorkloadSpec[] = [
     verification: { policy: 'sampling', minCheatFraction: 0.2, targetDetection: 0.99 },
     limits: { wallMs: 120000, memoryBytes: 536870912, outputBytes: 67108864 },
     depositSupported: true,
+    resources: { compute: 60, memory: 30, network: 20, storage: 30 },
   },
   {
     id: "rendu/raytracer",
@@ -96,5 +101,6 @@ export const WORKLOADS: readonly WorkloadSpec[] = [
     verification: { policy: 'sampling', minCheatFraction: 0.2, targetDetection: 0.99 },
     limits: { wallMs: 600000, memoryBytes: 1073741824, outputBytes: 268435456 },
     depositSupported: true,
+    resources: { compute: 90, memory: 40, network: 10, storage: 30 },
   },
 ]

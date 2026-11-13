@@ -12,8 +12,13 @@ pub const MAX_ATTEMPTS: u32 = 16;
 pub enum EventBody {
     /// Requester : crée le job (premier événement de sa chaîne).
     JobPublished { spec: SignedJobSpec },
-    /// Tout pair : propose de calculer la tentative.
-    Claim { fragment: u32, attempt: u32 },
+    /// Tout pair : propose de calculer la tentative. `anchor_slot` est le slot Solana récent vu par
+    /// l'auteur (ADR 0009) : il ordonne les claims, à la place de l'heure déclarée.
+    Claim {
+        fragment: u32,
+        attempt: u32,
+        anchor_slot: u64,
+    },
     /// Claimant : prolonge le bail.
     Renew { fragment: u32, attempt: u32 },
     /// Claimant : abandonne la tentative.
@@ -98,6 +103,8 @@ impl EventBody {
             return Err(LedgerError::InvalidEvent("tentative hors bornes"));
         }
         match self {
+            // Un claim sans ancrage n'a pas de place dans l'ordre (ADR 0009).
+            Self::Claim { anchor_slot: 0, .. } => Err(LedgerError::InvalidEvent("claim sans ancrage")),
             Self::Attest { attestation } if attestation.body.task.job != *job => {
                 Err(LedgerError::InvalidEvent("attestation d'un autre job"))
             }

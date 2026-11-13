@@ -39,6 +39,10 @@ impl Chain for NoChain {
     fn tx_status(&self, _: &TxId) -> Result<TxStatus, ChainError> {
         Err(ChainError::Transient("aucune chaîne configurée".into()))
     }
+
+    fn penalize(&self, _: &sil_settlement::PenaltyClaim) -> Result<TxId, ChainError> {
+        Err(ChainError::Transient("aucune chaîne configurée".into()))
+    }
 }
 
 /// Fabrique du binaire `sil-node` : pas de chaîne. Une configuration qui en demande une est refusée.
@@ -189,19 +193,32 @@ fn registry_for(config: &NodeConfig) -> Result<Registry, String> {
             )?;
             return Ok(registry.with(Arc::new(RenderWorkload::new(engine))));
         }
-        // Le moteur natif n'écrit que dans son propre dossier : jamais dans `data_dir`, qui contient
-        // les clés, et il ne lit pas `data_dir` (voir `render_isolation`).
-        let work = config.data_dir.join("render-work");
-        std::fs::create_dir_all(&work).map_err(|e| format!("dossier de rendu : {e}"))?;
-        let mut engine = ExternalRenderer::new(
-            render.engine.clone(),
-            work.clone(),
-            Duration::from_millis(render.wall_ms),
-        );
-        if let Some(isolation) = render_isolation(render, &work)? {
-            engine = engine.with_isolation(isolation);
+        // Moteur natif : isolation forte seulement sous Linux (landlock). Ailleurs, le rendu n'est pas
+        // offert : un calcul non isolé ne doit pas tourner sur la machine de l'utilisateur.
+        if !cfg!(target_os = "linux") {
+            tracing::warn!(
+                "rendu natif non offert hors Linux : isolation insuffisante (docs/technical/garanties.md)"
+            );
+        } else {
+            // Le moteur natif n'écrit que dans son propre dossier : jamais dans `data_dir`, qui contient
+            // les clés, et il ne lit pas `data_dir` (voir `render_isolation`).
+            let work = config.data_dir.join("render-work");
+            std::fs::create_dir_all(&work).map_err(|e| format!("dossier de rendu : {e}"))?;
+            let mut engine = ExternalRenderer::new(
+                render.engine.clone(),
+                work.clone(),
+                Duration::from_millis(render.wall_ms),
+            );
+            // Échec fermé : sans isolation (`[render] isolation = "off"` ou indisponible), le rendu
+            // natif n'est pas offert. Un moteur non isolé ne tourne jamais sur la machine.
+            match render_isolation(render, &work)? {
+                Some(isolation) => {
+                    engine = engine.with_isolation(isolation);
+                    registry = registry.with(Arc::new(RenderWorkload::new(engine)));
+                }
+                None => tracing::warn!("rendu natif non offert : isolation indisponible"),
+            }
         }
-        registry = registry.with(Arc::new(RenderWorkload::new(engine)));
     }
     // Embedding : offert par défaut comme les autres workloads. Le nœud ne le réclame que si son
     // modèle et son runtime sont prêts ; sinon il le signale et continue sans lui.
@@ -241,7 +258,10 @@ fn runtime_library() -> Result<std::path::PathBuf, String> {
     };
     let exe = std::env::current_exe().map_err(|e| format!("emplacement du binaire : {e}"))?;
     let dir = exe.parent().ok_or("dossier du binaire introuvable")?;
-    let candidates = [dir.join(name), dir.join("..").join("lib").join("Silicium").join(name)];
+    let candidates = [
+        dir.join(name),
+        dir.join("..").join("lib").join("Silicium").join(name),
+    ];
     for path in &candidates {
         if path.is_file() {
             return Ok(path.clone());

@@ -12,8 +12,53 @@ use sil_types::JobId;
 /// cette durée dans le futur est refusé. Le journal ne lit l'heure que dans les événements.
 pub(crate) const MAX_SKEW_MS: u64 = 30_000;
 
+/// Âge maximal d'un événement reçu en direct (gossip, API). Un événement antidaté gagnerait la
+/// course d'un `claim` (ordre `(issued_at_ms, id)`) : on le refuse s'il est trop ancien. Le
+/// rattrapage (`sync_jobs`, `fill_gaps`) passe par `ingest` et garde l'historique ancien.
+pub(crate) const MAX_LIVE_AGE_MS: u64 = 60_000;
+
+/// Vrai si un événement reçu en direct, daté `issued_at_ms`, est plus vieux que `MAX_LIVE_AGE_MS`.
+pub(crate) fn too_old_for_live(issued_at_ms: u64, now_ms: u64) -> bool {
+    issued_at_ms.saturating_add(MAX_LIVE_AGE_MS) < now_ms
+}
+
+/// Fenêtre d'ancrage d'un claim, en slots Solana (ADR 0009) : environ une minute.
+pub(crate) const CLAIM_WINDOW_SLOTS: u64 = 150;
+
+/// Tolérance sur le retard de l'RPC local : un slot ancré légèrement au-dessus du slot local est
+/// accepté (deux nœuds ne lisent pas le même slot au même instant). Au-delà, le claim est refusé.
+pub(crate) const CLAIM_LAG_TOLERANCE_SLOTS: u64 = 2;
+
+/// Vérifie l'ancrage d'un claim reçu en direct : le slot doit être dans la fenêtre récente lue sur
+/// la chaîne locale. Un nœud sans chaîne ne valide aucun claim (ADR 0009).
+fn check_claim_anchor(anchor_slot: u64, current_slot: u64) -> Result<(), LedgerError> {
+    if anchor_slot > current_slot.saturating_add(CLAIM_LAG_TOLERANCE_SLOTS) {
+        return Err(LedgerError::InvalidEvent("claim ancré dans le futur"));
+    }
+    if anchor_slot.saturating_add(CLAIM_WINDOW_SLOTS) < current_slot {
+        return Err(LedgerError::InvalidEvent("claim ancré hors fenêtre"));
+    }
+    Ok(())
+}
+
 impl Shared {
-    /// Reçoit un événement (réseau ou API), le persiste s'il est nouveau.
+    /// Reçoit un événement reçu en direct (gossip ou API) : même règle que `ingest`, plus la borne
+    /// sur l'âge, et pour un claim, la borne sur l'ancrage (ADR 0009).
+    pub(crate) fn ingest_live(&self, event: Event) -> Result<Receipt, LedgerError> {
+        if too_old_for_live(event.issued_at_ms, self.now_ms()) {
+            return Err(LedgerError::InvalidEvent("événement daté dans le passé"));
+        }
+        if let EventBody::Claim { anchor_slot, .. } = event.body {
+            let current = self
+                .chain
+                .current_slot()
+                .map_err(|_| LedgerError::InvalidEvent("claim sans slot local (chaîne indisponible)"))?;
+            check_claim_anchor(anchor_slot, current)?;
+        }
+        self.ingest(event)
+    }
+
+    /// Reçoit un événement (réseau ou rattrapage), le persiste s'il est nouveau.
     pub(crate) fn ingest(&self, event: Event) -> Result<Receipt, LedgerError> {
         if event.issued_at_ms > self.now_ms().saturating_add(MAX_SKEW_MS) {
             return Err(LedgerError::InvalidEvent("événement daté dans le futur"));
@@ -75,5 +120,27 @@ impl Shared {
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod anchor_tests {
+    use super::*;
+
+    #[test]
+    fn an_anchor_inside_the_window_is_accepted() {
+        assert!(check_claim_anchor(1_000, 1_000).is_ok());
+        assert!(check_claim_anchor(1_000 - CLAIM_WINDOW_SLOTS, 1_000).is_ok());
+    }
+
+    #[test]
+    fn an_anchor_older_than_the_window_is_refused() {
+        assert!(check_claim_anchor(1_000 - CLAIM_WINDOW_SLOTS - 1, 1_000).is_err());
+    }
+
+    #[test]
+    fn a_small_lag_of_the_local_rpc_is_tolerated_but_not_a_large_one() {
+        assert!(check_claim_anchor(1_000 + CLAIM_LAG_TOLERANCE_SLOTS, 1_000).is_ok());
+        assert!(check_claim_anchor(1_000 + CLAIM_LAG_TOLERANCE_SLOTS + 1, 1_000).is_err());
     }
 }

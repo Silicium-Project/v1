@@ -10,11 +10,13 @@ use sil_chain_core::SettleArgs;
 use sil_chain_core::wire::settlement_frame;
 use sil_types::PublicKey;
 use solana_program::account_info::{AccountInfo, next_account_info};
+use solana_program::clock::Clock;
 use solana_program::ed25519_program;
 use solana_program::entrypoint::ProgramResult;
 use solana_program::instruction::Instruction;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
+use solana_program::sysvar::Sysvar;
 use solana_program::sysvar::instructions::{self, load_instruction_at_checked};
 
 /// Marque « donnée dans cette instruction » du précompilé Ed25519.
@@ -25,7 +27,8 @@ const OFFSET_ENTRY: usize = 14;
 /// Comptes : `[payeur (signataire, inscriptible), escrow, sysvar instructions, claimant,
 /// approbateurs..., comptes de réputation des approbateurs...]`. Le payeur reçoit les frais de
 /// règlement ; les autres reçoivent leur part. Chaque approbateur doit avoir un compte de
-/// réputation éligible (ADR 0006) : le compte est lu, puis crédité en écriture.
+/// réputation éligible (ADR 0006) : le compte est lu, puis crédité en écriture. Il reçoit aussi sa
+/// part en réserve (ADR 0010). Le compteur global des règlements (inscriptible) suit.
 pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -> ProgramResult {
     let mut iter = accounts.iter();
     let payer = next_account_info(&mut iter)?;
@@ -56,9 +59,27 @@ pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -
     let settlement = escrow
         .settle(&args, &signers, &submitter, &standing)
         .map_err(rule)?;
+    // Le règlement compte pour l'échéance des réserves (ADR 0010). Le compteur est un compte du
+    // programme, passé en dernier.
+    let stats_key = verifier::stats_address(program_id);
+    let stats = accounts
+        .iter()
+        .find(|account| *account.key == stats_key)
+        .ok_or(invalid())?;
+    let count = verifier::bump_count(stats, program_id)?;
+    let now = Clock::get()?.unix_timestamp;
     for (approver, score) in &settlement.credited {
         let account = verifier::find(program_id, accounts, approver).ok_or(invalid())?;
-        verifier::write(&account, *score)?;
+        let mut state = verifier::read_optional(&account, program_id)?.ok_or(invalid())?;
+        state.score = *score;
+        let held = settlement
+            .reserved
+            .iter()
+            .find(|(key, _)| key == approver)
+            .map_or(0, |(_, amount)| *amount);
+        state.record_vote(held, count, now).ok_or(invalid())?;
+        verifier::write(&account, &state)?;
+        verifier::move_lamports(escrow_account, &account, held)?;
     }
     for payout in settlement.payouts {
         let key = Pubkey::new_from_array(*payout.to.as_bytes());

@@ -130,7 +130,7 @@ mod tests {
             width: 0,
             height: 0,
             fragments: 3,
-            verifications_required: 2,
+            verifications_required: 3,
             reward_per_unit: 10,
             verifier_reward_per_unit: 1,
             expires_at_ms: 1_000_000,
@@ -138,22 +138,30 @@ mod tests {
         let deposit = terms.max_payout().unwrap();
         let mut escrow =
             Escrow::open(JobId::from_bytes([1; 32]), terms, deposit, &key(100)).unwrap();
+        // Plafond de confiscation d'une pénalité : la part retenue sur ce fragment seulement.
+        assert_eq!(escrow.held_for(0).unwrap(), 5);
+        assert_eq!(escrow.held_for(99).unwrap_err(), RuleError::UnknownFragment);
         let args = SettleArgs {
             fragment: 0,
             attempt: 1,
             result: Hash32::from_bytes([7; 32]),
             claimant: key(60),
-            approvers: vec![key(70), key(71)],
+            approvers: vec![key(70), key(71), key(72)],
         };
-        let payouts = escrow
+        let settlement = escrow
             .settle(
                 &args,
-                &[key(70), key(71)],
+                &[key(70), key(71), key(72)],
                 &key(200),
-                &[Some(reputation::VERIFIER_START); 2],
+                &[Some(reputation::VERIFIER_START); 3],
             )
-            .unwrap()
-            .payouts;
+            .unwrap();
+        let payouts = settlement.payouts;
+        assert_eq!(
+            settlement.reserved,
+            vec![(key(70), 5), (key(71), 5), (key(72), 5)],
+            "la moitié de 11 reste en réserve (arrondi vers le bas)"
+        );
         assert_eq!(
             payouts[0],
             Payout {
@@ -161,16 +169,17 @@ mod tests {
                 amount: 110
             }
         );
-        assert_eq!(payouts[1].amount, 11, "chaque vérificateur : 11 × 1");
-        assert_eq!(payouts[2].amount, 11);
+        assert_eq!(payouts[1].amount, 6, "chaque vérificateur : 11 × 1, dont 5 en réserve");
+        assert_eq!(payouts[2].amount, 6);
+        assert_eq!(payouts[3].amount, 6);
         assert_eq!(
-            payouts[3],
+            payouts[4],
             Payout {
                 to: key(200),
                 amount: SETTLEMENT_FEE
             }
         );
-        assert_eq!(escrow.paid(), 11 * 12 + SETTLEMENT_FEE);
+        assert_eq!(escrow.paid(), 11 * 13 + SETTLEMENT_FEE);
     }
 
     #[test]

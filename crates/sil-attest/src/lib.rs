@@ -18,4 +18,6 @@ pub use error::AttestError;
 pub use tolerance::{ToleranceAttestation, ToleranceBody, ToleranceCertificate, ToleranceRules};
 
 #[cfg(test)]
+mod layout_tests;
+#[cfg(test)]
 mod tests;

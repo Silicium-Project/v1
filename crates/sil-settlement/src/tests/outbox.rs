@@ -6,7 +6,7 @@ use sil_chain_core::SettleArgs;
 fn a_settlement_goes_from_pending_to_confirmed_and_pays_once() {
     let chain = funded_chain();
     let mut outbox = outbox();
-    let id = outbox.enqueue(authorized(claim(0), &[70, 71])).unwrap();
+    let id = outbox.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap();
     assert_eq!(outbox.status(&id, 0), Some(Status::Pending));
     outbox.advance(&chain, 0);
     assert_eq!(outbox.status(&id, 0), Some(Status::Submitted));
@@ -14,7 +14,7 @@ fn a_settlement_goes_from_pending_to_confirmed_and_pays_once() {
     outbox.advance(&chain, 2_000);
     assert_eq!(outbox.status(&id, 2_000), Some(Status::Confirmed));
     let escrow = chain.escrow_now(&job()).unwrap();
-    assert_eq!(escrow.paid(), 120 + sil_chain_core::SETTLEMENT_FEE);
+    assert_eq!(escrow.paid(), 130 + sil_chain_core::SETTLEMENT_FEE);
     assert_eq!(chain.submit_calls(), 1);
     // Rejouer ne change rien : l'état terminal est stable.
     assert_eq!(outbox.advance(&chain, 10_000), 0);
@@ -26,7 +26,7 @@ fn enqueueing_the_same_settlement_again_merges_signatures_instead_of_duplicating
     let mut outbox = outbox();
     let first = outbox.enqueue(authorized(claim(0), &[70])).unwrap();
     let second = outbox.enqueue(authorized(claim(0), &[71])).unwrap();
-    let third = outbox.enqueue(authorized(claim(0), &[70, 71])).unwrap();
+    let third = outbox.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap();
     assert_eq!(first, second);
     assert_eq!(second, third);
     assert_eq!(outbox.len(), 1);
@@ -54,7 +54,20 @@ fn nothing_is_submitted_until_every_approver_has_signed() {
             .unwrap()
     );
     outbox.advance(&chain, 10_000);
-    assert_eq!(outbox.status(&id, 10_000), Some(Status::Submitted));
+    assert_eq!(
+        outbox.status(&id, 10_000),
+        Some(Status::Pending),
+        "deux signatures sur trois requises"
+    );
+
+    let third = ident(72);
+    assert!(
+        outbox
+            .add_signature(&id, third.public(), c.sign(&third))
+            .unwrap()
+    );
+    outbox.advance(&chain, 15_000);
+    assert_eq!(outbox.status(&id, 15_000), Some(Status::Submitted));
 }
 
 #[test]
@@ -62,19 +75,19 @@ fn a_fragment_already_settled_as_wanted_is_confirmed_without_any_submission() {
     let chain = funded_chain();
     let mut escrow = chain.escrow_now(&job()).unwrap();
     let c = claim(0);
-    let signers: Vec<_> = [70, 71].iter().map(|n| ident(*n).public()).collect();
+    let signers: Vec<_> = [70, 71, 72].iter().map(|n| ident(*n).public()).collect();
     escrow
         .settle(
             &c.args(),
             &signers,
             &sil_types::PublicKey::from_bytes([0xEE; 32]),
-            &[Some(sil_chain_core::reputation::VERIFIER_START); 2],
+            &[Some(sil_chain_core::reputation::VERIFIER_START); 3],
         )
         .unwrap();
     chain.insert_escrow(escrow);
 
     let mut outbox = outbox();
-    let id = outbox.enqueue(authorized(c, &[70, 71])).unwrap();
+    let id = outbox.enqueue(authorized(c, &[70, 71, 72])).unwrap();
     outbox.advance(&chain, 0);
     assert_eq!(outbox.status(&id, 0), Some(Status::Confirmed));
     assert_eq!(chain.submit_calls(), 0);
@@ -86,19 +99,19 @@ fn a_fragment_settled_with_other_parameters_is_rejected_for_good() {
     let mut escrow = chain.escrow_now(&job()).unwrap();
     let mut other = claim(0);
     other.result = sil_types::Hash32::from_bytes([9; 32]);
-    let signers: Vec<_> = [70, 71].iter().map(|n| ident(*n).public()).collect();
+    let signers: Vec<_> = [70, 71, 72].iter().map(|n| ident(*n).public()).collect();
     escrow
         .settle(
             &other.args(),
             &signers,
             &sil_types::PublicKey::from_bytes([0xEE; 32]),
-            &[Some(sil_chain_core::reputation::VERIFIER_START); 2],
+            &[Some(sil_chain_core::reputation::VERIFIER_START); 3],
         )
         .unwrap();
     chain.insert_escrow(escrow);
 
     let mut outbox = outbox();
-    let id = outbox.enqueue(authorized(claim(0), &[70, 71])).unwrap();
+    let id = outbox.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap();
     outbox.advance(&chain, 0);
     assert!(matches!(outbox.status(&id, 0), Some(Status::Rejected(_))));
     assert_eq!(chain.submit_calls(), 0);
@@ -108,13 +121,13 @@ fn a_fragment_settled_with_other_parameters_is_rejected_for_good() {
 fn a_missing_escrow_blocks_visibly_then_recovers_when_it_appears() {
     let chain = FakeChain::new();
     let mut outbox = outbox();
-    let id = outbox.enqueue(authorized(claim(0), &[70, 71])).unwrap();
+    let id = outbox.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap();
     outbox.advance(&chain, 0);
     assert!(matches!(outbox.status(&id, 0), Some(Status::Blocked(_))));
     let escrow = sil_chain_core::Escrow::open(
         job(),
         terms(),
-        2 * (120 + sil_chain_core::SETTLEMENT_FEE),
+        2 * (130 + sil_chain_core::SETTLEMENT_FEE),
         &ident(100).public(),
     )
     .unwrap();
@@ -128,8 +141,8 @@ fn two_nodes_racing_to_settle_the_same_fragment_pay_exactly_once() {
     let chain = funded_chain();
     let (mut a, mut b) = (outbox(), outbox());
     let (id_a, id_b) = (
-        a.enqueue(authorized(claim(0), &[70, 71])).unwrap(),
-        b.enqueue(authorized(claim(0), &[70, 71])).unwrap(),
+        a.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap(),
+        b.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap(),
     );
     assert_eq!(id_a, id_b, "même règlement, même identifiant");
     a.advance(&chain, 0);
@@ -141,7 +154,7 @@ fn two_nodes_racing_to_settle_the_same_fragment_pay_exactly_once() {
     assert_eq!(b.status(&id_b, 20_000), Some(Status::Confirmed));
     assert_eq!(
         chain.escrow_now(&job()).unwrap().paid(),
-        120 + sil_chain_core::SETTLEMENT_FEE,
+        130 + sil_chain_core::SETTLEMENT_FEE,
         "payé une seule fois"
     );
 }
@@ -184,7 +197,7 @@ fn open_authorizations_keep_our_signatures_until_the_settlement_is_done() {
         1,
         "la signature déjà reçue est là"
     );
-    outbox.enqueue(authorized(claim(0), &[71])).unwrap();
+    outbox.enqueue(authorized(claim(0), &[71, 72])).unwrap();
     run(&mut outbox, &chain, 0, 1_000, 4);
     assert_eq!(outbox.status(&id, 0), Some(Status::Confirmed));
     assert!(

@@ -36,6 +36,7 @@ pub fn process_instruction(
         EscrowIx::Refund => refund(program_id, accounts),
         EscrowIx::RegisterVerifier { key } => verifier::register(program_id, accounts, key),
         EscrowIx::Penalize(args) => penalty::penalize(program_id, accounts, args),
+        EscrowIx::ReleaseReserve { key } => verifier::release(program_id, accounts, key),
     }
 }
 

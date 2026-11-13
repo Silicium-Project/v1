@@ -35,6 +35,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 sil-sandbox = { path = "crates/sil-sandbox" }
 sil-render-wasm = { path = "crates/sil-render-wasm" }
 sil-reputation = { path = "crates/sil-reputation" }
+sil-bayes = { path = "crates/sil-bayes" }
 sil-chain-core = { path = "crates/sil-chain-core" }
 sil-raytracer = { path = "crates/sil-raytracer" }
 sil-workload-spec = { path = "crates/sil-workload-spec" }

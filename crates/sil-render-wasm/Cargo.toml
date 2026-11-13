@@ -13,3 +13,6 @@ wasmtime-wasi = "50"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+sil-raytracer.workspace = true

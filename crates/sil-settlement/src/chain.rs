@@ -48,10 +48,21 @@ pub trait Chain: Send + Sync {
 
     fn tx_status(&self, tx: &TxId) -> Result<TxStatus, ChainError>;
 
+    /// Envoie une pénalité (ADR 0012) : preuve = verdict signé du vérificateur. `Ok` = acceptée par
+    /// le réseau, pas confirmée.
+    fn penalize(&self, penalty: &crate::PenaltyClaim) -> Result<TxId, ChainError>;
+
     /// Réputation réseau d'un vérificateur, lue on-chain (ADR 0006). `None` : compte absent (pas
     /// encore enregistré) ou chaîne non configurée.
     fn verifier_standing(&self, _verifier: &PublicKey) -> Result<Option<i64>, ChainError> {
         Ok(None)
+    }
+
+    /// Slot Solana courant, lu à la confirmation (ADR 0009). Sert d'ancrage aux claims et de borne
+    /// à leur réception. `Err` si la chaîne n'est pas configurée : un nœud sans chaîne ne réclame ni
+    /// ne valide de claim.
+    fn current_slot(&self) -> Result<u64, ChainError> {
+        Err(ChainError::Transient("slot indisponible".into()))
     }
 
     /// `true` si ce nœud paie lui-même les frais de transaction. Seul un tel nœud peut relayer

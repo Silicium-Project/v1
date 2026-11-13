@@ -14,15 +14,15 @@ pub(super) fn terms() -> EscrowTerms {
         width: 0,
         height: 0,
         fragments: 3,
-        verifications_required: 2,
+        verifications_required: 3,
         reward_per_unit: 10,
         verifier_reward_per_unit: 1,
         expires_at_ms: 1_000_000,
     }
 }
 
-/// Un fragment de 10 unités : 10 × (10 + 2×1) de récompenses, plus les frais de règlement.
-pub(super) const PER_FRAGMENT: u64 = 120 + SETTLEMENT_FEE;
+/// Un fragment de 10 unités : 10 × (10 + 3×1) de récompenses, plus les frais de règlement.
+pub(super) const PER_FRAGMENT: u64 = 130 + SETTLEMENT_FEE;
 /// 3 fragments × (récompenses + frais) : le dépôt qui couvre tout.
 pub(super) const BUDGET: u64 = 3 * PER_FRAGMENT;
 
@@ -36,18 +36,18 @@ pub(super) fn args(fragment: u32) -> SettleArgs {
         attempt: 1,
         result: Hash32::from_bytes([7; 32]),
         claimant: key(60),
-        approvers: vec![key(70), key(71)],
+        approvers: vec![key(70), key(71), key(72)],
     }
 }
 
-/// Signataires d'un règlement de `args` : ses deux approbateurs.
+/// Signataires d'un règlement de `args` : ses trois approbateurs.
 pub(super) fn signers() -> Vec<PublicKey> {
-    vec![key(70), key(71)]
+    vec![key(70), key(71), key(72)]
 }
 
-/// Score éligible pour chacun des deux approbateurs de `args`.
+/// Score éligible pour chacun des trois approbateurs de `args`.
 pub(super) fn eligible() -> Vec<Option<i64>> {
-    vec![Some(reputation::VERIFIER_START); 2]
+    vec![Some(reputation::VERIFIER_START); 3]
 }
 
 #[test]
@@ -75,13 +75,41 @@ fn opening_requires_the_requester_valid_terms_and_full_funding() {
 }
 
 #[test]
+fn the_quorum_is_odd_and_at_most_fifteen() {
+    let with = |k: u32| EscrowTerms {
+        verifications_required: k,
+        ..terms()
+    };
+    assert!(with(1).validate().is_ok());
+    assert!(with(3).validate().is_ok());
+    assert!(with(15).validate().is_ok());
+    assert_eq!(
+        with(2).validate().unwrap_err(),
+        RuleError::BadTerms("verifications_required")
+    );
+    assert_eq!(
+        with(16).validate().unwrap_err(),
+        RuleError::BadTerms("verifications_required")
+    );
+    assert_eq!(
+        with(0).validate().unwrap_err(),
+        RuleError::BadTerms("verifications_required")
+    );
+}
+
+#[test]
 fn settling_pays_the_claimant_and_the_verifiers_once() {
     let mut e = escrow(BUDGET);
-    let payouts = e
+    let settlement = e
         .settle(&args(0), &signers(), &key(200), &eligible())
-        .unwrap()
-        .payouts;
-    assert_eq!(payouts.iter().map(|p| p.amount).sum::<u64>(), PER_FRAGMENT);
+        .unwrap();
+    let payouts = settlement.payouts;
+    // Ce qui est versé et ce qui est mis en réserve (ADR 0010) couvrent ensemble le budget.
+    let held: u64 = settlement.reserved.iter().map(|(_, amount)| amount).sum();
+    assert_eq!(
+        payouts.iter().map(|p| p.amount).sum::<u64>() + held,
+        PER_FRAGMENT
+    );
     assert_eq!(
         payouts[0],
         Payout {
@@ -121,7 +149,7 @@ fn settlement_needs_the_signature_of_every_approver() {
     assert_eq!(
         e.settle(&args(0), &one, &key(200), &eligible())
             .unwrap_err(),
-        RuleError::NotAuthorized { have: 1, need: 2 }
+        RuleError::NotAuthorized { have: 1, need: 3 }
     );
     let outsiders = [key(70), key(90)];
     assert!(matches!(
@@ -145,13 +173,13 @@ fn approvers_are_exact_distinct_and_independent_of_the_claimant() {
         Err(RuleError::BadApprovers("nombre"))
     ));
     let mut twice = args(0);
-    twice.approvers = vec![key(70), key(70)];
+    twice.approvers = vec![key(70), key(70), key(71)];
     assert!(matches!(
         e.settle(&twice, &signers(), &key(200), &eligible()),
         Err(RuleError::BadApprovers("doublons"))
     ));
     let mut selfie = args(0);
-    selfie.approvers = vec![key(60), key(71)];
+    selfie.approvers = vec![key(60), key(71), key(72)];
     assert!(matches!(
         e.settle(&selfie, &signers(), &key(200), &eligible()),
         Err(RuleError::BadApprovers(_))

@@ -23,7 +23,7 @@ pub fn terms() -> EscrowTerms {
         width: 0,
         height: 0,
         fragments: 2,
-        verifications_required: 2,
+        verifications_required: 3,
         reward_per_unit: 10,
         verifier_reward_per_unit: 1,
         expires_at_ms: 1_000_000,
@@ -51,11 +51,11 @@ pub fn claim(fragment: u32) -> SettlementClaim {
         attempt: 1,
         result: Hash32::from_bytes([7; 32]),
         claimant: key(60),
-        approvers: vec![ident(70).public(), ident(71).public()],
+        approvers: vec![ident(70).public(), ident(71).public(), ident(72).public()],
     }
 }
 
-/// Règlement signé par les approbateurs `signers` (identités 70 et 71).
+/// Règlement signé par les approbateurs `signers` (identités 70, 71 et 72).
 pub fn authorized(claim: SettlementClaim, signers: &[u8]) -> Authorization {
     let mut auth = Authorization::new(claim.clone());
     for n in signers {

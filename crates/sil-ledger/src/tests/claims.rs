@@ -7,7 +7,7 @@ use sil_quota::LedgerLimits;
 use sil_types::{JobId, PublicKey};
 
 fn claim(fragment: u32, attempt: u32) -> EventBody {
-    EventBody::Claim { fragment, attempt }
+    EventBody::Claim { anchor_slot: 1, fragment, attempt }
 }
 
 /// Claimant de la tentative 1 vu par ce pair, à l'instant `now`.

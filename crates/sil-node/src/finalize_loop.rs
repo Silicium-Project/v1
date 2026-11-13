@@ -2,7 +2,7 @@
 //! et met en file le règlement signé par les approbateurs. Il n'y a ni comité ni vote.
 
 use crate::{
-    finalization::{authorization, finalization},
+    finalization::{authorization, finalization, penalty_claims},
     shared::{Shared, lock},
 };
 use sil_crypto::sha256;
@@ -23,6 +23,7 @@ pub(crate) async fn run(shared: Arc<Shared>, tick: Duration, mut stop: watch::Re
                     for job in shared.job_ids() {
                         finalize(&shared, &job);
                         queue_settlements(&shared, &job);
+                        queue_penalties(&shared, &job);
                         crate::reputation_feed::observe_outcomes(&shared, &job);
                     }
                 })
@@ -129,6 +130,37 @@ fn queue_settlements(shared: &Shared, job: &JobId) {
         let auth = authorization(&lock(&shared.ledger), job, fragment, now);
         if let Some(auth) = auth {
             let _ = lock(&shared.outbox).enqueue(auth);
+        }
+    }
+}
+
+/// Met en file les pénalités (ADR 0012) des fragments dont le règlement est confirmé. Seul un nœud
+/// qui paie les frais envoie ; les doublons sont refusés par le programme.
+fn queue_penalties(shared: &Shared, job: &JobId) {
+    if !shared.chain.pays_fees() {
+        return;
+    }
+    let now = shared.now_ms();
+    let fragments = match lock(&shared.ledger).spec(job) {
+        Some(spec) => spec.spec.fragments,
+        None => return,
+    };
+    for fragment in 0..fragments {
+        // La chaîne ne pénalise qu'un fragment réglé : on attend la confirmation du règlement. Une
+        // entrée oubliée (`forget_confirmed`) compte comme confirmée.
+        let settled = match authorization(&lock(&shared.ledger), job, fragment, now) {
+            Some(auth) => matches!(
+                lock(&shared.outbox).phase(&auth.claim.id()),
+                None | Some(sil_settlement::Phase::Confirmed)
+            ),
+            None => false,
+        };
+        if !settled {
+            continue;
+        }
+        let claims = penalty_claims(&lock(&shared.ledger), job, fragment, now);
+        for claim in claims {
+            let _ = lock(&shared.penalties).enqueue(claim);
         }
     }
 }

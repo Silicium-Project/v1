@@ -54,7 +54,7 @@ fn a_gap_is_reported_and_filled_from_a_peer() {
     for attempt in 1..=3 {
         world.emit(
             &worker,
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 0,
                 attempt,
             },
@@ -87,7 +87,7 @@ fn a_late_predecessor_releases_the_buffered_successors() {
     for attempt in 1..=3 {
         world.emit(
             &worker,
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 0,
                 attempt,
             },

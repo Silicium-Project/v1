@@ -56,6 +56,30 @@ function nonEmpty(value, file, name) {
   return value
 }
 
+// Vecteur de ressources sollicitées (ADR 0013 §3) : intensité relative, 0 à 100, jamais le nom du
+// workload. Sert à apprendre la relation ressources → résultat sans nommer de type de tâche.
+const RESOURCE_DIMENSIONS = ['compute', 'memory', 'network', 'storage']
+
+function resources(raw, file) {
+  const value = raw.resources
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    fail(file, 'resources : objet attendu')
+  }
+  const keys = Object.keys(value)
+  if (keys.length !== RESOURCE_DIMENSIONS.length || !RESOURCE_DIMENSIONS.every((k) => keys.includes(k))) {
+    fail(file, `resources : exactement ${RESOURCE_DIMENSIONS.join(', ')} attendus`)
+  }
+  const out = {}
+  for (const dimension of RESOURCE_DIMENSIONS) {
+    out[dimension] = integer(value[dimension], file, `resources.${dimension}`, 0)
+    if (out[dimension] > 100) fail(file, `resources.${dimension} : au plus 100 attendu`)
+  }
+  if (RESOURCE_DIMENSIONS.every((dimension) => out[dimension] === 0)) {
+    fail(file, 'resources : au moins une dimension doit être non nulle')
+  }
+  return out
+}
+
 /** Vérifie un descripteur et le ramène à une forme plate, commune aux trois langages. */
 export function normalize(raw, file) {
   if (raw.schema !== SCHEMA) fail(file, `schéma inconnu : ${raw.schema}`)
@@ -116,6 +140,7 @@ export function normalize(raw, file) {
     memoryBytes: integer(raw.limits?.memory_bytes, file, 'limits.memory_bytes', 1),
     outputBytes: integer(raw.limits?.output_bytes, file, 'limits.output_bytes', 1),
     depositSupported: raw.deposit === 'supported',
+    resources: resources(raw, file),
   }
 }
 

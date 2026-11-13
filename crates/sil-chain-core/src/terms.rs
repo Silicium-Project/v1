@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use sil_types::PublicKey;
 
 pub const MAX_APPROVERS: usize = 16;
+/// Plus grand quorum accepté : impair (ADR 0012).
+pub const MAX_QUORUM: usize = 15;
 const MAX_FRAGMENTS: u32 = 1024;
 
 /// Délai de grâce entre l'échéance et le remboursement (24 h).
@@ -39,8 +41,10 @@ impl EscrowTerms {
         if self.fragments == 0 || self.fragments > MAX_FRAGMENTS {
             return Err(RuleError::BadTerms("fragments"));
         }
+        // k impair (ADR 0012) : une majorité stricte existe toujours, sans égalité. Le plafond est
+        // donc 15, pas `MAX_APPROVERS` (16, pair).
         let v = self.verifications_required as usize;
-        if v == 0 || v > MAX_APPROVERS {
+        if v == 0 || v > MAX_QUORUM || v % 2 == 0 {
             return Err(RuleError::BadTerms("verifications_required"));
         }
         // Passe aussi la règle d'unités : workload inconnu ou entrée trop petite sont refusés.

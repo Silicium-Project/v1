@@ -71,7 +71,7 @@ impl Journal {
 
     /// `worker` réclame `fragment`. Retourne l'id du claim.
     fn claim(&mut self, worker: &SigningIdentity, fragment: u32, attempt: u32) -> Hash32 {
-        let claim = self.emit(worker, EventBody::Claim { fragment, attempt });
+        let claim = self.emit(worker, EventBody::Claim { anchor_slot: 1, fragment, attempt });
         claim.id().unwrap()
     }
 

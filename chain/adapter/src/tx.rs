@@ -2,7 +2,9 @@
 //! les précompilés Ed25519 des signatures des approbateurs. Les comptes et leur ordre doivent
 //! correspondre exactement à `chain/program/src` (voir le commentaire de chaque fonction).
 
-use sil_chain_core::wire::{ESCROW_SEED, EscrowIx, VERIFIER_SEED, encode_ix, settlement_frame};
+use sil_chain_core::wire::{
+    ESCROW_SEED, EscrowIx, STATS_SEED, VERIFIER_SEED, encode_ix, penalty_frame, settlement_frame,
+};
 use sil_chain_core::{EscrowTerms, PenaltyArgs, SettleArgs};
 use sil_settlement::{Authorization, ChainError};
 use sil_types::{JobId, PublicKey, Signature};
@@ -24,8 +26,14 @@ pub fn verifier_address(program: &Pubkey, verifier: &PublicKey) -> Pubkey {
     Pubkey::find_program_address(&[VERIFIER_SEED, key(verifier).as_ref()], program).0
 }
 
-/// `[payeur (signataire, inscriptible), compte de réputation (inscriptible), système]`.
-/// À envoyer une fois par vérificateur : sans ce compte, ses règlements sont refusés.
+/// Adresse du compteur global des règlements : PDA `[STATS_SEED]` (ADR 0010).
+pub fn stats_address(program: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[STATS_SEED], program).0
+}
+
+/// `[payeur (signataire, inscriptible), compte du vérificateur (inscriptible), système, compteur
+/// (inscriptible)]`. À envoyer une fois par vérificateur : sans ce compte, ses règlements sont
+/// refusés. Crée aussi le compteur global s'il manque.
 pub fn register_verifier_ix(
     program: &Pubkey,
     payer: &Pubkey,
@@ -37,8 +45,29 @@ pub fn register_verifier_ix(
             AccountMeta::new(*payer, true),
             AccountMeta::new(verifier_address(program, verifier), false),
             AccountMeta::new_readonly(solana_system_interface::program::ID, false),
+            AccountMeta::new(stats_address(program), false),
         ],
         data: data(&EscrowIx::RegisterVerifier { key: *verifier })?,
+    })
+}
+
+/// `[compte du vérificateur (inscriptible), clé du vérificateur (inscriptible), compteur]`.
+/// Libère la réserve d'un vérificateur vers sa clé (ADR 0010). Aucune signature requise côté
+/// programme, mais la transaction a un payeur ; il se place en tête et signe.
+pub fn release_reserve_ix(
+    program: &Pubkey,
+    payer: &Pubkey,
+    verifier: &PublicKey,
+) -> Result<Instruction, ChainError> {
+    Ok(Instruction {
+        program_id: *program,
+        accounts: vec![
+            AccountMeta::new(verifier_address(program, verifier), false),
+            AccountMeta::new(key(verifier), false),
+            AccountMeta::new_readonly(stats_address(program), false),
+            AccountMeta::new_readonly(*payer, true),
+        ],
+        data: data(&EscrowIx::ReleaseReserve { key: *verifier })?,
     })
 }
 
@@ -144,8 +173,9 @@ fn ed25519_batch_ix(message: &[u8], signatures: &[(PublicKey, Signature)]) -> In
 
 /// Instructions d'un règlement : un précompilé Ed25519 (les signatures), puis `settle`.
 /// Comptes de `settle` : `[payeur (signataire, inscriptible), escrow, sysvar instructions,
-/// claimant, approbateurs..., comptes de réputation des approbateurs...]` (tous inscriptibles :
-/// les approbateurs reçoivent leur part, leur réputation est créditée).
+/// claimant, approbateurs..., comptes de réputation des approbateurs..., compteur]` (tous
+/// inscriptibles : les approbateurs reçoivent leur part, leur compte reçoit la réserve et la
+/// réputation est créditée ; le compteur des règlements avance).
 pub fn settle_instructions(
     program: &Pubkey,
     payer: &Pubkey,
@@ -174,6 +204,7 @@ pub fn settle_instructions(
             .iter()
             .map(|approver| AccountMeta::new(verifier_address(program, approver), false)),
     );
+    accounts.push(AccountMeta::new(stats_address(program), false));
     out.push(Instruction {
         program_id: *program,
         accounts,
@@ -182,23 +213,36 @@ pub fn settle_instructions(
     Ok(out)
 }
 
-/// `[requester (signataire), escrow (inscriptible), compte de réputation (inscriptible)]`.
-/// Pénalité d'un approbateur d'un fragment réglé (ADR 0008) : signée par le requester seul.
-pub fn penalize_ix(
+/// Pénalité d'un vérificateur qui a voté contre la majorité (ADR 0012). Instructions : un
+/// précompilé Ed25519 portant la signature de son verdict (`attestation_frame`), puis `penalize`.
+/// Comptes de `penalize` : `[payeur (signataire, inscriptible), escrow (inscriptible), sysvar
+/// instructions, compte du vérificateur (inscriptible), portefeuille du requester (inscriptible),
+/// portefeuilles des approbateurs (inscriptibles)...]`. `approvers` : la majorité réglée.
+pub fn penalize_instructions(
     program: &Pubkey,
-    requester: &Pubkey,
+    payer: &Pubkey,
     job: &JobId,
     args: &PenaltyArgs,
-) -> Result<Instruction, ChainError> {
-    Ok(Instruction {
+    requester: &PublicKey,
+    approvers: &[PublicKey],
+    signature: (PublicKey, Signature),
+) -> Result<Vec<Instruction>, ChainError> {
+    let message = penalty_frame(job, args);
+    let mut out = vec![ed25519_batch_ix(&message, &[signature])];
+    let mut accounts = vec![
+        AccountMeta::new(*payer, true),
+        AccountMeta::new(escrow_address(program, job), false),
+        AccountMeta::new_readonly(instructions::ID, false),
+        AccountMeta::new(verifier_address(program, &args.verifier), false),
+        AccountMeta::new(key(requester), false),
+    ];
+    accounts.extend(approvers.iter().map(|a| AccountMeta::new(key(a), false)));
+    out.push(Instruction {
         program_id: *program,
-        accounts: vec![
-            AccountMeta::new(*requester, true),
-            AccountMeta::new(escrow_address(program, job), false),
-            AccountMeta::new(verifier_address(program, &args.verifier), false),
-        ],
+        accounts,
         data: data(&EscrowIx::Penalize(args.clone()))?,
-    })
+    });
+    Ok(out)
 }
 
 /// Transferts du payeur vers les bénéficiaires dont le solde est sous `minimum` (loyer minimum
@@ -219,17 +263,52 @@ mod verifier_tests {
     use super::*;
 
     #[test]
-    fn the_penalty_is_signed_by_the_requester_alone() {
+    fn the_penalty_is_proved_by_the_dissenter_signature_not_by_the_requester() {
         let program = Pubkey::new_from_array([9; 32]);
-        let requester = Pubkey::new_from_array([2; 32]);
+        let payer = Pubkey::new_from_array([1; 32]);
+        let verifier = PublicKey::from_bytes([5; 32]);
         let args = PenaltyArgs {
             fragment: 0,
-            verifier: PublicKey::from_bytes([5; 32]),
+            attempt: 1,
+            result: sil_types::Hash32::from_bytes([8; 32]),
+            approved: true,
+            evidence: None,
+            tolerance: None,
+            verifier,
         };
-        let ix = penalize_ix(&program, &requester, &JobId::from_bytes([7; 32]), &args).expect("ix");
-        assert_eq!(&ix.data[..4], &5u32.to_le_bytes(), "variante Penalize");
-        assert!(ix.accounts[0].is_signer);
-        assert_eq!(ix.accounts.iter().filter(|a| a.is_signer).count(), 1);
+        let signature = Signature::from_bytes([3; 64]);
+        let ixs = penalize_instructions(
+            &program,
+            &payer,
+            &JobId::from_bytes([7; 32]),
+            &args,
+            &PublicKey::from_bytes([2; 32]),
+            &[PublicKey::from_bytes([6; 32])],
+            (verifier, signature),
+        )
+        .expect("ixs");
+        assert_eq!(ixs.len(), 2, "précompilé Ed25519, puis Penalize");
+        assert_eq!(ixs[0].program_id, solana_sdk::ed25519_program::ID);
+        let penalize = &ixs[1];
+        assert_eq!(&penalize.data[..4], &5u32.to_le_bytes(), "variante Penalize");
+        let signers: Vec<_> = penalize.accounts.iter().filter(|a| a.is_signer).collect();
+        assert_eq!(signers.len(), 1, "seul le payeur signe la transaction");
+        assert_eq!(signers[0].pubkey, payer);
+        assert_eq!(penalize.accounts[4].pubkey, Pubkey::new_from_array([2; 32]), "requester");
+    }
+
+    #[test]
+    fn release_is_the_seventh_instruction_and_pays_only_the_verifiers_key() {
+        let program = Pubkey::new_from_array([9; 32]);
+        let payer = Pubkey::new_from_array([1; 32]);
+        let verifier = PublicKey::from_bytes([5; 32]);
+        let ix = release_reserve_ix(&program, &payer, &verifier).expect("ix");
+        assert_eq!(&ix.data[..4], &6u32.to_le_bytes(), "variante ReleaseReserve");
+        assert_eq!(ix.accounts[0].pubkey, verifier_address(&program, &verifier));
+        assert_eq!(ix.accounts[1].pubkey, Pubkey::new_from_array([5; 32]));
+        assert_eq!(ix.accounts[2].pubkey, stats_address(&program));
+        assert!(ix.accounts[0].is_writable && ix.accounts[1].is_writable);
+        assert!(!ix.accounts[2].is_writable, "le compteur n'est que lu");
     }
 
     #[test]
@@ -245,6 +324,8 @@ mod verifier_tests {
         );
         assert_eq!(ix.accounts[1].pubkey, verifier_address(&program, &verifier));
         assert!(ix.accounts[1].is_writable);
+        assert_eq!(ix.accounts[3].pubkey, stats_address(&program));
+        assert!(ix.accounts[3].is_writable, "l'enregistrement crée le compteur");
         assert_ne!(
             verifier_address(&program, &verifier),
             verifier_address(&program, &PublicKey::from_bytes([6; 32])),

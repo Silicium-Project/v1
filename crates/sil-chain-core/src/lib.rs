@@ -21,6 +21,7 @@ mod escrow;
 mod penalty;
 mod refund;
 pub mod reputation;
+pub mod reserve;
 mod settle;
 mod terms;
 pub mod units;
@@ -28,7 +29,7 @@ pub mod wire;
 
 pub use error::RuleError;
 pub use escrow::{Escrow, SettledFragment};
-pub use penalty::PenaltyArgs;
+pub use penalty::{Penalty, PenaltyArgs, ToleranceProof};
 pub use settle::{Payout, SettleArgs, Settlement};
 pub use terms::{EscrowTerms, MAX_APPROVERS, REFUND_GRACE_MS, SETTLEMENT_FEE};
 
@@ -36,6 +37,8 @@ pub use terms::{EscrowTerms, MAX_APPROVERS, REFUND_GRACE_MS, SETTLEMENT_FEE};
 mod tests;
 #[cfg(test)]
 mod tests_random;
+#[cfg(test)]
+mod tests_penalty;
 #[cfg(test)]
 mod tests_reputation;
 #[cfg(test)]

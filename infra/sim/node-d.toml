@@ -1,0 +1,25 @@
+# Nœud de simulation d (compte neuf, sans SOL) (conteneur, worker et vérificateur seulement). Amorcé sur le VPS.
+data_dir = "/data"
+
+[network]
+listen = ["/ip4/0.0.0.0/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic-v1"]
+bootstrap = ["/ip4/213.32.68.67/tcp/4001/p2p/12D3KooWHXaQz2ou13jcnXq33yZbHKSmabBJJYxuLhx4UhG2k8ob"]
+enable_mdns = false
+
+[control]
+bind = "127.0.0.1"
+port = 8750
+
+[testnet]
+free_work = true
+
+[log]
+level = "info"
+json = true
+
+[render]
+# Moteur raytracing (rendu/raytracer) et lanceur d'isolation : copiés dans l'image (dist/linux-amd64).
+engine = "/usr/local/bin/sil-raytracer-block"
+wall_ms = 600000
+# Conteneur : pas toujours d'isolation noyau complète ; best-effort, voir docs/user/configuration.md.
+isolation = "best-effort"

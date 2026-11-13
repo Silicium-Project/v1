@@ -1,0 +1,60 @@
+# Trois nœuds de simulation qui rejoignent le VPS (amorçage). Les nœuds a et b sont membres du
+# Sans comité (ADR 0007) : chaque nœud calcule ou vérifie selon son rôle.
+# Prérequis : image silicium-node:sim (voir Dockerfile).
+# Lancer : docker compose -f infra/sim/docker-compose.yml up -d
+services:
+  node-a:
+    image: silicium-node:sim
+    command: ["--config", "/config/node.toml", "--roles", "worker,verifier"]
+    volumes:
+      - ./node-a.toml:/config/node.toml:ro
+      - node-a-data:/data
+    restart: unless-stopped
+
+  node-b:
+    image: silicium-node:sim
+    command: ["--config", "/config/node.toml", "--roles", "worker,verifier"]
+    volumes:
+      - ./node-b.toml:/config/node.toml:ro
+      - node-b-data:/data
+    restart: unless-stopped
+
+  node-c:
+    image: silicium-node:sim
+    command: ["--config", "/config/node.toml", "--roles", "worker,verifier"]
+    volumes:
+      - ./node-c.toml:/config/node.toml:ro
+      - node-c-data:/data
+    restart: unless-stopped
+
+  node-d:
+    image: silicium-node:sim
+    command: ["--config", "/config/node.toml", "--roles", "worker,verifier"]
+    volumes:
+      - ./node-d.toml:/config/node.toml:ro
+      - node-d-data:/data
+    restart: unless-stopped
+
+  node-e:
+    image: silicium-node:sim
+    command: ["--config", "/config/node.toml", "--roles", "worker,verifier"]
+    volumes:
+      - ./node-e.toml:/config/node.toml:ro
+      - node-e-data:/data
+    restart: unless-stopped
+
+  node-f:
+    image: silicium-node:sim
+    command: ["--config", "/config/node.toml", "--roles", "worker,verifier"]
+    volumes:
+      - ./node-f.toml:/config/node.toml:ro
+      - node-f-data:/data
+    restart: unless-stopped
+
+volumes:
+  node-a-data:
+  node-b-data:
+  node-c-data:
+  node-d-data:
+  node-e-data:
+  node-f-data:

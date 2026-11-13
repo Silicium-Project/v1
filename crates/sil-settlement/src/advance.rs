@@ -119,7 +119,7 @@ fn on_pending(entry: &mut Entry, chain: &dyn Chain, config: &OutboxConfig, now_m
             };
             transient(entry, config, now_ms);
         }
-        Err(ChainError::Rejected(reason)) => on_refusal(entry, chain, reason),
+        Err(ChainError::Rejected(reason)) => on_refusal(entry, chain, config, now_ms, reason),
     }
 }
 
@@ -160,13 +160,28 @@ fn on_submitted(
     }
 }
 
-/// Le programme a refusé : peut-être parce que c'est déjà réglé comme voulu.
-fn on_refusal(entry: &mut Entry, chain: &dyn Chain, reason: String) {
+/// Le programme a refusé : peut-être parce que c'est déjà réglé comme voulu. Si le programme dit
+/// « déjà réglé » mais que l'escrow lu (niveau finalized) ne le montre pas encore, le règlement de
+/// l'autre nœud est en cours de finalisation : on attend, on ne rejette pas.
+fn on_refusal(
+    entry: &mut Entry,
+    chain: &dyn Chain,
+    config: &OutboxConfig,
+    now_ms: u64,
+    reason: String,
+) {
     let job = entry.auth.claim.job;
-    entry.phase = match chain.escrow(&job) {
+    match chain.escrow(&job) {
         Ok(Some(escrow)) if matches!(settled(entry, &escrow), Settled::AsWanted) => {
-            Phase::Confirmed
+            entry.phase = Phase::Confirmed;
         }
-        _ => Phase::Rejected { reason },
-    };
+        Ok(Some(escrow))
+            if matches!(settled(entry, &escrow), Settled::NotYet)
+                && reason.contains("déjà réglé") =>
+        {
+            entry.phase = Phase::Pending;
+            transient(entry, config, now_ms);
+        }
+        _ => entry.phase = Phase::Rejected { reason },
+    }
 }

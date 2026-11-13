@@ -123,3 +123,112 @@ fn tolerance_mode(ledger: &Ledger, job: &JobId) -> bool {
         .spec(job)
         .is_some_and(|signed| sil_ledger::tolerance_rules(&signed.spec.workload).is_some())
 }
+
+/// Verdicts contraires à la majorité réglée sur `fragment` (ADR 0012), émis par les vérificateurs
+/// retenus pour la tentative réglée. Vide tant que rien n'est réglé.
+pub fn penalty_claims(
+    ledger: &Ledger,
+    job: &JobId,
+    fragment: u32,
+    now_ms: u64,
+) -> Vec<sil_settlement::PenaltyClaim> {
+    let Some(signed) = ledger.spec(job) else {
+        return Vec::new();
+    };
+    let required = signed.spec.verifications_required;
+    let requester = signed.spec.requester;
+    let Some(state) = ledger.task_state(job, fragment, now_ms) else {
+        return Vec::new();
+    };
+    let Some(finalized) = state.finalized.clone() else {
+        return Vec::new();
+    };
+    let Some(claim) = SettlementClaim::from_finalized(job, fragment, &finalized, required) else {
+        return Vec::new();
+    };
+    let Some(attempt) = state
+        .attempts
+        .iter()
+        .find(|a| a.attempt == finalized.attempt)
+    else {
+        return Vec::new();
+    };
+    // Règles de tolérance du workload : modèle et runtime attendus (None : mode exact).
+    let expected = sil_ledger::tolerance_rules(&signed.spec.workload);
+    let mut out = Vec::new();
+    // Seuls les vérificateurs retenus pour la tentative peuvent être pénalisés.
+    for chosen in &attempt.verifiers {
+        if claim.approvers.contains(&chosen.verifier) {
+            continue;
+        }
+        for event in ledger.events_of(job, &chosen.verifier) {
+            // Verdict exact ou tolérance : même test de contrariété, même preuve, même signature.
+            let (task, verdict_attempt, result, approved, evidence, signature, tolerance) =
+                match &event.body {
+                    EventBody::Attest { attestation } => {
+                        let b = &attestation.body;
+                        (
+                            b.task,
+                            b.attempt,
+                            b.result,
+                            b.approved,
+                            b.evidence,
+                            attestation.signature.clone(),
+                            None,
+                        )
+                    }
+                    EventBody::AttestTolerance { attestation } => {
+                        let b = &attestation.body;
+                        // Un verdict au mauvais modèle ou runtime n'est pas celui du job.
+                        match expected {
+                            Some((model, runtime, _)) if b.model == model && b.runtime == runtime => {}
+                            _ => continue,
+                        }
+                        (
+                            b.task,
+                            b.attempt,
+                            b.result,
+                            b.approved,
+                            b.evidence,
+                            attestation.signature.clone(),
+                            Some(sil_chain_core::ToleranceProof {
+                                model: b.model,
+                                runtime: b.runtime,
+                                sample_root: b.sample_root,
+                                min_cos_micro: b.min_cos_micro,
+                            }),
+                        )
+                    }
+                    _ => continue,
+                };
+            if task.fragment != fragment || verdict_attempt != finalized.attempt {
+                continue;
+            }
+            // Contraire : approuver un autre résultat, ou rejeter le résultat réglé (ADR 0012).
+            let against = if approved {
+                result != finalized.result
+            } else {
+                result == finalized.result
+            };
+            if !against {
+                continue;
+            }
+            out.push(sil_settlement::PenaltyClaim {
+                job: *job,
+                requester,
+                approvers: claim.approvers.clone(),
+                penalty: sil_chain_core::PenaltyArgs {
+                    fragment,
+                    attempt: verdict_attempt,
+                    result,
+                    approved,
+                    evidence,
+                    tolerance,
+                    verifier: chosen.verifier,
+                },
+                signature,
+            });
+        }
+    }
+    out
+}

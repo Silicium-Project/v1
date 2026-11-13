@@ -8,7 +8,7 @@ fn version_grows_only_with_accepted_events() {
     assert_eq!(before, 1, "la publication du job compte");
     world.emit(
         &ident(50),
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 1,
         },
@@ -27,7 +27,7 @@ fn head_time_is_the_issue_time_of_the_authors_last_event() {
     assert_eq!(world.ledger.head_time(&world.job, &worker.public()), None);
     world.emit(
         &worker,
-        EventBody::Claim {
+        EventBody::Claim { anchor_slot: 1,
             fragment: 0,
             attempt: 1,
         },

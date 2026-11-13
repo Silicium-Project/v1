@@ -32,6 +32,8 @@ fn step(shared: &Shared, previous_len: usize) -> usize {
     let now = shared.now_ms();
     let mut outbox = lock(&shared.outbox);
     let changed = outbox.advance(&*shared.chain, now);
+    // Pénalités (ADR 0012) : même boucle que les règlements, sans sauvegarde (reconstruites du journal).
+    lock(&shared.penalties).advance(&*shared.chain);
     if (changed > 0 || outbox.len() != previous_len)
         && let Err(error) = shared.outbox_file.save(&outbox)
     {

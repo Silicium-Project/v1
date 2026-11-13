@@ -24,5 +24,11 @@
     "memory_bytes": 67108864,
     "output_bytes": 32
   },
-  "deposit": "supported"
+  "deposit": "supported",
+  "resources": {
+    "compute": 70,
+    "memory": 10,
+    "network": 20,
+    "storage": 20
+  }
 }

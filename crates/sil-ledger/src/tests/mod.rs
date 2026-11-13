@@ -1,3 +1,4 @@
+mod anchor;
 mod cancel;
 mod claims;
 mod clock;

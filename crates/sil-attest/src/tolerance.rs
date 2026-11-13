@@ -7,7 +7,6 @@
 
 use crate::AttestError;
 use serde::{Deserialize, Serialize};
-use sil_codec::encode;
 use sil_crypto::{Domain, SigningIdentity, verify};
 use sil_types::{Hash32, PublicKey, Signature, TaskRef};
 
@@ -41,8 +40,27 @@ impl ToleranceBody {
     }
 
     fn bytes(&self) -> Result<Vec<u8>, AttestError> {
-        encode(self).map_err(|_| AttestError::Encode)
+        Ok(tolerance_message(self))
     }
+}
+
+/// Octets signés d'un verdict tolérance (ADR 0012), format binaire fixe reconstruit on-chain :
+/// `job ‖ fragment LE ‖ tentative LE ‖ résultat ‖ modèle ‖ runtime ‖ sample_root ‖ cos_min i32 LE ‖
+/// approved (1) ‖ présence de la preuve (1) ‖ preuve (32, zéros si absente)`. Sans préfixe de domaine.
+pub fn tolerance_message(body: &ToleranceBody) -> Vec<u8> {
+    let mut out = Vec::with_capacity(206);
+    out.extend_from_slice(body.task.job.as_bytes());
+    out.extend_from_slice(&body.task.fragment.to_le_bytes());
+    out.extend_from_slice(&body.attempt.to_le_bytes());
+    out.extend_from_slice(body.result.as_bytes());
+    out.extend_from_slice(body.model.as_bytes());
+    out.extend_from_slice(body.runtime.as_bytes());
+    out.extend_from_slice(body.sample_root.as_bytes());
+    out.extend_from_slice(&body.min_cos_micro.to_le_bytes());
+    out.push(u8::from(body.approved));
+    out.push(u8::from(body.evidence.is_some()));
+    out.extend_from_slice(body.evidence.as_ref().map_or(&[0u8; 32][..], |e| e.as_bytes()));
+    out
 }
 
 /// Verdict signé d'un vérificateur tolérance, avec sa signature de règlement si approbation.

@@ -14,7 +14,7 @@ fn claims(world: &mut World, worker: &sil_crypto::SigningIdentity, n: u32) -> Ve
         .map(|attempt| {
             world.emit(
                 worker,
-                EventBody::Claim {
+                EventBody::Claim { anchor_slot: 1,
                     fragment: 0,
                     attempt,
                 },
@@ -34,7 +34,7 @@ fn an_author_cannot_fill_a_job() {
     assert_eq!(
         world.try_emit(
             &worker,
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 0,
                 attempt: 4
             }
@@ -50,7 +50,7 @@ fn a_job_has_an_event_ceiling() {
     assert_eq!(
         world.try_emit(
             &ident(61),
-            EventBody::Claim {
+            EventBody::Claim { anchor_slot: 1,
                 fragment: 0,
                 attempt: 1
             }
@@ -68,7 +68,7 @@ fn a_job_has_a_byte_ceiling() {
         refused |= world
             .try_emit(
                 &who,
-                EventBody::Claim {
+                EventBody::Claim { anchor_slot: 1,
                     fragment: 0,
                     attempt: 1,
                 },

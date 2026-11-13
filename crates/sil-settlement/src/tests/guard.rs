@@ -15,7 +15,7 @@ fn spec() -> JobSpec {
         width: 0,
         height: 0,
         fragments: 2,
-        verifications_required: 2,
+        verifications_required: 3,
         lease_ms: 60_000,
         max_attempts: 3,
         reward_per_unit: 10,
@@ -85,13 +85,13 @@ fn closed_or_too_late_escrows_are_refused() {
 
     // Un fragment déjà payé réduit le besoin de fonds restant.
     let mut partly = escrow_for(&spec, budget(&spec));
-    let signers = [ident(70).public(), ident(71).public()];
+    let signers = [ident(70).public(), ident(71).public(), ident(72).public()];
     partly
         .settle(
             &claim(0).args(),
             &signers,
             &sil_types::PublicKey::from_bytes([0xEE; 32]),
-            &[Some(sil_chain_core::reputation::VERIFIER_START); 2],
+            &[Some(sil_chain_core::reputation::VERIFIER_START); 3],
         )
         .unwrap();
     assert_eq!(

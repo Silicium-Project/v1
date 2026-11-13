@@ -53,6 +53,17 @@ pub struct Limits {
     pub output_bytes: u64,
 }
 
+/// Intensité relative (0 à 100) que ce workload sollicite sur chaque dimension, jamais son nom
+/// (ADR 0013 §3) : permet au réseau d'apprendre la relation ressources → résultat sans nommer de
+/// type de tâche. Au moins une dimension est non nulle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resources {
+    pub compute: u8,
+    pub memory: u8,
+    pub network: u8,
+    pub storage: u8,
+}
+
 /// Descripteur d'un workload (une entrée de `generated.rs`).
 ///
 /// `max_side`, `block_rows` valent 0 quand l'unité ne les utilise pas (`Unit::BytesInput`).
@@ -73,6 +84,7 @@ pub struct Spec {
     pub verification: Verification,
     pub limits: Limits,
     pub deposit_supported: bool,
+    pub resources: Resources,
 }
 
 /// Le descripteur d'un identifiant, s'il existe.
@@ -95,6 +107,27 @@ mod tests {
     fn identifiers_are_unique() {
         for (index, spec) in ALL.iter().enumerate() {
             assert!(ALL[index + 1..].iter().all(|other| other.id != spec.id));
+        }
+    }
+
+    #[test]
+    fn every_descriptor_solicits_at_least_one_resource_dimension() {
+        // ADR 0013 §3 : un vecteur de ressources entièrement nul n'apprendrait rien.
+        for spec in ALL {
+            let r = spec.resources;
+            assert!(
+                r.compute > 0 || r.memory > 0 || r.network > 0 || r.storage > 0,
+                "{} : vecteur de ressources vide",
+                spec.id
+            );
+            for (name, value) in [
+                ("compute", r.compute),
+                ("memory", r.memory),
+                ("network", r.network),
+                ("storage", r.storage),
+            ] {
+                assert!(value <= 100, "{} : {name} dépasse 100", spec.id);
+            }
         }
     }
 

@@ -5,7 +5,7 @@ use crate::topups::TopUps;
 use crate::tx;
 use sil_chain_core::wire::decode_state;
 use sil_chain_core::{Escrow, EscrowTerms};
-use sil_settlement::{Authorization, Chain, ChainError, TxId, TxStatus};
+use sil_settlement::{Authorization, Chain, ChainError, PenaltyClaim, TxId, TxStatus};
 use sil_types::{JobId, PublicKey};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -93,6 +93,14 @@ impl SolanaChain {
     }
 
     /// Rembourse le solde après l'échéance (le programme refuse avant).
+    /// Libère la réserve d'un vérificateur vers sa clé (ADR 0010). Permissionless : le payeur de
+    /// ce client paie les frais ; les fonds ne vont qu'à la clé du vérificateur. Le programme refuse
+    /// tant qu'aucune échéance n'est atteinte.
+    pub fn release_reserve(&self, verifier: &PublicKey) -> Result<TxId, ChainError> {
+        let ix = tx::release_reserve_ix(&self.program, &self.payer.pubkey(), verifier)?;
+        self.send(vec![ix], &self.payer, &[&self.payer])
+    }
+
     pub fn refund(&self, requester: &Keypair, job: JobId) -> Result<TxId, ChainError> {
         let ix = tx::refund_ix(&self.program, &requester.pubkey(), job)?;
         self.send(vec![ix], requester, &[requester])
@@ -211,7 +219,7 @@ impl Chain for SolanaChain {
         let address = tx::escrow_address(&self.program, job);
         let account = self
             .rpc
-            .get_account_with_commitment(&address, CommitmentConfig::confirmed())
+            .get_account_with_commitment(&address, CommitmentConfig::finalized())
             .map_err(map_client)?
             .value;
         let Some(account) = account else {
@@ -233,6 +241,27 @@ impl Chain for SolanaChain {
         decode_state(body, len)
             .map(Some)
             .map_err(|e| ChainError::Rejected(format!("état illisible : {e}")))
+    }
+
+    fn current_slot(&self) -> Result<u64, ChainError> {
+        // Slot confirmé : un slot non confirmé peut être abandonné par la chaîne (ADR 0009).
+        self.rpc
+            .get_slot_with_commitment(CommitmentConfig::confirmed())
+            .map_err(map_client)
+    }
+
+    fn penalize(&self, penalty: &PenaltyClaim) -> Result<TxId, ChainError> {
+        self.ensure_fee_funds()?;
+        let instructions = tx::penalize_instructions(
+            &self.program,
+            &self.payer.pubkey(),
+            &penalty.job,
+            &penalty.penalty,
+            &penalty.requester,
+            &penalty.approvers,
+            (penalty.penalty.verifier, penalty.signature.clone()),
+        )?;
+        self.send(instructions, &self.payer, &[&self.payer])
     }
 
     fn pays_fees(&self) -> bool {
@@ -289,7 +318,7 @@ impl Chain for SolanaChain {
         match statuses.value.into_iter().next().flatten() {
             Some(status) => match status.err {
                 Some(error) => Ok(TxStatus::Failed(failure_text(&error))),
-                None if status.satisfies_commitment(CommitmentConfig::confirmed()) => {
+                None if status.satisfies_commitment(CommitmentConfig::finalized()) => {
                     Ok(TxStatus::Confirmed)
                 }
                 None => Ok(TxStatus::Pending),

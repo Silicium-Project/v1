@@ -7,7 +7,8 @@ use sil_types::{Hash32, JobId, PublicKey, Signature};
 
 pub const SPEC_VERSION: u8 = 2;
 pub const MAX_FRAGMENTS: u32 = 1024;
-pub const MAX_VERIFICATIONS: u32 = 16;
+/// Quorum impair (ADR 0012) : majorité stricte toujours définie.
+pub const MAX_VERIFICATIONS: u32 = 15;
 pub const MAX_SPEC_ATTEMPTS: u32 = 16;
 const MAX_WORKLOAD_LEN: usize = 80;
 
@@ -68,7 +69,10 @@ impl JobSpec {
         if self.fragments == 0 || self.fragments > MAX_FRAGMENTS {
             return Err(bad("fragments"));
         }
-        if self.verifications_required == 0 || self.verifications_required > MAX_VERIFICATIONS {
+        if self.verifications_required == 0
+            || self.verifications_required > MAX_VERIFICATIONS
+            || self.verifications_required % 2 == 0
+        {
             return Err(bad("verifications_required"));
         }
         if self.lease_ms == 0 {

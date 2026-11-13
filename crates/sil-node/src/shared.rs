@@ -83,6 +83,8 @@ pub struct Shared {
     pub(crate) derived: Mutex<crate::derived_reputation::Cache>,
     pub(crate) outbox: Mutex<Outbox>,
     pub(crate) outbox_file: OutboxFile,
+    /// Pénalités à envoyer (ADR 0012). Reconstruites depuis le journal : pas de sauvegarde.
+    pub(crate) penalties: Mutex<sil_settlement::PenaltyBox>,
     pub(crate) chain: Arc<dyn Chain>,
     pub(crate) seed: MasterSeed,
     pub(crate) identity: SigningIdentity,

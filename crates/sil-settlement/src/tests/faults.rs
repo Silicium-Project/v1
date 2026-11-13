@@ -7,7 +7,7 @@ use crate::{
 fn setup() -> (FakeChain, Outbox, IntentId) {
     let chain = funded_chain();
     let mut outbox = outbox();
-    let id = outbox.enqueue(authorized(claim(0), &[70, 71])).unwrap();
+    let id = outbox.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap();
     (chain, outbox, id)
 }
 
@@ -38,7 +38,7 @@ fn a_transaction_that_landed_despite_an_error_is_never_sent_twice() {
     assert_eq!(outbox.status(&id, 0), Some(Status::Pending));
     assert_eq!(
         chain.escrow_now(&job()).unwrap().paid(),
-        120 + sil_chain_core::SETTLEMENT_FEE,
+        130 + sil_chain_core::SETTLEMENT_FEE,
         "elle a bien atterri"
     );
     outbox.advance(&chain, 61_000);
@@ -46,7 +46,7 @@ fn a_transaction_that_landed_despite_an_error_is_never_sent_twice() {
     assert_eq!(chain.submit_calls(), 1, "pas de second envoi");
     assert_eq!(
         chain.escrow_now(&job()).unwrap().paid(),
-        120 + sil_chain_core::SETTLEMENT_FEE
+        130 + sil_chain_core::SETTLEMENT_FEE
     );
 }
 
@@ -71,7 +71,7 @@ fn a_lost_transaction_expires_then_is_resent_after_rereading_the_escrow() {
     assert_eq!(chain.submit_calls(), 2);
     assert_eq!(
         chain.escrow_now(&job()).unwrap().paid(),
-        120 + sil_chain_core::SETTLEMENT_FEE,
+        130 + sil_chain_core::SETTLEMENT_FEE,
         "payé une fois"
     );
 }
@@ -141,13 +141,13 @@ fn a_restart_after_a_crash_before_saving_resubmits_safely() {
     first.advance(&chain, 0);
     chain.mine();
     let mut fresh = outbox();
-    let id = fresh.enqueue(authorized(claim(0), &[70, 71])).unwrap();
+    let id = fresh.enqueue(authorized(claim(0), &[70, 71, 72])).unwrap();
     fresh.advance(&chain, 10_000);
     assert_eq!(fresh.status(&id, 10_000), Some(Status::Confirmed));
     assert_eq!(chain.submit_calls(), 1);
     assert_eq!(
         chain.escrow_now(&job()).unwrap().paid(),
-        120 + sil_chain_core::SETTLEMENT_FEE
+        130 + sil_chain_core::SETTLEMENT_FEE
     );
 }
 

@@ -76,6 +76,7 @@ impl Node {
             derived: Mutex::new(Default::default()),
             outbox: Mutex::new(outbox),
             outbox_file,
+            penalties: Mutex::new(sil_settlement::PenaltyBox::new()),
             chain,
             seed,
             identity,

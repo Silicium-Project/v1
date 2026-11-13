@@ -3888,6 +3888,7 @@ name = "sil-attest"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "sil-chain-core",
  "sil-codec",
  "sil-crypto",
  "sil-types",
@@ -3899,6 +3900,13 @@ name = "sil-batch"
 version = "0.1.0"
 dependencies = [
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "sil-bayes"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -4097,6 +4105,7 @@ dependencies = [
 name = "sil-render-wasm"
 version = "0.1.0"
 dependencies = [
+ "sil-raytracer",
  "sil-wl-render",
  "sil-workload-api",
  "wasmtime",

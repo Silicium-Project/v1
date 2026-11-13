@@ -13,13 +13,30 @@ use tokio::{sync::watch, time::interval};
 /// Durée pendant laquelle on réutilise le verdict de la garde d'escrow d'un job.
 const ESCROW_TTL_MS: u64 = 5_000;
 
+/// Jobs dans l'ordre de leur échéance, la plus proche d'abord : un job long, soumis tôt, passe avant
+/// les petits jobs soumis après. Sans cet ordre, un flux de petits jobs peut affamer un long.
+fn jobs_by_deadline(shared: &Shared) -> Vec<JobId> {
+    let ledger = lock(&shared.ledger);
+    let mut jobs: Vec<(u64, JobId)> = ledger
+        .job_ids()
+        .into_iter()
+        .filter_map(|job| {
+            ledger
+                .spec(&job)
+                .map(|signed| (signed.spec.expires_at_ms, job))
+        })
+        .collect();
+    jobs.sort_unstable();
+    jobs.into_iter().map(|(_, job)| job).collect()
+}
+
 pub(crate) async fn run(shared: Arc<Shared>, tick: Duration, mut stop: watch::Receiver<bool>) {
     let mut timer = interval(tick);
     loop {
         tokio::select! {
             _ = stop.changed() => break,
             _ = timer.tick() => {
-                for job in shared.job_ids() {
+                for job in jobs_by_deadline(&shared) {
                     scan_job(&shared, &job).await;
                 }
             }
@@ -80,8 +97,20 @@ async fn scan_job(shared: &Arc<Shared>, job: &JobId) {
                     ok
                 }
             };
-            if ok {
-                let _ = shared.author_event(job, EventBody::Claim { fragment, attempt });
+            // Ancrage (ADR 0009) : le slot courant lu sur la chaîne. Sans lecture, pas de claim.
+            let anchor = match shared.chain.current_slot() {
+                Ok(slot) if ok => Some(slot),
+                _ => None,
+            };
+            if let Some(anchor_slot) = anchor {
+                let _ = shared.author_event(
+                    job,
+                    EventBody::Claim {
+                        fragment,
+                        attempt,
+                        anchor_slot,
+                    },
+                );
             } else {
                 // Pas de claim : on pourra réessayer au prochain tour.
                 lock(&shared.work)

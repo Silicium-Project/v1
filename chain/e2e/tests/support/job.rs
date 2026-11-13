@@ -6,7 +6,7 @@ use super::{
     chain::{address, balance, confirm, now_ms},
     nodes::{diagnose, publish, upload},
 };
-use sil_chain_core::Escrow;
+use sil_chain_core::{Escrow, reserve};
 use sil_chain_core::units::{Shape, fragment_units};
 use sil_content::Manifest;
 use sil_ledger::JobSpec;
@@ -109,8 +109,10 @@ fn expected_payouts(escrow: &Escrow, case: &Case, shape: Shape) -> BTreeMap<Publ
         let settled = escrow.settled(fragment).expect("fragment réglé");
         let units = fragment_units(case.workload, shape, case.fragments, fragment).expect("unités");
         *expected.entry(settled.claimant).or_insert(0) += units * REWARD_PER_UNIT;
+        // Le vérificateur reçoit la moitié de sa récompense ; l'autre moitié reste en réserve (ADR 0010).
+        let (paid, _held) = reserve::split(units * VERIFIER_PER_UNIT);
         for approver in &settled.approvers {
-            *expected.entry(*approver).or_insert(0) += units * VERIFIER_PER_UNIT;
+            *expected.entry(*approver).or_insert(0) += paid;
         }
     }
     expected

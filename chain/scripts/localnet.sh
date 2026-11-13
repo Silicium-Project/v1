@@ -32,7 +32,7 @@ done
 
 cd "$REPO/chain/adapter" && \
   SIL_RPC_URL="http://127.0.0.1:$RPC_PORT" SIL_ESCROW_PROGRAM="$PROGRAM_ID" \
-  cargo test --tests -- --include-ignored --nocapture
+  cargo test --tests -- --include-ignored --nocapture --skip devnet
 
 # Moteur de rendu de référence en WebAssembly (isolé par construction, même moteur que Windows).
 (cd "$REPO" && cargo build -p sil-wl-render --bin sil-render-reference --target wasm32-wasip1) || exit 1

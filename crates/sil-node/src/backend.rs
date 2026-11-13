@@ -52,7 +52,7 @@ impl Backend for NodeBackend {
 
     fn submit_event(&self, bytes: Vec<u8>) -> Result<EventReceipt, ApiError> {
         let event = Event::from_bytes(&bytes, MAX_EVENT_BYTES).map_err(bad)?;
-        let receipt = self.shared.ingest(event).map_err(|e| match e {
+        let receipt = self.shared.ingest_live(event).map_err(|e| match e {
             LedgerError::TooManyJobs
             | LedgerError::JobFull
             | LedgerError::JobBytesFull

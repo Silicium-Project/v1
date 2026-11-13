@@ -21,6 +21,9 @@ pub enum Op {
 /// Qui soumet les transactions dans la chaîne simulée : reçoit les frais de règlement.
 pub const FAKE_SUBMITTER: sil_types::PublicKey = sil_types::PublicKey::from_bytes([0xEE; 32]);
 
+/// Slot de départ de la chaîne simulée (ADR 0009) : non nul, comme un vrai slot.
+pub const FAKE_SLOT_BASE: u64 = 1_000;
+
 /// Durée de validité d'une transaction, en hauteurs de bloc.
 const VALIDITY: u64 = 150;
 
@@ -173,6 +176,38 @@ impl Chain for FakeChain {
                 dropped,
             },
         );
+        Ok(TxId(id))
+    }
+
+    fn current_slot(&self) -> Result<u64, ChainError> {
+        // Le faux slot avance avec les blocs simulés, sur une base non nulle (un slot 0 est refusé).
+        Ok(FAKE_SLOT_BASE + self.lock().height)
+    }
+
+    fn penalize(&self, penalty: &crate::PenaltyClaim) -> Result<TxId, ChainError> {
+        // Ne pas confondre avec `submit` : une pénalité ne passe pas par les approbateurs.
+        let mut inner = self.lock();
+        if let Some(error) = inner.fault(Op::Submit) {
+            return Err(error);
+        }
+        if !penalty.is_signed() {
+            return Err(ChainError::Rejected("preuve invalide".into()));
+        }
+        let Some(escrow) = inner.escrows.get_mut(&penalty.job) else {
+            return Err(ChainError::Rejected("escrow inconnu".into()));
+        };
+        // Vraies règles de `sil-chain-core` ; la réserve n'est pas suivie ici (pas de montant).
+        escrow
+            .penalize(
+                &penalty.penalty,
+                &[penalty.penalty.verifier],
+                Some(sil_chain_core::reputation::VERIFIER_START),
+                0,
+            )
+            .map_err(|error| ChainError::Rejected(error.to_string()))?;
+        inner.next += 1;
+        let id = format!("pen-{}", inner.next);
+        inner.txs.insert(id.clone(), Tx::Done(TxStatus::Confirmed));
         Ok(TxId(id))
     }
 
