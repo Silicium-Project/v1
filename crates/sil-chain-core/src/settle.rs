@@ -124,6 +124,16 @@ impl Escrow {
                 result: args.result,
                 claimant: args.claimant,
                 approvers: args.approvers.clone(),
+                // Réserve de chaque approbateur, booké par job (ADR 0010, correctif de revue).
+                // Jalon (votes_at, booked_at) posé par le programme à la réservation.
+                held: args
+                    .approvers
+                    .iter()
+                    .map(|_| crate::HeldEntry {
+                        amount: verifier_held,
+                        ..Default::default()
+                    })
+                    .collect(),
             },
         );
         Ok(Settlement {

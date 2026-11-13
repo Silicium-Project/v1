@@ -12,8 +12,6 @@ pub const ESCROW_SEED: &[u8] = b"escrow";
 /// Graine du PDA du compte de réputation d'un vérificateur : `[VERIFIER_SEED, clé]`.
 pub const VERIFIER_SEED: &[u8] = b"verifier";
 
-/// Graine du PDA du compteur de règlements du programme : `[STATS_SEED]` (ADR 0010).
-pub const STATS_SEED: &[u8] = b"stats";
 
 /// Préfixe de domaine du message de règlement : `sil/v1/settlement` ‖ `0x00` (sil-crypto).
 pub const SETTLEMENT_DOMAIN: &[u8] = b"sil/v1/settlement\0";

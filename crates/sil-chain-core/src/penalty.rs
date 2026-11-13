@@ -52,15 +52,50 @@ pub struct Penalty {
 }
 
 impl Escrow {
-    /// Part de réserve (ADR 0010) retenue sur chaque vérificateur de ce fragment : le plafond de ce
-    /// qu'une pénalité sur ce fragment peut confisquer. La réserve d'un vérificateur mêle plusieurs
-    /// jobs ; une pénalité ne doit pas prendre ce qui vient d'un autre.
-    pub fn held_for(&self, fragment: u32) -> Result<u64, RuleError> {
-        let units = self.terms.fragment_units(fragment)?;
-        let amount = units
-            .checked_mul(self.terms.verifier_reward_per_unit)
-            .ok_or(RuleError::Overflow)?;
-        Ok(reserve::split(amount).1)
+    /// Consomme jusqu'à `cap` de la réserve que cet escrow détient pour `verifier` (tous ses
+    /// fragments confondus), et retourne le montant consommé. Une réserve ne sort ainsi que du job
+    /// qui l'a retenue (ADR 0010, correctif de revue : pas de confiscation croisée entre jobs).
+    pub(crate) fn consume_held(&mut self, verifier: &PublicKey, cap: u64) -> u64 {
+        let mut left = cap;
+        for settled in self.settled.values_mut() {
+            if let Some(index) = settled.approvers.iter().position(|a| a == verifier) {
+                let entry = &mut settled.held[index];
+                let take = left.min(entry.amount);
+                entry.amount -= take;
+                left -= take;
+            }
+        }
+        cap - left
+    }
+
+    /// Pose le jalon d'une réservation : compteur de votes du vérificateur et heure, au moment où
+    /// le programme vient de booker sa part sur ce fragment.
+    pub fn stamp_booking(&mut self, fragment: u32, verifier: &PublicKey, votes: u64, now: i64) {
+        if let Some(settled) = self.settled.get_mut(&fragment)
+            && let Some(index) = settled.approvers.iter().position(|a| a == verifier)
+        {
+            settled.held[index].votes_at = votes;
+            settled.held[index].booked_at = now;
+        }
+    }
+
+    /// Libère les réserves de `verifier` **dues** dans cet escrow : une entrée est due après
+    /// `RELEASE_AFTER_SETTLEMENTS` votes propres depuis sa réservation, ou `RELEASE_AFTER_SECONDS`
+    /// après. Retourne le montant à verser à sa clé.
+    pub fn release_held(&mut self, verifier: &PublicKey, votes_now: u64, now: i64) -> u64 {
+        let mut total = 0u64;
+        for settled in self.settled.values_mut() {
+            if let Some(index) = settled.approvers.iter().position(|a| a == verifier) {
+                let entry = &mut settled.held[index];
+                let due = votes_now.saturating_sub(entry.votes_at) >= reserve::RELEASE_AFTER_SETTLEMENTS
+                    || now.saturating_sub(entry.booked_at) >= reserve::RELEASE_AFTER_SECONDS;
+                if entry.amount > 0 && due {
+                    total = total.saturating_add(entry.amount);
+                    entry.amount = 0;
+                }
+            }
+        }
+        total
     }
 
     /// Pénalise `args.verifier`, qui a signé le verdict contraire décrit par `args` : `signed` sont les
@@ -112,12 +147,12 @@ impl Escrow {
         }
         let score = standing.ok_or(RuleError::BadPenalty("pas de compte de réputation"))?;
 
-        let confiscated = self.held_for(args.fragment)?.min(reserve);
+        let approvers = settled.approvers.clone();
+        let confiscated = self.consume_held(&args.verifier, reserve);
         let majority = u64::try_from(
             u128::from(confiscated) * MAJORITY_SHARE_PERCENT / 100,
         )
         .map_err(|_| RuleError::Overflow)?;
-        let approvers = settled.approvers.clone();
         let each = if approvers.is_empty() {
             0
         } else {

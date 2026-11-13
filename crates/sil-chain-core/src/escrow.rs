@@ -3,6 +3,20 @@ use serde::{Deserialize, Serialize};
 use sil_types::{Hash32, JobId, PublicKey};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Réserve retenue pour un approbateur sur un fragment (ADR 0010). Chaque entrée garde son propre
+/// jalon : le nombre de votes propres du vérificateur et l'heure au moment où elle a été booked.
+/// L'échéance se juge entrée par entrée, pour qu'une réserve récente n'hérite jamais d'une marque
+/// ancienne (correctif de revue).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct HeldEntry {
+    /// Lamports encore retenus.
+    pub amount: u64,
+    /// Valeur du compteur de votes du vérificateur au moment de la réservation.
+    pub votes_at: u64,
+    /// Heure Unix (secondes) de la réservation.
+    pub booked_at: i64,
+}
+
 /// Règlement d'un fragment, tel qu'enregistré.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SettledFragment {
@@ -10,6 +24,9 @@ pub struct SettledFragment {
     pub result: Hash32,
     pub claimant: PublicKey,
     pub approvers: Vec<PublicKey>,
+    /// Réserve de chaque approbateur (même ordre que `approvers`). Booké par job : une pénalité ne
+    /// prend que ce que ce job a retenu.
+    pub held: Vec<HeldEntry>,
 }
 
 /// Compte d'escrow d'un job.

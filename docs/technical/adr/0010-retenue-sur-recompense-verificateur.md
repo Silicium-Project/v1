@@ -38,3 +38,14 @@ Une caution par vérificateur, prélevée sur ses gains et non déposée à l'av
   vérificateur seul).
 - Barème de confiscation (totale ou proportionnelle).
 - Nombre de vérificateurs par fragment.
+
+## Correctif de revue : libération et confiscation par job
+
+- **Libération** : le compteur ne compte que les votes **propres** du vérificateur, depuis sa plus
+  ancienne réserve en attente (`pending_since`). N'importe qui ne peut plus le faire avancer en
+  réglant d'autres jobs. Le délai de 24 h après le dernier vote reste en place.
+- **Par job** : chaque `SettledFragment` porte `held` (la réserve de chaque approbateur sur ce
+  fragment). Une pénalité ne consomme que ce que cet escrow a retenu pour le vérificateur ; une
+  libération (`ReleaseReserve`, avec les escrows en comptes) ne sort que ce que ces escrows
+  détiennent. Plus de confiscation croisée entre jobs.
+- Le compte de stats global est supprimé.

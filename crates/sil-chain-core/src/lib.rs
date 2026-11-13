@@ -28,7 +28,7 @@ pub mod units;
 pub mod wire;
 
 pub use error::RuleError;
-pub use escrow::{Escrow, SettledFragment};
+pub use escrow::{Escrow, HeldEntry, SettledFragment};
 pub use penalty::{Penalty, PenaltyArgs, ToleranceProof};
 pub use settle::{Payout, SettleArgs, Settlement};
 pub use terms::{EscrowTerms, MAX_APPROVERS, REFUND_GRACE_MS, SETTLEMENT_FEE};

@@ -59,14 +59,7 @@ pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -
     let settlement = escrow
         .settle(&args, &signers, &submitter, &standing)
         .map_err(rule)?;
-    // Le règlement compte pour l'échéance des réserves (ADR 0010). Le compteur est un compte du
-    // programme, passé en dernier.
-    let stats_key = verifier::stats_address(program_id);
-    let stats = accounts
-        .iter()
-        .find(|account| *account.key == stats_key)
-        .ok_or(invalid())?;
-    let count = verifier::bump_count(stats, program_id)?;
+    // Chaque approbateur compte un vote propre et garde sa part en réserve (ADR 0010).
     let now = Clock::get()?.unix_timestamp;
     for (approver, score) in &settlement.credited {
         let account = verifier::find(program_id, accounts, approver).ok_or(invalid())?;
@@ -77,7 +70,9 @@ pub fn settle(program_id: &Pubkey, accounts: &[AccountInfo], args: SettleArgs) -
             .iter()
             .find(|(key, _)| key == approver)
             .map_or(0, |(_, amount)| *amount);
-        state.record_vote(held, count, now).ok_or(invalid())?;
+        state.record_vote(held).ok_or(invalid())?;
+        // Jalon de cette réservation sur l'escrow : votes propres et heure (ADR 0010, correctif).
+        escrow.stamp_booking(args.fragment, approver, state.votes, now);
         verifier::write(&account, &state)?;
         verifier::move_lamports(escrow_account, &account, held)?;
     }

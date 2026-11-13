@@ -39,6 +39,16 @@ fn settled(verifier_reward_per_unit: u64) -> Escrow {
     let standing = vec![Some(VERIFIER_START); 3];
     e.settle(&args, &[key(70), key(71), key(72)], &key(200), &standing)
         .unwrap();
+    // Le dissident 80 a approuvé le fragment 1 : sa réserve de ce job vient de là (ADR 0010).
+    let second = SettleArgs {
+        fragment: 1,
+        attempt: 1,
+        result: Hash32::from_bytes([7; 32]),
+        claimant: key(60),
+        approvers: vec![key(80), key(71), key(72)],
+    };
+    e.settle(&second, &[key(80), key(71), key(72)], &key(200), &standing)
+        .unwrap();
     e
 }
 
@@ -229,4 +239,32 @@ fn an_empty_reserve_still_lowers_the_score_but_moves_no_money() {
     assert_eq!(penalty.score, VERIFIER_START - PENALTY_STEP);
     assert_eq!(penalty.confiscated, 0);
     assert!(penalty.payouts.iter().all(|p| p.amount == 0));
+}
+
+#[test]
+fn a_verifier_with_no_reserve_on_this_job_loses_nothing_even_with_a_big_reserve() {
+    // Correctif de revue : la réserve d'un autre job ne se confisque pas ici.
+    let mut e = settled(1);
+    let penalty = e
+        .penalize(&dissent(90), &[key(90)], Some(VERIFIER_START), 1_000_000)
+        .unwrap();
+    assert_eq!(penalty.confiscated, 0, "rien retenu sur ce job");
+}
+
+#[test]
+fn releasing_takes_only_what_this_job_holds_for_the_verifier() {
+    let mut e = settled(1);
+    // Sans jalon posé (votes_at = 0, booked_at = 0), la réserve est due une fois assez de votes.
+    assert_eq!(e.release_held(&key(80), 100, 0), 5, "la réserve retenue sur ce job");
+    assert_eq!(e.release_held(&key(80), 100, 0), 0, "déjà libérée");
+    assert_eq!(e.release_held(&key(70), 100, 0), 5, "autre approbateur du fragment 0");
+}
+
+#[test]
+fn each_reserve_is_due_on_its_own_marks() {
+    // Correctif de revue : une réserve récente n'hérite pas de l'échéance d'une ancienne.
+    let mut e = settled(1);
+    e.stamp_booking(1, &key(80), 50, 10_000);
+    assert_eq!(e.release_held(&key(80), 55, 10_000), 0, "5 votes après : pas encore due");
+    assert_eq!(e.release_held(&key(80), 70, 10_000), 5, "20 votes après : due");
 }

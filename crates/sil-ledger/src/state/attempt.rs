@@ -73,8 +73,12 @@ pub(super) fn accepted<'a>(
         .filter(|(_, event)| matches!(event.body, EventBody::Claim { attempt, .. } if attempt == k))
         .collect();
     claim_order(&mut claims);
+    // Fraîcheur (ADR 0009) : un claim ancré à plus de la fenêtre du plus récent est nul. Un claim
+    // antidaté, reçu tard, ne peut donc pas passer devant un claim frais.
+    let newest = claims.iter().map(|(_, e)| claim_anchor(e)).max().unwrap_or(0);
     claims
         .into_iter()
+        .filter(|(_, claim)| claim_anchor(claim).saturating_add(crate::CLAIM_WINDOW_SLOTS) >= newest)
         .find(|(_, claim)| {
             !claimants.contains(&claim.author)
                 && previous.is_none_or(|p| free_at(view.spec, p, claim.issued_at_ms))
@@ -83,6 +87,14 @@ pub(super) fn accepted<'a>(
             claim_id: *id,
             claim,
         })
+}
+
+/// Slot d'ancrage d'un claim (0 pour tout autre événement).
+fn claim_anchor(event: &Event) -> u64 {
+    match event.body {
+        EventBody::Claim { anchor_slot, .. } => anchor_slot,
+        _ => 0,
+    }
 }
 
 /// Ordre des claims (ADR 0009) : slot d'ancrage signé, puis heure déclarée, puis identifiant. Le

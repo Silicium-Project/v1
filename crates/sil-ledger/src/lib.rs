@@ -28,6 +28,11 @@ mod wallet_text;
 
 pub use admission::{Admission, AllowAll};
 pub use body::{EventBody, MAX_ATTEMPTS};
+
+/// Fenêtre de fraîcheur d'un claim, en slots (ADR 0009) : un claim vaut s'il est à moins de cette
+/// distance du claim le plus récent de sa tentative. Règle de journal, donc la même sur tous les
+/// nœuds, y compris pour un événement reçu par rattrapage.
+pub const CLAIM_WINDOW_SLOTS: u64 = 150;
 pub use error::LedgerError;
 pub use event::{Event, Header, NO_PREVIOUS};
 pub use ledger::Ledger;

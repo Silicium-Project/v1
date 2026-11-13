@@ -44,3 +44,18 @@ fn a_zero_anchor_is_refused() {
         "un claim sans ancrage n'a pas de place dans l'ordre"
     );
 }
+
+#[test]
+fn a_stale_claim_arriving_late_cannot_overtake_a_fresh_one() {
+    // ADR 0009, règle de journal : un claim ancré à plus de la fenêtre du plus récent de sa
+    // tentative ne vaut pas, même s'il est reçu après (rattrapage) et s'il est antidaté.
+    let (fresh, stale) = (ident(60), ident(61));
+    let mut world = World::new(Params::default());
+    world.emit(&fresh, claim(1_000, 1));
+    world.emit(&stale, claim(100, 1));
+    assert_eq!(
+        world.task().attempts[0].claimant,
+        fresh.public(),
+        "le claim antidaté ne passe pas devant le claim frais"
+    );
+}

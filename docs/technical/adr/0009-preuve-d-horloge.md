@@ -52,3 +52,12 @@ Ancrer chaque `claim` à une horloge externe et vérifiable : le slot Solana ré
 - **Ordre par réception** au témoin : pas déterministe entre nœuds, rejeté.
 - **Preuve causale** (référence au dernier événement vu) : ne borne pas l'antidatage sans fenêtre.
 - **Horloge de consensus léger** : complexité disproportionnée pour le testnet.
+
+## Correctif de revue : règle de journal sur la fraîcheur
+
+La borne de réception seule ne suffit pas : un claim antidaté reçu par rattrapage (sync) n'y est
+pas soumis, et l'ordre `(anchor_slot, …)` le placerait devant un claim frais, en redéfinissant un
+gagnant déjà accepté. Règle ajoutée dans le journal (`sil-ledger`, `state/attempt.rs`) : pour une
+tentative, un claim ne vaut que si `anchor_slot + CLAIM_WINDOW_SLOTS ≥ max(anchor_slot des claims de
+cette tentative)`. Elle ne dépend d'aucune horloge locale. Conséquence assumée : un claim frais qui
+arrive après un claim plus ancien peut invalider ce dernier, car le plus récent fixe la référence.

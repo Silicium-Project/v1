@@ -65,6 +65,7 @@ fn a_claim_is_compared_with_what_the_chain_recorded() {
         result: c.result,
         claimant: c.claimant,
         approvers: c.approvers.clone(),
+        held: c.approvers.iter().map(|_| sil_chain_core::HeldEntry::default()).collect(),
     };
     assert!(c.matches(&settled));
     settled.result = Hash32::from_bytes([9; 32]);

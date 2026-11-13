@@ -3,7 +3,7 @@
 //! correspondre exactement à `chain/program/src` (voir le commentaire de chaque fonction).
 
 use sil_chain_core::wire::{
-    ESCROW_SEED, EscrowIx, STATS_SEED, VERIFIER_SEED, encode_ix, penalty_frame, settlement_frame,
+    ESCROW_SEED, EscrowIx, VERIFIER_SEED, encode_ix, penalty_frame, settlement_frame,
 };
 use sil_chain_core::{EscrowTerms, PenaltyArgs, SettleArgs};
 use sil_settlement::{Authorization, ChainError};
@@ -26,14 +26,8 @@ pub fn verifier_address(program: &Pubkey, verifier: &PublicKey) -> Pubkey {
     Pubkey::find_program_address(&[VERIFIER_SEED, key(verifier).as_ref()], program).0
 }
 
-/// Adresse du compteur global des règlements : PDA `[STATS_SEED]` (ADR 0010).
-pub fn stats_address(program: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[STATS_SEED], program).0
-}
-
-/// `[payeur (signataire, inscriptible), compte du vérificateur (inscriptible), système, compteur
-/// (inscriptible)]`. À envoyer une fois par vérificateur : sans ce compte, ses règlements sont
-/// refusés. Crée aussi le compteur global s'il manque.
+/// `[payeur (signataire, inscriptible), compte du vérificateur (inscriptible), système]`. À envoyer
+/// une fois par vérificateur : sans ce compte, ses règlements sont refusés.
 pub fn register_verifier_ix(
     program: &Pubkey,
     payer: &Pubkey,
@@ -45,28 +39,27 @@ pub fn register_verifier_ix(
             AccountMeta::new(*payer, true),
             AccountMeta::new(verifier_address(program, verifier), false),
             AccountMeta::new_readonly(solana_system_interface::program::ID, false),
-            AccountMeta::new(stats_address(program), false),
         ],
         data: data(&EscrowIx::RegisterVerifier { key: *verifier })?,
     })
 }
 
-/// `[compte du vérificateur (inscriptible), clé du vérificateur (inscriptible), compteur]`.
-/// Libère la réserve d'un vérificateur vers sa clé (ADR 0010). Aucune signature requise côté
-/// programme, mais la transaction a un payeur ; il se place en tête et signe.
+/// `[compte du vérificateur (inscriptible), clé du vérificateur (inscriptible), escrows (inscriptibles)...]`.
+/// Libère la réserve que ces escrows détiennent pour le vérificateur, si l'échéance est atteinte
+/// (ADR 0010). Aucune signature requise côté programme : le payeur de la transaction suffit.
 pub fn release_reserve_ix(
     program: &Pubkey,
-    payer: &Pubkey,
     verifier: &PublicKey,
+    escrows: &[Pubkey],
 ) -> Result<Instruction, ChainError> {
+    let mut accounts = vec![
+        AccountMeta::new(verifier_address(program, verifier), false),
+        AccountMeta::new(key(verifier), false),
+    ];
+    accounts.extend(escrows.iter().map(|escrow| AccountMeta::new(*escrow, false)));
     Ok(Instruction {
         program_id: *program,
-        accounts: vec![
-            AccountMeta::new(verifier_address(program, verifier), false),
-            AccountMeta::new(key(verifier), false),
-            AccountMeta::new_readonly(stats_address(program), false),
-            AccountMeta::new_readonly(*payer, true),
-        ],
+        accounts,
         data: data(&EscrowIx::ReleaseReserve { key: *verifier })?,
     })
 }
@@ -204,7 +197,6 @@ pub fn settle_instructions(
             .iter()
             .map(|approver| AccountMeta::new(verifier_address(program, approver), false)),
     );
-    accounts.push(AccountMeta::new(stats_address(program), false));
     out.push(Instruction {
         program_id: *program,
         accounts,
@@ -302,13 +294,13 @@ mod verifier_tests {
         let program = Pubkey::new_from_array([9; 32]);
         let payer = Pubkey::new_from_array([1; 32]);
         let verifier = PublicKey::from_bytes([5; 32]);
-        let ix = release_reserve_ix(&program, &payer, &verifier).expect("ix");
+        let escrow = Pubkey::new_from_array([8; 32]);
+        let ix = release_reserve_ix(&program, &verifier, &[escrow]).expect("ix");
         assert_eq!(&ix.data[..4], &6u32.to_le_bytes(), "variante ReleaseReserve");
         assert_eq!(ix.accounts[0].pubkey, verifier_address(&program, &verifier));
         assert_eq!(ix.accounts[1].pubkey, Pubkey::new_from_array([5; 32]));
-        assert_eq!(ix.accounts[2].pubkey, stats_address(&program));
-        assert!(ix.accounts[0].is_writable && ix.accounts[1].is_writable);
-        assert!(!ix.accounts[2].is_writable, "le compteur n'est que lu");
+        assert_eq!(ix.accounts[2].pubkey, escrow, "la réserve sort de cet escrow");
+        assert!(ix.accounts.iter().all(|a| a.is_writable), "tout ce qui bouge est inscriptible");
     }
 
     #[test]
@@ -324,8 +316,6 @@ mod verifier_tests {
         );
         assert_eq!(ix.accounts[1].pubkey, verifier_address(&program, &verifier));
         assert!(ix.accounts[1].is_writable);
-        assert_eq!(ix.accounts[3].pubkey, stats_address(&program));
-        assert!(ix.accounts[3].is_writable, "l'enregistrement crée le compteur");
         assert_ne!(
             verifier_address(&program, &verifier),
             verifier_address(&program, &PublicKey::from_bytes([6; 32])),

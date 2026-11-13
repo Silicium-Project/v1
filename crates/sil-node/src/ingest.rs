@@ -22,8 +22,8 @@ pub(crate) fn too_old_for_live(issued_at_ms: u64, now_ms: u64) -> bool {
     issued_at_ms.saturating_add(MAX_LIVE_AGE_MS) < now_ms
 }
 
-/// Fenêtre d'ancrage d'un claim, en slots Solana (ADR 0009) : environ une minute.
-pub(crate) const CLAIM_WINDOW_SLOTS: u64 = 150;
+/// Fenêtre d'ancrage d'un claim, en slots Solana (ADR 0009), définie par le journal.
+pub(crate) use sil_ledger::CLAIM_WINDOW_SLOTS;
 
 /// Tolérance sur le retard de l'RPC local : un slot ancré légèrement au-dessus du slot local est
 /// accepté (deux nœuds ne lisent pas le même slot au même instant). Au-delà, le claim est refusé.

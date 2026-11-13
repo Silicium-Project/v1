@@ -96,8 +96,16 @@ impl SolanaChain {
     /// Libère la réserve d'un vérificateur vers sa clé (ADR 0010). Permissionless : le payeur de
     /// ce client paie les frais ; les fonds ne vont qu'à la clé du vérificateur. Le programme refuse
     /// tant qu'aucune échéance n'est atteinte.
-    pub fn release_reserve(&self, verifier: &PublicKey) -> Result<TxId, ChainError> {
-        let ix = tx::release_reserve_ix(&self.program, &self.payer.pubkey(), verifier)?;
+    pub fn release_reserve(
+        &self,
+        verifier: &PublicKey,
+        jobs: &[JobId],
+    ) -> Result<TxId, ChainError> {
+        let escrows: Vec<Pubkey> = jobs
+            .iter()
+            .map(|job| tx::escrow_address(&self.program, job))
+            .collect();
+        let ix = tx::release_reserve_ix(&self.program, verifier, &escrows)?;
         self.send(vec![ix], &self.payer, &[&self.payer])
     }
 

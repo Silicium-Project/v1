@@ -139,8 +139,6 @@ mod tests {
         let mut escrow =
             Escrow::open(JobId::from_bytes([1; 32]), terms, deposit, &key(100)).unwrap();
         // Plafond de confiscation d'une pénalité : la part retenue sur ce fragment seulement.
-        assert_eq!(escrow.held_for(0).unwrap(), 5);
-        assert_eq!(escrow.held_for(99).unwrap_err(), RuleError::UnknownFragment);
         let args = SettleArgs {
             fragment: 0,
             attempt: 1,
