@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 /// Programme d'escrow déployé sur devnet (voir chain/README.md).
-pub const DEVNET_PROGRAM: &str = "7WzVtrXToN9wvK1TGp2RMH6R6zzodaQU6TmtpNAgNfKR";
+pub const DEVNET_PROGRAM: &str = "5nvVoget71j65HtMZmfVJjnwSePDtrG5hzAPpjMbrMkx";
 pub const DEVNET_RPC: &str = "https://api.devnet.solana.com";
 
 pub struct Config {

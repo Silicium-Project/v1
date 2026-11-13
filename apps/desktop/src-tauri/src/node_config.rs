@@ -11,7 +11,7 @@ const BOOTSTRAP: &str =
     "/ip4/213.32.68.67/tcp/4001/p2p/12D3KooWHXaQz2ou13jcnXq33yZbHKSmabBJJYxuLhx4UhG2k8ob";
 /// Solana devnet: the escrow program and its RPC. No real value moves on it.
 const CHAIN_RPC: &str = "https://api.devnet.solana.com";
-const PROGRAM_ID: &str = "7WzVtrXToN9wvK1TGp2RMH6R6zzodaQU6TmtpNAgNfKR";
+const PROGRAM_ID: &str = "5nvVoget71j65HtMZmfVJjnwSePDtrG5hzAPpjMbrMkx";
 /// Relais de règlement : ce PC n'a pas de clé de paiement, le relais paie les frais de ses règlements.
 const RELAY: &str = "https://siliciumlabs.org";
 

@@ -3,7 +3,7 @@ import { PublicKey } from '@solana/web3.js'
 
 export const DEVNET_RPC = 'https://api.devnet.solana.com'
 /** Programme d'escrow déployé sur devnet (chain/README.md). */
-export const DEVNET_PROGRAM = '7WzVtrXToN9wvK1TGp2RMH6R6zzodaQU6TmtpNAgNfKR'
+export const DEVNET_PROGRAM = '5nvVoget71j65HtMZmfVJjnwSePDtrG5hzAPpjMbrMkx'
 
 export function escrowConfig(): { rpcUrl: string; program: PublicKey } {
   const env = import.meta.env

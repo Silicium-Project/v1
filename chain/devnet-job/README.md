@@ -13,7 +13,7 @@ Il ne règle rien lui-même : le règlement est fait par les nœuds, avec leur c
 
 ## Prérequis
 
-- Le programme est déployé sur devnet (`7WzVtrXToN9wvK1TGp2RMH6R6zzodaQU6TmtpNAgNfKR`).
+- Le programme est déployé sur devnet (`5nvVoget71j65HtMZmfVJjnwSePDtrG5hzAPpjMbrMkx`).
 - L'API est joignable : tunnel SSH vers le VPS, par exemple
   `ssh -N -L 8080:127.0.0.1:8080 ubuntu@<IP du VPS>`.
 - Le VPS et au moins un autre nœud tournent (calcul, vérification).
