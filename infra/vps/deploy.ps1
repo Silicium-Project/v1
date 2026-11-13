@@ -33,6 +33,14 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "connexion SSH impossible (exit $LASTEXITCODE)" }
   if ($DryRun) { "dry run : fichiers prêts dans $stage, rien copié."; return }
 
+  # Règle : aucun déploiement sans sauvegarde réussie des données (journal, node.seed, base API).
+  $bash = "$env:ProgramFiles\Git\bin\bash.exe"
+  if (-not (Test-Path $bash)) { throw "bash (Git for Windows) introuvable : $bash" }
+  $env:SIL_SSH_KEY = $Key
+  Push-Location $root
+  try { & $bash "infra/vps/backup.sh" $Target } finally { Pop-Location }
+  if ($LASTEXITCODE -ne 0) { throw "sauvegarde échouée : déploiement annulé" }
+
   $names = @($files + @("silicium-api.service", "silicium-node.service")) | ForEach-Object { Join-Path $stage $_ }
   & $scp -q @opts $names "${Target}:/tmp/"
   if ($LASTEXITCODE -ne 0) { throw "scp en échec (exit $LASTEXITCODE)" }

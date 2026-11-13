@@ -4,7 +4,7 @@ use crate::{
     shared::{Shared, lock},
     wire::Envelope,
 };
-use sil_ledger::Event;
+use sil_ledger::{Event, EventBody};
 use sil_net::{LedgerRequest, NetEvent, Topic};
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -38,6 +38,8 @@ pub(crate) async fn run(
                 Some(NetEvent::Gossip { from, topic, data }) => {
                     if topic == Topic::Presence {
                         crate::presence_loop::on_presence(&shared, from, &data);
+                    } else if topic == Topic::Announce {
+                        on_announce(&shared, &data);
                     } else {
                         on_message(&shared, &data);
                     }
@@ -60,6 +62,21 @@ fn on_message(shared: &Arc<Shared>, data: &[u8]) {
             }
         }
         Err(_) => {}
+    }
+}
+
+/// Annonce de job : acceptée même si elle est ancienne. La rediffusion (toutes les 8 s) renvoie
+/// l'événement d'origine, daté de la publication : avec le contrôle de fraîcheur des événements en
+/// direct (60 s), un nœud arrivé après la publication ne connaîtrait jamais le job, donc ne
+/// rattraperait jamais son historique. Le journal reste seul juge (signature, doublon, forme).
+fn on_announce(shared: &Arc<Shared>, data: &[u8]) {
+    match Envelope::from_bytes(data) {
+        Ok(Envelope::Event(event)) if matches!(event.body, EventBody::JobPublished { .. }) => {
+            if let Err(error) = shared.ingest(*event) {
+                tracing::debug!(%error, "annonce de job non retenue");
+            }
+        }
+        _ => on_message(shared, data),
     }
 }
 

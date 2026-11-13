@@ -6,6 +6,11 @@ set -euo pipefail
 
 host="${1:?usage : infra/vps/deploy.sh utilisateur@hôte}"
 root="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# Règle : aucun déploiement sans sauvegarde réussie des données (journal, node.seed, base API).
+# Ce script ne déplace, ne renomme et ne supprime jamais le journal ni les données du nœud.
+# Un changement de format de journal se fait par une procédure séparée, décidée explicitement.
+"$root/infra/vps/backup.sh" "$host" || { echo "sauvegarde échouée : déploiement annulé" >&2; exit 1; }
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
