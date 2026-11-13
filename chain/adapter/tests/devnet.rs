@@ -19,7 +19,7 @@ use solana_sdk::transaction::Transaction;
 use std::path::PathBuf;
 
 const DEVNET_RPC: &str = "https://api.devnet.solana.com";
-const DEVNET_PROGRAM: &str = "7WzVtrXToN9wvK1TGp2RMH6R6zzodaQU6TmtpNAgNfKR";
+const DEVNET_PROGRAM: &str = "5nvVoget71j65HtMZmfVJjnwSePDtrG5hzAPpjMbrMkx";
 /// Montant du requester : dépôt, loyer du compte d'escrow et frais.
 const REQUESTER_FUNDS: u64 = 50_000_000;
 
