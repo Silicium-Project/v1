@@ -1,5 +1,7 @@
-# Release : dev = site et téléchargements de développement ; main = production (environnement protégé).
-# Les dépôts composants sont privés : le checkout récursif utilise COMPONENTS_READ_TOKEN (lecture seule).
+# Release pipeline. Pushes to dev deploy the development environment; pushes to main deploy production
+# (environment `production`), and publish a GitHub release tagged from the version of the packages.
+# Private component repositories: the recursive checkout uses COMPONENTS_READ_TOKEN (read-only).
+# Actions are pinned to commit SHAs; the version of each action is in the trailing comment.
 name: release
 on:
   push:
@@ -12,35 +14,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Bloquant : rien n'est construit, signé ni déployé si une suite échoue. Les tests tournent sur les
-  # SHA épinglés dans ce dépôt (mêmes commandes que les CI des composants).
   tests:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
+      - name: Access to private dependencies (cargo)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: wasm32-wasip1
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: |
             network
             chain/node
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: services/api/go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - name: Réseau - moteurs wasm des tests, format, clippy, tests
+      - name: Network - wasm test engines, format, clippy, tests
         working-directory: network
         run: |
           cargo build -p sil-raytracer --bin sil-raytracer-block --target wasm32-wasip1 --release
@@ -54,13 +54,13 @@ jobs:
           test -z "$(gofmt -l .)"
           go vet ./...
           go test -race ./...
-      - name: Site - typecheck et tests
+      - name: Site - typecheck and tests
         working-directory: apps/web
         run: |
           npm ci
           npm run typecheck
           npm test
-      - name: Chaîne - vérification de chaque crate
+      - name: Chain - check each crate
         working-directory: chain
         run: |
           for c in adapter devnet-job e2e node program; do
@@ -71,32 +71,32 @@ jobs:
     needs: [tests]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
+      - name: Access to private dependencies (cargo)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: wasm32-wasip1
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: |
             network
             chain/node
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: services/api/go.mod
-      - name: Nœud (chain/node)
+      - name: Node (chain/node)
         run: |
           cd chain/node && cargo build --release
           mkdir -p ../../dist/linux-amd64
           cp target/release/silicium-node ../../dist/linux-amd64/
-      - name: Raytracer et lanceur d'isolation (network)
+      - name: Raytracer and sandbox launcher (network)
         run: |
           cd network
           cargo build --release -p sil-raytracer --bin sil-raytracer-block
@@ -108,7 +108,7 @@ jobs:
         working-directory: services/api
         run: |
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../../dist/linux-amd64/silicium-api ./cmd/silicium-api
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist-linux-amd64
           path: dist/linux-amd64/
@@ -118,30 +118,30 @@ jobs:
     needs: [tests]
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
+      - name: Access to private dependencies (cargo)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: wasm32-wasip1
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: |
             network
             chain/node
-      - name: Nœud Windows (chain/node)
+      - name: Windows node (chain/node)
         shell: pwsh
         run: |
           cd chain/node; cargo build --release
           New-Item -ItemType Directory -Force ../../dist/windows-amd64 | Out-Null
           Copy-Item target/release/silicium-node.exe ../../dist/windows-amd64/
-      - name: Moteur de rendu wasm (network)
+      - name: WebAssembly render engine (network)
         shell: pwsh
         run: |
           cd network
@@ -150,7 +150,7 @@ jobs:
       - name: ONNX Runtime
         shell: pwsh
         run: python tools/runtime/fetch_onnxruntime.py windows dist/windows-amd64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist-windows-amd64
           path: dist/windows-amd64/
@@ -160,35 +160,30 @@ jobs:
     needs: [linux-binaries]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
-        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist-linux-amd64
           path: dist/linux-amd64
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: |
             apps/desktop/src-tauri
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - name: Dépendances de paquetage
+      - name: Packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm rsync
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm rsync createrepo-c apt-utils
           chmod +x dist/linux-amd64/silicium-node dist/linux-amd64/silicium-api dist/linux-amd64/sil-raytracer-block dist/linux-amd64/sil-sandbox-launch
       - name: AppImage, deb, rpm
         run: bash infra/release/build-linux-desktop.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: packages-linux
           path: |
@@ -202,32 +197,32 @@ jobs:
     runs-on: windows-2022
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
+      - name: Access to private dependencies (cargo)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
         run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist-windows-amd64
           path: dist/windows-amd64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist-linux-amd64
           path: dist/linux-amd64
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: |
             apps/desktop/src-tauri
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - name: Certificat de signature (production et dev, même méthode)
+      - name: Signing certificate (production and development, same method)
         shell: pwsh
         env:
           SIGN_PFX_B64: ${{ secrets.SIGN_PFX_B64 }}
@@ -238,60 +233,121 @@ jobs:
           $pw = ConvertTo-SecureString $env:SIGN_PFX_PASSWORD -AsPlainText -Force
           Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw | Out-Null
           Remove-Item $pfx -Force
-          # Certificat public seulement (aucune clé privée) : sert au téléchargement de l'installeur.
+          # Public certificate only (no private key): used to publish the installer.
           New-Item -ItemType Directory -Force apps/web/public/downloads | Out-Null
           $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq 'A58274656DA5B0B0731139D8D0E46D26ECF1B4D4' }
           Export-Certificate -Cert $cert -FilePath apps/web/public/downloads/silicium-school-certificate.cer | Out-Null
-          $tool =Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
           "SIGNTOOL=$($tool.FullName)" | Out-File -Append $env:GITHUB_ENV
-      - name: Installeur NSIS
+      - name: NSIS installer
         shell: pwsh
         run: |
           cd apps/web; npm ci
           cd ../desktop; npm ci; npm run build
-      - name: Paquets Windows du site
+      - name: Windows packages for the site
         shell: pwsh
         run: |
           cd apps/web
           node scripts/copy-node-bundle.mjs
           node scripts/copy-app-installer.mjs public/downloads/silicium-school-certificate.cer
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: packages-windows
-          path: apps/web/public/downloads/*.exe
+          path: |
+            apps/web/public/downloads/*.exe
+            apps/web/public/downloads/*.zip
           retention-days: 30
+
+  # DNF and APT repositories: keeps the repository already on the server, adds the new packages, signs the
+  # metadata and an update manifest with the release key, then publishes. Development and production are separate.
+  repos:
+    needs: [linux-packages, windows-installer]
+    runs-on: ubuntu-24.04
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: packages-linux
+          path: packages
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: packages-windows
+          path: packages-win
+      - name: Repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y createrepo-c apt-utils rsync
+      - name: Release key
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "2CD1065DAD1608515C16B8C6A020E885482D953A:6:" | gpg --batch --import-ownertrust
+      - name: SSH key and host
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          echo "SIL_SSH_KEY=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
+          echo "SIL_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
+      - name: Update manifest (signed)
+        env:
+          RELEASE_KEY_FPR: 2CD1065DAD1608515C16B8C6A020E885482D953A
+          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+        run: |
+          version=$(ls packages | grep -oE 'Silicium_[0-9.]+' | head -1 | sed 's/Silicium_//')
+          echo "version: $version"
+          bash infra/release/publish-update-manifest.sh "$version" "$SIL_ENV" "$RUNNER_TEMP/update" packages packages-win
+          echo "UPDATE_DIR=$RUNNER_TEMP/update" >> "$GITHUB_ENV"
+      - name: Publish repositories
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+          RELEASE_KEY_FPR: 2CD1065DAD1608515C16B8C6A020E885482D953A
+          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: bash infra/release/publish-repos.sh "$DEPLOY_HOST" packages
+      - name: Public check
+        env:
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+        run: |
+          base=https://siliciumlabs.org
+          [ "$SIL_ENV" = dev ] && base=https://vps-910c1dbc.vps.ovh.net
+          curl -fsS "$base/download/dnf/repodata/repomd.xml.asc" > /dev/null
+          curl -fsS "$base/download/apt/dists/stable/InRelease" > /dev/null
+          curl -fsS "$base/download/update/manifest.json.asc" > /dev/null
+          echo REPOS_OK
 
   site:
     needs: [linux-packages, windows-installer]
     runs-on: ubuntu-24.04
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
-        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: packages-linux
           path: apps/web/public/downloads
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: packages-windows
           path: apps/web/public/downloads
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist-linux-amd64
           path: dist/linux-amd64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist-windows-amd64
           path: dist/windows-amd64
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -302,84 +358,27 @@ jobs:
           npm ci
           node scripts/copy-node-bundle.mjs
           npm run build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: site
           path: apps/web/dist/
           retention-days: 30
 
-  # Dépôts DNF et APT : reprend le dépôt existant sur le VPS, ajoute les nouveaux paquets, signe les
-  # métadonnées avec la clé de release (secret de l'environnement), puis publie. Dev et prod séparés.
-  repos:
-    needs: [linux-packages]
-    runs-on: ubuntu-24.04
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: packages-linux
-          path: packages
-      - name: Outils de dépôts
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y createrepo-c apt-utils rsync
-      - name: Clé de release
-        env:
-          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
-        run: |
-          printf '%s\n' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
-          echo "2CD1065DAD1608515C16B8C6A020E885482D953A:6:" | gpg --batch --import-ownertrust
-      - name: Clé SSH et hôte
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          echo "SIL_SSH_KEY=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
-          echo "SIL_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
-      - name: Publication des dépôts
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-          RELEASE_KEY_FPR: 2CD1065DAD1608515C16B8C6A020E885482D953A
-          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
-        run: bash infra/release/publish-repos.sh "$DEPLOY_HOST" packages
-      - name: Vérification publique
-        env:
-          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-        run: |
-          base=https://siliciumlabs.org
-          [ "$SIL_ENV" = dev ] && base=https://vps-910c1dbc.vps.ovh.net
-          curl -fsS "$base/download/dnf/repodata/repomd.xml.asc" > /dev/null
-          curl -fsS "$base/download/apt/dists/stable/InRelease" > /dev/null
-          echo REPOS_OK
-
   deploy:
-    needs: [site, linux-binaries]
+    needs: [site, linux-binaries, repos]
     runs-on: ubuntu-24.04
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
-      - name: Accès aux dépendances privées (cargo)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
-        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist-linux-amd64
           path: dist/linux-amd64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: site
           path: apps/web/dist
-      - name: Clé SSH et hôte
+      - name: SSH key and host
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -389,7 +388,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           echo "SIL_SSH_KEY=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
           echo "SIL_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
-      - name: Binaires (copie, sans sauvegarde)
+      - name: Binaries (copy, no backup in CI)
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
@@ -401,3 +400,51 @@ jobs:
         run: |
           site=/opt/silicium-dev/web; [ "$SIL_ENV" = prod ] && site=/opt/silicium/web
           tar -C apps/web/dist -cf - . | ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts "$DEPLOY_HOST" "sudo tar -C $site -xf -"
+      - name: Post-deployment check
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+        run: bash infra/vps/post-deploy-check.sh "$DEPLOY_HOST" dist/linux-amd64
+
+  # GitHub release on main only: tag vX.Y.Z on the commit, with the installers and packages as assets.
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: [deploy]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: packages-linux
+          path: release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: packages-windows
+          path: release
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(ls release | grep -oE 'Silicium_[0-9.]+' | head -1 | sed 's/Silicium_//')
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "release $tag already exists"; exit 0; fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "Silicium $version" \
+            --notes "Silicium $version. Packages are also served from siliciumlabs.org and the DNF and APT repositories." \
+            release/*.AppImage release/*.deb release/*.rpm release/*.exe release/*.zip
+
+  # Single status for branch protection: fails if any job of the pipeline failed or was cancelled.
+  required:
+    if: always()
+    needs: [tests, linux-binaries, windows-binaries, linux-packages, windows-installer, repos, site, deploy]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Pipeline result
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -qE '"result": "(failure|cancelled)"'; then
+            echo "a job of the pipeline failed" >&2
+            exit 1
+          fi
