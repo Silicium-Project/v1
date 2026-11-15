@@ -21,17 +21,23 @@ lights : { point = { x = 2 y = 3 z = 4 intensity = 450 } }
 fn engine_path() -> std::path::PathBuf {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/wasm32-wasip1/release/sil-raytracer-block.wasm");
-    assert!(path.exists(), "moteur absent : cargo build -p sil-raytracer --bin sil-raytracer-block --target wasm32-wasip1 --release");
+    assert!(
+        path.exists(),
+        "moteur absent : cargo build -p sil-raytracer --bin sil-raytracer-block --target wasm32-wasip1 --release"
+    );
     path
 }
 
 #[test]
 fn the_raytracer_on_wasm_renders_exactly_the_native_pixels() {
-    let wasm = WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(120)).expect("moteur");
+    let wasm =
+        WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(120)).expect("moteur");
     let scene = SCENE.as_bytes();
     let (width, height) = (96, 64);
     for (y0, y1) in [(0, 16), (16, 40), (40, 64)] {
-        let on_wasm = wasm.render(scene, width, height, y0, y1).expect("rendu wasm");
+        let on_wasm = wasm
+            .render(scene, width, height, y0, y1)
+            .expect("rendu wasm");
         let native = render_rows(SCENE, width, height, y0, y1).expect("rendu natif");
         assert_eq!(on_wasm, native, "bande {y0}..{y1} différente");
     }
@@ -42,17 +48,27 @@ fn the_raytracer_on_wasm_renders_exactly_the_native_pixels() {
 #[test]
 #[ignore = "mesure de vitesse"]
 fn measure_band_time_native_and_wasm() {
-    let scene = SCENE.replace("width = 96 height = 64", "width = 4600 height = 4600").replace("samples = 1", "samples = 8");
+    let scene = SCENE
+        .replace("width = 96 height = 64", "width = 4600 height = 4600")
+        .replace("samples = 1", "samples = 8");
     let (width, height, y0, y1) = (4600, 4600, 2000, 2288);
-    let wasm = WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(600)).expect("moteur");
+    let wasm =
+        WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(600)).expect("moteur");
     let start = std::time::Instant::now();
     let native = render_rows(&scene, width, height, y0, y1).expect("rendu natif");
     let native_time = start.elapsed();
     let start = std::time::Instant::now();
-    let on_wasm = wasm.render(scene.as_bytes(), width, height, y0, y1).expect("rendu wasm");
+    let on_wasm = wasm
+        .render(scene.as_bytes(), width, height, y0, y1)
+        .expect("rendu wasm");
     let wasm_time = start.elapsed();
     assert_eq!(on_wasm, native, "bandes différentes");
-    println!("natif : {:.2} s · wasm : {:.2} s · ratio : {:.1}x", native_time.as_secs_f64(), wasm_time.as_secs_f64(), wasm_time.as_secs_f64() / native_time.as_secs_f64());
+    println!(
+        "natif : {:.2} s · wasm : {:.2} s · ratio : {:.1}x",
+        native_time.as_secs_f64(),
+        wasm_time.as_secs_f64(),
+        wasm_time.as_secs_f64() / native_time.as_secs_f64()
+    );
 }
 
 #[test]
@@ -64,6 +80,26 @@ fn the_wasm_bytes_do_not_depend_on_the_number_of_parts() {
         .expect("moteur")
         .with_threads(7);
     let whole = one.render(SCENE.as_bytes(), 96, 64, 0, 64).expect("rendu");
-    let parts = seven.render(SCENE.as_bytes(), 96, 64, 0, 64).expect("rendu");
+    let parts = seven
+        .render(SCENE.as_bytes(), 96, 64, 0, 64)
+        .expect("rendu");
     assert_eq!(whole, parts);
+}
+
+#[test]
+fn one_slot_renders_the_same_bytes_without_deadlock() {
+    let reference = WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(120))
+        .expect("moteur")
+        .with_threads(1);
+    let limited = WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(120))
+        .expect("moteur")
+        .with_threads(4)
+        .with_slots(1);
+    let expected = reference
+        .render(SCENE.as_bytes(), 96, 64, 0, 64)
+        .expect("rendu");
+    let got = limited
+        .render(SCENE.as_bytes(), 96, 64, 0, 64)
+        .expect("rendu");
+    assert_eq!(expected, got);
 }

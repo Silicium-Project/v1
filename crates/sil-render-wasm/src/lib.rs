@@ -30,6 +30,15 @@ use wasmtime_wasi::{
     p2::pipe::{MemoryInputPipe, MemoryOutputPipe},
 };
 
+mod slots;
+
+/// Mémoire minimale d'une instance quand un bloc est découpé en sous-bandes.
+const MIN_PART_MEMORY: usize = 64 * 1024 * 1024;
+
+/// Places par défaut : un cœur reste libre pour le système, comme pour le calcul natif.
+fn default_slots() -> usize {
+    thread::available_parallelism().map_or(1, |n| n.get().saturating_sub(1).max(1))
+}
 /// Période de l'horloge epoch : la précision du délai.
 const EPOCH_TICK: Duration = Duration::from_millis(10);
 /// Plafond de la sortie d'erreur du moteur.
@@ -50,6 +59,8 @@ pub struct WasmRenderer {
     extra_args: Vec<String>,
     /// Nombre maximal de sous-bandes rendues en parallèle pour un bloc.
     threads: usize,
+    /// Places d'instances wasm partagées par tout le nœud (borne globale de mémoire et de calcul).
+    slots: Arc<slots::Slots>,
 }
 
 impl WasmRenderer {
@@ -77,12 +88,19 @@ impl WasmRenderer {
             stop,
             extra_args: Vec::new(),
             threads: thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
+            slots: Arc::new(slots::Slots::new(default_slots())),
         })
     }
 
     /// Nombre maximal de sous-bandes rendues en parallèle (au moins une). Ne change pas les octets.
     pub fn with_threads(mut self, threads: usize) -> Self {
         self.threads = threads.max(1);
+        self
+    }
+
+    /// Nombre maximal d'instances wasm vivantes à la fois sur ce moteur (au moins une).
+    pub fn with_slots(mut self, slots: usize) -> Self {
+        self.slots = Arc::new(slots::Slots::new(slots));
         self
     }
 
@@ -112,7 +130,7 @@ impl Drop for WasmRenderer {
 }
 
 impl WasmRenderer {
-    /// Rend `[y0, y1)` dans une instance neuve, sur un seul thread.
+    /// Rend `[y0, y1)` dans une instance neuve, sur un seul thread, avec `memory` octets au plus.
     fn render_part(
         &self,
         scene: &[u8],
@@ -120,7 +138,10 @@ impl WasmRenderer {
         height: u32,
         y0: u32,
         y1: u32,
+        memory: usize,
     ) -> Result<Vec<u8>, WorkloadError> {
+        // Place prise avant le `Store` : le délai `wall` ne compte que le calcul, pas l'attente.
+        let _slot = self.slots.take();
         let expected = usize::try_from(u64::from(width) * u64::from(y1 - y0) * 3)
             .map_err(|_| WorkloadError::OverLimit("taille du bloc"))?;
         let mut args = vec![
@@ -139,9 +160,7 @@ impl WasmRenderer {
             .stdout(stdout.clone())
             .stderr(stderr.clone())
             .build_p1();
-        let limits = StoreLimitsBuilder::new()
-            .memory_size(self.memory_bytes)
-            .build();
+        let limits = StoreLimitsBuilder::new().memory_size(memory).build();
         let mut store = Store::new(&self.engine, Host { wasi, limits });
         store.limiter(|host| &mut host.limits);
         store.set_epoch_deadline(ticks(self.wall));
@@ -183,9 +202,16 @@ impl BlockRenderer for WasmRenderer {
         y1: u32,
     ) -> Result<Vec<u8>, WorkloadError> {
         let rows = y1.saturating_sub(y0);
-        let parts = self.threads.min(rows as usize).max(1);
+        // `memory_bytes` est le budget total du bloc : il est réparti entre les sous-bandes, avec
+        // au moins `MIN_PART_MEMORY` par instance (sinon moins de sous-bandes).
+        let parts = self
+            .threads
+            .min(rows as usize)
+            .min((self.memory_bytes / MIN_PART_MEMORY).max(1))
+            .max(1);
+        let memory = self.memory_bytes / parts;
         if parts == 1 {
-            return self.render_part(scene, width, height, y0, y1);
+            return self.render_part(scene, width, height, y0, y1, memory);
         }
         let bounds: Vec<(u32, u32)> = (0..parts)
             .map(|i| {
@@ -196,7 +222,9 @@ impl BlockRenderer for WasmRenderer {
         let results: Vec<Result<Vec<u8>, WorkloadError>> = thread::scope(|scope| {
             let handles: Vec<_> = bounds
                 .iter()
-                .map(|&(a, b)| scope.spawn(move || self.render_part(scene, width, height, a, b)))
+                .map(|&(a, b)| {
+                    scope.spawn(move || self.render_part(scene, width, height, a, b, memory))
+                })
                 .collect();
             handles
                 .into_iter()

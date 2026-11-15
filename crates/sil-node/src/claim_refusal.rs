@@ -8,6 +8,8 @@ use sil_types::JobId;
 pub(crate) const WHOLE_JOB: u32 = u32::MAX;
 /// Délai minimal entre deux lignes identiques.
 const REFUSAL_LOG_MS: u64 = 60_000;
+/// Nombre maximal de couples (job, fragment, raison) suivis : au-delà, les plus anciens partent.
+const REFUSALS_MAX: usize = 1024;
 
 /// Journalise un refus de claim, sauf s'il a déjà été journalisé récemment.
 pub(crate) fn refuse(
@@ -27,6 +29,14 @@ pub(crate) fn refuse(
             .is_some_and(|last| now.saturating_sub(*last) < REFUSAL_LOG_MS)
         {
             return;
+        }
+        // Purge ce qui est hors fenêtre, puis plafond dur : la carte ne grossit jamais sans borne.
+        if book.refusals.len() >= REFUSALS_MAX {
+            book.refusals
+                .retain(|_, last| now.saturating_sub(*last) < REFUSAL_LOG_MS);
+            while book.refusals.len() >= REFUSALS_MAX {
+                book.refusals.pop_first();
+            }
         }
         book.refusals.insert(key, now);
     }
