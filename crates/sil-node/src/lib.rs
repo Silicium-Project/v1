@@ -19,6 +19,10 @@
 
 mod backend;
 mod blob;
+mod claim_policy;
+#[cfg(test)]
+mod claim_policy_tests;
+mod claim_refusal;
 pub mod cli;
 mod derived_reputation;
 mod error;

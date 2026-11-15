@@ -10,6 +10,8 @@ use sil_types::Hash32;
 pub const ROLE_COMPUTE: u8 = 1;
 pub const ROLE_VERIFY: u8 = 2;
 pub const ROLE_STORAGE: u8 = 4;
+/// Machine qui peut réclamer des fragments : elle lit la chaîne (ancrage des claims).
+pub const ROLE_CLAIM: u8 = 8;
 
 const MAX_WORKLOADS: usize = 8;
 const MAX_WORKLOAD_LEN: usize = 80;

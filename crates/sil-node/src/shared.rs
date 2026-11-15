@@ -59,6 +59,8 @@ pub(crate) struct WorkBook {
     pub(crate) attempt_seen: BTreeMap<(JobId, u32, u32), AttemptSeen>,
     /// Premier instant où ce nœud a vu un fragment sans preneur (job, fragment).
     pub(crate) waiting_since: BTreeMap<(JobId, u32), u64>,
+    /// Dernier journal de refus de claim par (job, fragment, raison) : limite le bruit des logs.
+    pub(crate) refusals: BTreeMap<(JobId, u32, &'static str), u64>,
 }
 
 /// Une tentative vue par ce nœud. `claim_ms` est absent si le résultat était déjà là à la première

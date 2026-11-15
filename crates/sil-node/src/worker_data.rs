@@ -111,7 +111,7 @@ pub fn report(shared: &Shared) -> Value {
         let book = lock(&shared.reputation);
         (book.score(&me, now), book.evidence(&me, now))
     };
-    let max_parallel = crate::worker_loop::max_parallel(shared, &me, now);
+    let max_parallel = crate::claim_policy::max_parallel(shared, &me, now);
     // Réputation relue dans le journal (ADR 0005, phase 1b) : affichée, pas encore décisive.
     let trusted = lock(&shared.reputation).trusted_scopes();
     let (derived_score, (derived_good, derived_bad), derived_at) = {
@@ -138,6 +138,7 @@ pub fn report(shared: &Shared) -> Value {
         "roles": {
             "compute": shared.roles.worker,
             "verify": shared.roles.verifier,
+            "claim": shared.roles.worker && crate::claim_policy::can_claim(shared),
         },
         "jobs_touched": jobs,
         "events_by_kind": counts,

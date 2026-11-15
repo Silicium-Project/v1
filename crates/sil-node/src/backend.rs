@@ -233,6 +233,7 @@ fn role_names(mask: u8) -> Vec<&'static str> {
     [
         (sil_net::ROLE_COMPUTE, "compute"),
         (sil_net::ROLE_VERIFY, "verify"),
+        (sil_net::ROLE_CLAIM, "claim"),
         (sil_net::ROLE_STORAGE, "storage"),
     ]
     .into_iter()

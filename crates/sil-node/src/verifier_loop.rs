@@ -25,7 +25,7 @@ const RETRY_AFTER: Duration = Duration::from_secs(5);
 /// Vérifications simultanées par nœud, comme les tâches de calcul : bornées par les cœurs. Une
 /// offre prend la place de vérificateur jusqu'au verdict ; un nœud n'offre que s'il a une place.
 fn verify_parallel() -> usize {
-    crate::worker_loop::cpu_limit()
+    crate::claim_policy::cpu_limit()
 }
 
 /// Retire la vérification de `running` quand elle se termine, même en cas d'erreur.
