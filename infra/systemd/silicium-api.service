@@ -1,0 +1,34 @@
+[Unit]
+Description=Silicium service API
+Documentation=https://github.com/Silicium-Project/v1/blob/main/docs/technical/deployment.md
+After=network-online.target silicium-node.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=silicium
+Group=silicium
+WorkingDirectory=/var/lib/silicium/api
+EnvironmentFile=/etc/silicium/api.env
+ExecStart=/opt/silicium/bin/silicium-api
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Durcissement : l'API lit son magasin et le jeton du nœud, rien d'autre.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/silicium/api
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target
