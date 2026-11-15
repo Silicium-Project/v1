@@ -172,7 +172,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-linux
-          path: apps/web/public/downloads/*.AppImage
+          path: |
+            apps/web/public/downloads/*.AppImage
+            apps/web/public/downloads/*.deb
+            apps/web/public/downloads/*.rpm
           retention-days: 30
 
   windows-installer:
@@ -277,6 +280,55 @@ jobs:
           name: site
           path: apps/web/dist/
           retention-days: 30
+
+  # Dépôts DNF et APT : reprend le dépôt existant sur le VPS, ajoute les nouveaux paquets, signe les
+  # métadonnées avec la clé de release (secret de l'environnement), puis publie. Dev et prod séparés.
+  repos:
+    needs: [linux-packages]
+    runs-on: ubuntu-24.04
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-linux
+          path: packages
+      - name: Outils de dépôts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y createrepo-c apt-utils rsync
+      - name: Clé de release
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "2CD1065DAD1608515C16B8C6A020E885482D953A:6:" | gpg --batch --import-ownertrust
+      - name: Clé SSH et hôte
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          echo "SIL_SSH_KEY=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
+          echo "SIL_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
+      - name: Publication des dépôts
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+          RELEASE_KEY_FPR: 2CD1065DAD1608515C16B8C6A020E885482D953A
+          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: bash infra/release/publish-repos.sh "$DEPLOY_HOST" packages
+      - name: Vérification publique
+        env:
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+        run: |
+          base=https://siliciumlabs.org
+          [ "$SIL_ENV" = dev ] && base=https://vps-910c1dbc.vps.ovh.net
+          curl -fsS "$base/download/dnf/repodata/repomd.xml.asc" > /dev/null
+          curl -fsS "$base/download/apt/dists/stable/InRelease" > /dev/null
+          echo REPOS_OK
 
   deploy:
     needs: [site, linux-binaries]
