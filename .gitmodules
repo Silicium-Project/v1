@@ -1,0 +1,15 @@
+[submodule "network"]
+	path = network
+	url = https://github.com/Silicium-Project/v1-network.git
+[submodule "apps/desktop"]
+	path = apps/desktop
+	url = https://github.com/Silicium-Project/v1-desktop.git
+[submodule "apps/web"]
+	path = apps/web
+	url = https://github.com/Silicium-Project/v1-web.git
+[submodule "services/api"]
+	path = services/api
+	url = https://github.com/Silicium-Project/v1-api.git
+[submodule "chain"]
+	path = chain
+	url = https://github.com/Silicium-Project/v1-chain.git
