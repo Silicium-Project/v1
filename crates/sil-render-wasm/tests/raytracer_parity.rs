@@ -54,3 +54,16 @@ fn measure_band_time_native_and_wasm() {
     assert_eq!(on_wasm, native, "bandes différentes");
     println!("natif : {:.2} s · wasm : {:.2} s · ratio : {:.1}x", native_time.as_secs_f64(), wasm_time.as_secs_f64(), wasm_time.as_secs_f64() / native_time.as_secs_f64());
 }
+
+#[test]
+fn the_wasm_bytes_do_not_depend_on_the_number_of_parts() {
+    let one = WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(120))
+        .expect("moteur")
+        .with_threads(1);
+    let seven = WasmRenderer::new(&engine_path(), 512 * MIB, Duration::from_secs(120))
+        .expect("moteur")
+        .with_threads(7);
+    let whole = one.render(SCENE.as_bytes(), 96, 64, 0, 64).expect("rendu");
+    let parts = seven.render(SCENE.as_bytes(), 96, 64, 0, 64).expect("rendu");
+    assert_eq!(whole, parts);
+}

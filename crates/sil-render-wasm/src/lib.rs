@@ -48,6 +48,8 @@ pub struct WasmRenderer {
     wall: Duration,
     stop: Arc<AtomicBool>,
     extra_args: Vec<String>,
+    /// Nombre maximal de sous-bandes rendues en parallèle pour un bloc.
+    threads: usize,
 }
 
 impl WasmRenderer {
@@ -74,7 +76,14 @@ impl WasmRenderer {
             wall,
             stop,
             extra_args: Vec::new(),
+            threads: thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
         })
+    }
+
+    /// Nombre maximal de sous-bandes rendues en parallèle (au moins une). Ne change pas les octets.
+    pub fn with_threads(mut self, threads: usize) -> Self {
+        self.threads = threads.max(1);
+        self
     }
 
     /// Arguments ajoutés après les quatre du protocole. Réservé aux tests (modes de panne du
@@ -102,8 +111,9 @@ impl Drop for WasmRenderer {
     }
 }
 
-impl BlockRenderer for WasmRenderer {
-    fn render(
+impl WasmRenderer {
+    /// Rend `[y0, y1)` dans une instance neuve, sur un seul thread.
+    fn render_part(
         &self,
         scene: &[u8],
         width: u32,
@@ -157,6 +167,51 @@ impl BlockRenderer for WasmRenderer {
             )));
         }
         Ok(rendered.to_vec())
+    }
+}
+
+impl BlockRenderer for WasmRenderer {
+    /// Les lignes sont indépendantes : la bande est découpée en sous-bandes contiguës, rendues en
+    /// parallèle (une instance par sous-bande), puis concaténées dans l'ordre. Les octets ne
+    /// dépendent pas du nombre de sous-bandes (même propriété que le moteur natif).
+    fn render(
+        &self,
+        scene: &[u8],
+        width: u32,
+        height: u32,
+        y0: u32,
+        y1: u32,
+    ) -> Result<Vec<u8>, WorkloadError> {
+        let rows = y1.saturating_sub(y0);
+        let parts = self.threads.min(rows as usize).max(1);
+        if parts == 1 {
+            return self.render_part(scene, width, height, y0, y1);
+        }
+        let bounds: Vec<(u32, u32)> = (0..parts)
+            .map(|i| {
+                let at = |k: usize| y0 + (u64::from(rows) * k as u64 / parts as u64) as u32;
+                (at(i), at(i + 1))
+            })
+            .collect();
+        let results: Vec<Result<Vec<u8>, WorkloadError>> = thread::scope(|scope| {
+            let handles: Vec<_> = bounds
+                .iter()
+                .map(|&(a, b)| scope.spawn(move || self.render_part(scene, width, height, a, b)))
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| {
+                    handle
+                        .join()
+                        .unwrap_or_else(|_| Err(WorkloadError::Execution("moteur : thread".into())))
+                })
+                .collect()
+        });
+        let mut rendered = Vec::new();
+        for part in results {
+            rendered.extend(part?);
+        }
+        Ok(rendered)
     }
 }
 
