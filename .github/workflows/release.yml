@@ -125,8 +125,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Certificat de signature (production uniquement)
-        if: github.ref == 'refs/heads/main'
+      - name: Certificat de signature (production et dev, même méthode)
         shell: pwsh
         env:
           SIGN_PFX_B64: ${{ secrets.SIGN_PFX_B64 }}
@@ -137,7 +136,11 @@ jobs:
           $pw = ConvertTo-SecureString $env:SIGN_PFX_PASSWORD -AsPlainText -Force
           Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw | Out-Null
           Remove-Item $pfx -Force
-          $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          # Certificat public seulement (aucune clé privée) : sert au téléchargement de l'installeur.
+          New-Item -ItemType Directory -Force apps/web/public/downloads | Out-Null
+          $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq 'A58274656DA5B0B0731139D8D0E46D26ECF1B4D4' }
+          Export-Certificate -Cert $cert -FilePath apps/web/public/downloads/silicium-school-certificate.cer | Out-Null
+          $tool =Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
           "SIGNTOOL=$($tool.FullName)" | Out-File -Append $env:GITHUB_ENV
       - name: Installeur NSIS
         shell: pwsh
