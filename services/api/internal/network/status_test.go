@@ -87,3 +87,19 @@ func TestAFailingNodeIsReportedAndNotCached(t *testing.T) {
 		t.Fatal("the next answer must be asked again, not the failure")
 	}
 }
+
+// Only the machines that can read the chain (role "claim") are counted as able to claim.
+const claimPeersJSON = `[
+ {"peer":"12D3KooWdddd","roles":["compute","verify","claim"],"seen_ms_ago":5000,"load":0,"workloads":[]},
+ {"peer":"12D3KooWeeee","roles":["compute","verify"],"seen_ms_ago":5000,"load":0,"workloads":[]}
+]`
+
+func TestSummarizeCountsClaimCapableMachines(t *testing.T) {
+	status, err := Summarize([]byte(claimPeersJSON), []byte(`{"roles":{"compute":true,"verify":false,"claim":true}}`), t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.ByRole["compute"] != 3 || status.ByRole["claim"] != 2 {
+		t.Fatalf("by role = %v, want compute 3 and claim 2 (node + one peer with claim)", status.ByRole)
+	}
+}

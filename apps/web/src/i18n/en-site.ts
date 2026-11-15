@@ -355,6 +355,7 @@ export const enSite = {
       byRole: 'By role',
       compute: 'Compute',
       verify: 'Verification',
+      claim: 'Can claim',
       nodeReachable: 'Node reachable',
       nodeUnreachable: 'The node does not answer: no figures to show.',
       updated: 'Updated at {time}',

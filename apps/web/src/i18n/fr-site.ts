@@ -356,6 +356,7 @@ export const frSite = {
       byRole: 'Par rôle',
       compute: 'Calcul',
       verify: 'Vérification',
+      claim: 'Peuvent réclamer',
       nodeReachable: 'Nœud joignable',
       nodeUnreachable: 'Le nœud ne répond pas : aucun chiffre à afficher.',
       updated: 'Mis à jour à {time}',

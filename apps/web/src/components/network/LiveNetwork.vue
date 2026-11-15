@@ -60,6 +60,10 @@ onBeforeUnmount(() => {
           <dt>{{ t('site.network.verify') }}</dt>
           <dd>{{ status.by_role.verify ?? 0 }}</dd>
         </div>
+        <div>
+          <dt>{{ t('site.network.claim') }}</dt>
+          <dd>{{ status.by_role.claim ?? 0 }}</dd>
+        </div>
       </dl>
       <OnlineSpark :values="samples" :summary="t('site.network.onlineChart', { count: status.online })" />
       <p v-if="samples.length < 2" class="muted live-network__note">{{ t('site.home.liveWaiting') }}</p>

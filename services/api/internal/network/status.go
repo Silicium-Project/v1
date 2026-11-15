@@ -27,6 +27,7 @@ type self struct {
 	Roles struct {
 		Compute bool `json:"compute"`
 		Verify  bool `json:"verify"`
+		Claim   bool `json:"claim"`
 	} `json:"roles"`
 }
 
@@ -49,21 +50,24 @@ func Summarize(peers, report json.RawMessage, now time.Time) (Status, error) {
 		return Status{}, err
 	}
 	status := Status{
-		ByRole:        map[string]int{"compute": 0, "verify": 0},
+		ByRole:        map[string]int{"compute": 0, "verify": 0, "claim": 0},
 		NodeReachable: true,
 		UpdatedAt:     now.UTC(),
 	}
 	// The node answering is online; its own roles count too.
 	status.Online = 1
-	count := func(compute, verify bool) {
+	count := func(compute, verify, claim bool) {
 		if compute {
 			status.ByRole["compute"]++
 		}
 		if verify {
 			status.ByRole["verify"]++
 		}
+		if claim {
+			status.ByRole["claim"]++
+		}
 	}
-	count(me.Roles.Compute, me.Roles.Verify)
+	count(me.Roles.Compute, me.Roles.Verify, me.Roles.Claim)
 	for _, machine := range heard {
 		if time.Duration(machine.SeenMsAgo)*time.Millisecond > OnlineWindow {
 			continue
@@ -77,7 +81,7 @@ func Summarize(peers, report json.RawMessage, now time.Time) (Status, error) {
 			}
 			return false
 		}
-		count(has("compute"), has("verify"))
+		count(has("compute"), has("verify"), has("claim"))
 	}
 	return status, nil
 }
@@ -85,7 +89,7 @@ func Summarize(peers, report json.RawMessage, now time.Time) (Status, error) {
 // Unreachable is the answer when the node cannot be asked: the page says so, with no counts.
 func Unreachable(now time.Time) Status {
 	return Status{
-		ByRole:        map[string]int{"compute": 0, "verify": 0},
+		ByRole:        map[string]int{"compute": 0, "verify": 0, "claim": 0},
 		NodeReachable: false,
 		UpdatedAt:     now.UTC(),
 	}
