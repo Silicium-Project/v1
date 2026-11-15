@@ -29,6 +29,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            network
+            chain/node
       - uses: actions/setup-go@v5
         with:
           go-version-file: services/api/go.mod
@@ -78,6 +83,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            network
+            chain/node
       - uses: actions/setup-go@v5
         with:
           go-version-file: services/api/go.mod
@@ -120,6 +130,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            network
+            chain/node
       - name: Nœud Windows (chain/node)
         shell: pwsh
         run: |
@@ -159,6 +174,10 @@ jobs:
           name: dist-linux-amd64
           path: dist/linux-amd64
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/desktop/src-tauri
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -197,6 +216,10 @@ jobs:
           name: dist-windows-amd64
           path: dist/windows-amd64
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/desktop/src-tauri
       - uses: actions/setup-node@v4
         with:
           node-version: 24
