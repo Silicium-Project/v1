@@ -1,19 +1,19 @@
-# ADR 0003 — Réputation scopée et anti-Sybil
+# ADR 0003 — Scoped reputation and anti-Sybil
 
-**Statut :** proposé, question ouverte (stake léger ou période probatoire).
+**Status:** proposed; open question (light stake or probationary period).
 
-## Contexte
-V0 : la réputation compte les tâches de n'importe quel publisher ; un attaquant s'auto-publie
-et se vérifie pour gonfler son score, et une nouvelle clé remet le score à zéro sans coût.
+## Context
+V0: reputation counts tasks from any publisher. An attacker publishes and verifies its own tasks to
+inflate its score, and a new key resets the score to zero at no cost.
 
-## Décision
-Réputation calculée par comité/requester, avec décroissance, pondérée par la valeur vérifiée
-indépendamment. Auto-publication et auto-vérification exclues du calcul. Les nouvelles clés
-passent une période probatoire à charge limitée.
+## Decision
+Reputation is computed per committee/requester, with decay, weighted by the value independently
+verified. Self-publication and self-verification are excluded from the computation. New keys go
+through a probationary period with a bounded load.
 
-## À trancher
-Stake léger Solana vs période probatoire seule.
+## To decide
+Light Solana stake versus a probationary period alone.
 
-**Mise à jour (phase 4)** : implémenté dans `sil-reputation` (scopes de confiance, auto-évaluation
-ignorée, poids borné, demi-vie 7 jours, probation d'une tâche, mémoire bornée). Le coût d'entrée
-(stake) reste ouvert : une clé jetée retrouve la probation. Voir protocol/coordination.md.
+**Update (phase 4)**: implemented in `sil-reputation` (trust scopes, self-evaluation ignored, bounded
+weight, 7-day half-life, one-task probation, bounded memory). The entry cost (stake) remains open: a
+discarded key regains probation. See protocol/coordination.md.

@@ -1,51 +1,49 @@
-# ADR 0010 — Retenue sur la récompense des vérificateurs
+# ADR 0010 — Withholding part of verifier rewards
 
-**Statut** : décidée, non implémentée. Change le programme Solana : mise à jour de tous les nœuds.
+**Status**: decided, not implemented. Changes the Solana program: all nodes must be updated.
 
-## Contexte
+## Context
 
-Un même propriétaire peut contrôler plusieurs clés. Il peut les faire voter ensemble comme
-vérificateurs et valider ses propres résultats. Aujourd'hui rien ne coûte à une clé qui vote mal.
+One owner can control several keys. They can make these keys vote together as verifiers and validate their
+own results. Today nothing costs a key that votes wrongly.
 
-## Décision
+## Decision
 
-Une caution par vérificateur, prélevée sur ses gains et non déposée à l'avance.
+A bond per verifier, taken from its earnings and not deposited in advance.
 
-1. **Part retenue** : 50 % de la récompense de vérificateur de chaque vote est mise en réserve
-   on-chain, au nom de la clé.
-2. **Libération** : la réserve d'un vote est libérée à la première échéance atteinte parmi :
-   - 20 règlements après le dernier vote de la clé ;
-   - 24 h après le dernier vote de la clé.
-3. **Pénalité** : si un vote de la clé est jugé faux (désaccord avec le résultat retenu, ADR 0008),
-   la réserve de la clé est confisquée, en tout ou en partie. Le barème exact reste à fixer.
-4. **Sélection** : les vérificateurs d'un fragment sont tirés de façon imprévisible pour l'auteur du
-   résultat. Le tirage utilise une valeur que personne ne choisit seul (hash de slot Solana).
-5. **Nombre de vérificateurs** : à fixer. Aucune valeur n'est retenue.
+1. **Withheld share**: 50% of each vote's verifier reward is put in reserve on-chain, in the name of the key.
+2. **Release**: the reserve of a vote is released at the first deadline reached among:
+   - 20 settlements after the key's last vote;
+   - 24 hours after the key's last vote.
+3. **Penalty**: if a vote of the key is judged false (disagreement with the accepted result, ADR 0008), the
+   key's reserve is confiscated, in whole or in part. The exact scale remains to be set.
+4. **Selection**: the verifiers of a fragment are drawn unpredictably for the author of the result. The draw
+   uses a value that nobody chooses alone (a Solana slot hash).
+5. **Number of verifiers**: to be set. No value is chosen yet.
 
-## Conséquences
+## Consequences
 
-- Un propriétaire qui multiplie les clés doit immobiliser 50 % de leurs gains de vérification pendant
-  la période de libération, et risque de les perdre.
-- Une clé neuve n'a pas de caution à déposer : elle l'accumule. Le coût d'entrée est faible, mais la
-  première période de gains est bloquée.
-- **Format** : nouveau compte de réserve par clé dans le programme Solana, nouvelles instructions de
-  libération et de confiscation. Déploiement incompatible : tous les nœuds changent en même temps.
-- Une clé inactive récupère sa réserve par l'échéance de 24 h.
+- An owner who multiplies keys must lock 50% of their verification earnings during the release period, and
+  risks losing them.
+- A new key has no bond to deposit: it accumulates one. The entry cost is low, but the first period of
+  earnings is locked.
+- **Format**: a new reserve account per key in the Solana program, new release and confiscation instructions.
+  Incompatible deployment: all nodes change at the same time.
+- An inactive key recovers its reserve at the 24-hour deadline.
 
-## Points ouverts
+## Open points
 
-- Définition de « règlement » comptée pour les 20 (tous les règlements du programme ou ceux du
-  vérificateur seul).
-- Barème de confiscation (totale ou proportionnelle).
-- Nombre de vérificateurs par fragment.
+- Definition of a "settlement" counted for the 20 (all settlements of the program, or only those of the
+  verifier).
+- Confiscation scale (total or proportional).
+- Number of verifiers per fragment.
 
-## Correctif de revue : libération et confiscation par job
+## Review fix: per-job release and confiscation
 
-- **Libération** : le compteur ne compte que les votes **propres** du vérificateur, depuis sa plus
-  ancienne réserve en attente (`pending_since`). N'importe qui ne peut plus le faire avancer en
-  réglant d'autres jobs. Le délai de 24 h après le dernier vote reste en place.
-- **Par job** : chaque `SettledFragment` porte `held` (la réserve de chaque approbateur sur ce
-  fragment). Une pénalité ne consomme que ce que cet escrow a retenu pour le vérificateur ; une
-  libération (`ReleaseReserve`, avec les escrows en comptes) ne sort que ce que ces escrows
-  détiennent. Plus de confiscation croisée entre jobs.
-- Le compte de stats global est supprimé.
+- **Release**: the counter counts only the verifier's **own** votes, since its oldest pending reserve
+  (`pending_since`). Anyone can no longer advance it by settling other jobs. The 24-hour deadline after the
+  last vote stays in place.
+- **Per job**: each `SettledFragment` carries `held` (the reserve of each approver on this fragment). A penalty
+  consumes only what this escrow withheld for the verifier; a release (`ReleaseReserve`, with the escrows as
+  accounts) only takes what these escrows hold. No more cross-job confiscation.
+- The global statistics account is removed.

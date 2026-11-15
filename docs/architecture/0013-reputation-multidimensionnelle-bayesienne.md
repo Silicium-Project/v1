@@ -1,267 +1,240 @@
-# ADR 0013 — Réputation multi-dimensionnelle bayésienne et attribution probabiliste des claims
+# ADR 0013 — Multi-dimensional Bayesian reputation and probabilistic claim assignment
 
-**Statut** : partiellement implémentée. Remplace et étend `sil-reputation` (score scalaire local,
-ADR 0003) et le score de vérificateur on-chain (ADR 0006) pour tout ce qui ne touche pas directement
-l'argent. Les pénalités et pondérations qui touchent l'argent restent gouvernées par les ADR 0006,
-0008, 0010, 0012 : cet ADR ne les modifie pas.
+**Status**: partially implemented. Replaces and extends `sil-reputation` (local scalar score, ADR 0003) and the
+on-chain verifier score (ADR 0006) for everything that does not directly touch money. Penalties and weightings
+that touch money remain governed by ADR 0006, 0008, 0010 and 0012: this ADR does not change them.
 
-Fait : phase 1 (primitives bayésiennes déterministes, crate `sil-bayes` — `BetaPosterior`,
-`NormalGammaPosterior`, `exp`/`ln`/`√`/`Φ` en entiers fixes) et phase 2 (vecteur de ressources par
-workload, `sil-workload-spec::Resources`, dérivé du descripteur statique du workload plutôt qu'un
-champ signé par job — voir § 3). Reste à faire : phases 3 à 10, bloquées pour les phases 3 à 7 par
-l'ADR 0009 (non implémenté) et par les valeurs numériques listées en Points ouverts.
+Done: phase 1 (deterministic Bayesian primitives, crate `sil-bayes` — `BetaPosterior`, `NormalGammaPosterior`,
+`exp`/`ln`/`√`/`Φ` in fixed-point integers) and phase 2 (resource vector per workload, `sil-workload-spec::Resources`,
+derived from the static descriptor of the workload rather than a field signed per job — see § 3). Remaining:
+phases 3 to 10, blocked for phases 3 to 7 by ADR 0009 (not implemented) and by the numerical values listed under
+Open points.
 
-## Contexte
+## Context
 
-Le réseau n'a aujourd'hui qu'un score scalaire par worker, local à chaque nœud (`sil-reputation`),
-et un score de vérificateur on-chain à une seule dimension (ADR 0006). Aucun des deux ne capture la
-diversité réelle des machines (vitesse réseau, calcul, stockage, inférence de modèle) ni les
-compétences distinctes (délégation de tâche, détection de fausse vérification, rétention de
-données). Le besoin, exprimé par le requester :
+The network today has only one scalar score per worker, local to each node (`sil-reputation`), and a one-dimension
+on-chain verifier score (ADR 0006). Neither captures the real diversity of machines (network speed, computation,
+storage, model inference) nor the distinct skills (task delegation, detection of false verification, data
+retention). The need, expressed by the requester:
 
-> Les scores de tout agent du réseau doivent être subdivisés en spécialisation, chaque worker
-> possède l'intégralité des scores, et apprend avec le temps à se spécialiser par ajustement
-> bayésien des valeurs. Les scores intègrent entre autres : vitesse réseau (ping, temps
-> d'acceptation, débit montant/descendant...), taux de succès, vitesse de calcul, qualité de
-> délégation des tâches, qualité de vérification (détecter une fausse vérification), capacité à
-> stocker correctement sur la durée (vitesse lecture/écriture, type de disque, taux de rétention
-> après audit). Le réseau doit aussi évaluer des capacités spécifiques (inférence de modèle,
-> vitesse GPU, RAM/VRAM...), idéalement sans nommer explicitement les types de tâche.
+> The scores of every agent on the network must be broken down by specialization. Each worker holds the full set
+> of scores, and learns over time to specialize through Bayesian adjustment of the values. The scores include,
+> among others: network speed (ping, acceptance time, upload/download throughput...), success rate, computation
+> speed, quality of task delegation, quality of verification (detecting false verification), ability to store
+> correctly over time (read/write speed, disk type, retention rate after audit). The network must also evaluate
+> specific capabilities (model inference, GPU speed, RAM/VRAM...), ideally without explicitly naming task types.
 
-Cette discussion a tranché, point par point, la forme que ce système doit prendre. Cet ADR les
-rassemble.
+This discussion settled, point by point, the shape this system must take. This ADR gathers them.
 
-## Décision
+## Decision
 
-### 1. Les scores sont partagés, dérivés du journal — jamais une opinion locale
+### 1. Scores are shared and derived from the ledger — never a local opinion
 
-Un score qui ne donne pas le même résultat sur tous les nœuds ne peut gouverner aucune décision qui
-touche l'attribution ou l'argent (ADR 0005 pose déjà ce principe pour la réputation de vérificateur).
-Chaque dimension de score est donc une fonction **déterministe** des événements signés du journal :
-mêmes événements, même ordre total, même résultat partout. Un nœud peut garder une opinion locale
-pour des choix sans enjeu (ordre d'interrogation des pairs), mais elle n'entre jamais dans une
-attribution, une pénalité ou un paiement.
+A score that does not give the same result on every node cannot govern any decision that touches allocation or
+money (ADR 0005 already states this principle for verifier reputation). Each score dimension is therefore a
+**deterministic** function of the signed events of the ledger: same events, same total order, same result
+everywhere. A node may keep a local opinion for choices with no stake (order of polling peers), but it never
+enters an allocation, a penalty or a payment.
 
-« Chaque worker possède l'intégralité des scores » : chaque nœud reconstruit, à partir du même
-journal, le score de tout agent sur toutes les dimensions. Il n'y a pas de table centrale.
+"Each worker holds the full set of scores": from the same ledger, each node rebuilds the score of every agent on
+every dimension. There is no central table.
 
-### 2. Les mesures sont vérifiées, jamais déclarées
+### 2. Measurements are verified, never declared
 
-Un worker ne doit jamais pouvoir faire monter son propre score en déclarant une valeur. Deux sources
-valides :
+A worker must never be able to raise its own score by declaring a value. Two valid sources:
 
-- **Mesure dérivée du résultat d'un vrai job** : débit observé = unités traitées (barème
-  `sil-chain-core::units`) divisé par une durée **ancrée on-chain** (slot Solana, ADR 0009), jamais
-  l'horloge locale du worker ni celle du pair qui l'observe seul.
-- **Sonde ou défi à réponse connue, lancé par un pair** : pour les dimensions qu'un vrai job ne
-  couvre pas directement (latence réseau pure, débit brut, lecture/écriture disque). Le pair qui
-  sonde signe l'observation comme un événement du journal.
+- **Measurement derived from the result of a real job**: observed throughput = units processed (scale in
+  `sil-chain-core::units`) divided by a duration **anchored on-chain** (a Solana slot, ADR 0009), never the local
+  clock of the worker or of a peer observing it alone.
+- **Probe or challenge with a known answer, launched by a peer**: for dimensions a real job does not directly cover
+  (pure network latency, raw throughput, disk read/write). The probing peer signs the observation as an event of
+  the ledger.
 
-Aucune valeur auto-déclarée (VRAM annoncée, type de disque annoncé) n'entre dans un score tant
-qu'elle n'est pas corroborée par une mesure de ce type.
+No self-declared value (announced VRAM, announced disk type) enters a score until it is corroborated by a
+measurement of this kind.
 
-### 3. Spécialisation par vecteur de ressources, pas par type de tâche nommé
+### 3. Specialization by resource vector, not by named task type
 
-Pour rester généraliste (« sans mentionner explicitement les types de tâche »), chaque job porte un
-vecteur de ressources qu'il sollicite (profil GPU/CPU, RAM/VRAM requise, intensité réseau, intensité
-stockage — des grandeurs déjà présentes ou dérivables de `EscrowTerms`/`JobSpec`, pas une étiquette de
-workload). Le réseau apprend la relation **vecteur de ressources → résultat observé** par agent, via
-un modèle hiérarchique : un a priori global par dimension, affiné par agent à mesure que ses
-observations s'accumulent. Un worload nouveau n'a besoin d'aucune nouvelle catégorie : il n'est qu'un
-nouveau point dans l'espace des vecteurs déjà modélisé.
+To stay general ("without explicitly naming task types"), each job carries a resource vector it draws on (GPU/CPU
+profile, required RAM/VRAM, network intensity, storage intensity — quantities already present or derivable from
+`EscrowTerms`/`JobSpec`, not a workload label). The network learns the relation **resource vector → observed
+result** per agent, through a hierarchical model: a global prior per dimension, refined per agent as its
+observations accumulate. A new workload needs no new category: it is only a new point in the vector space already
+modeled.
 
-**Implémenté (phase 2), avec une simplification délibérée** : plutôt qu'un nouveau champ signé par
-job (qui aurait changé le format de l'escrow on-chain, ADR 0009 n'étant pas encore en place pour
-amortir une rupture de plus), le vecteur de ressources (`compute`, `memory`, `network`, `storage`,
-0 à 100) est porté par le **descripteur statique du workload** (`contracts/workloads/*.json` →
-`sil-workload-spec::Resources`, un par workload, jamais un agrégat). La couche de score ne lit jamais
-l'identifiant du workload, seulement ce vecteur : la contrainte « sans nommer le type de tâche » est
-respectée au niveau où elle compte (le scoring), au prix d'une granularité par workload plutôt que
-par instance de job. Revoir ce choix si un jour un même workload doit pouvoir solliciter des profils
-très différents selon son entrée.
+**Implemented (phase 2), with a deliberate simplification**: rather than a new field signed per job (which would
+have changed the on-chain escrow format, ADR 0009 not yet in place to absorb one more break), the resource vector
+(`compute`, `memory`, `network`, `storage`, 0 to 100) is carried by the **static descriptor of the workload**
+(`contracts/workloads/*.json` → `sil-workload-spec::Resources`, one per workload, never an aggregate). The scoring
+layer never reads the workload identifier, only this vector: the constraint "without naming the task type" is
+respected at the level where it matters (scoring), at the cost of a granularity per workload rather than per job
+instance. Revisit this choice if one workload must someday draw very different profiles depending on its input.
 
-### 4. Modèle bayésien : une famille conjuguée par nature de mesure
+### 4. Bayesian model: a conjugate family per kind of measurement
 
-| Nature de la mesure | Modèle | Pourquoi |
+| Kind of measurement | Model | Why |
 |---|---|---|
-| Taux (succès, fausse vérification, rétention après audit) | **Beta-Bernoulli** | Borné [0,1] par construction ; exact même à faible échantillon (dizaines d'observations) ou taux proche de 0/1. La gaussienne a été écartée pour ce cas : elle déborde de l'intervalle et sous-estime la queue (comparaison tracée en séance, Beta(20,2) vs gaussienne de même moyenne/variance). |
-| Mesure continue (débit, latence, vitesse de calcul) | **Normal-Gamma** (gaussien à variance inconnue) | Conjugué, mise à jour en flux (`τₙ = τ₀ + n·τ`, `μₙ = (τ₀μ₀ + τ·Σxᵢ)/τₙ`), prédictive en loi de Student (robuste aux valeurs aberrantes à faible échantillon). |
-| Spécialisation (lien ressources → résultat) | **A priori hiérarchique** sur les paramètres ci-dessus, par agent, informé par un a priori de population | Un agent neuf hérite de l'a priori global ; il se spécialise à mesure que ses propres observations dominent l'a priori. |
+| Rate (success, false verification, retention after audit) | **Beta-Bernoulli** | Bounded to [0,1] by construction; exact even with a small sample (tens of observations) or a rate near 0/1. The Gaussian was rejected for this case: it overflows the interval and underestimates the tail (comparison traced in session, Beta(20,2) versus a Gaussian with the same mean and variance). |
+| Continuous measurement (throughput, latency, computation speed) | **Normal-Gamma** (Gaussian with unknown variance) | Conjugate, streaming update (`τₙ = τ₀ + n·τ`, `μₙ = (τ₀μ₀ + τ·Σxᵢ)/τₙ`), predictive Student-t distribution (robust to outliers with a small sample). |
+| Specialization (link resource → result) | **Hierarchical prior** over the parameters above, per agent, informed by a population prior | A new agent inherits the global prior; it specializes as its own observations come to dominate the prior. |
 
-Toutes les fonctions transcendantes qu'exige ce modèle (fonction bêta incomplète régularisée pour
-`P(taux > seuil)`, `Φ` pour le cas gaussien) passent par une **table figée en virgule fixe**, versée
-dans le code : deux nœuds avec les mêmes entrées doivent produire le même entier, jamais un flottant
-dépendant de la plateforme.
+All transcendental functions this model needs (regularized incomplete beta function for `P(rate > threshold)`,
+`Φ` for the Gaussian case) go through a **fixed table in fixed-point arithmetic**, compiled into the code: two nodes
+with the same inputs must produce the same integer, never a floating-point value that depends on the platform.
 
-### 5. Diagrammes puissance → résultat, un par dimension
+### 5. Power → result diagrams, one per dimension
 
-Pour les capacités matérielles (vitesse de calcul, GPU, débit, stockage), le réseau construit, par
-dimension, un diagramme reliant la puissance observée au résultat observé (ADR proposé en séance,
-confirmé). Ce diagramme :
+For hardware capabilities (computation speed, GPU, throughput, storage), the network builds, per dimension, a
+diagram linking observed power to observed result (an ADR proposed in session, confirmed). This diagram:
 
-- se construit sur des mesures **vérifiées** (point 2), jamais déclarées ;
-- donne une **enveloppe apprise** (quantiles), pas une droite fixée a priori ;
-- sert à détecter un écart entre la puissance annoncée et le résultat réel (indice de score), **pas**
-  à rejeter un résultat : rejeter un calcul reste une décision de vérification (ADR 0002, 0007), pas
-  une décision statistique.
-- existe en plusieurs versions, une par type de réputation/dimension (calcul, stockage, réseau,
-  inférence…), jamais un diagramme unique agrégeant tout.
+- is built on **verified** measurements (point 2), never declared ones;
+- gives a **learned envelope** (quantiles), not a line fixed in advance;
+- serves to detect a gap between announced power and actual result (a score signal), **not** to reject a result:
+  rejecting a computation remains a verification decision (ADR 0002, 0007), not a statistical one;
+- exists in several versions, one per type of reputation/dimension (computation, storage, network, inference...),
+  never a single diagram aggregating everything.
 
-### 6. Le score est un prior ; seules les valeurs extrêmes pèsent directement
+### 6. The score is a prior; only extreme values weigh directly
 
-Un score ne se calcule — et ne pèse sur une décision — qu'après un nombre minimal fixe
-d'évaluations ; avant ce seuil, l'agent reste en **probation** (voir § 8) et le score ne compte pas.
-Au-delà, le score sert de **prior** à la décision (attribution, quota), sauf quand la postérieure
-indique une valeur extrême (fraude quasi certaine, incompétence quasi certaine) : dans ce cas précis,
-le score prime la règle par défaut.
+A score is computed — and weighs on a decision — only after a fixed minimum number of evaluations; before that
+threshold the agent stays in **probation** (see § 8) and the score does not count. Beyond it, the score serves as a
+**prior** for the decision (allocation, quota), except when the posterior indicates an extreme value (near-certain
+fraud, near-certain incompetence): in that precise case, the score overrides the default rule.
 
-Le degré de certitude utilisé pour juger « extrême » est la probabilité postérieure elle-même
-(`P(taux > seuil)` via Beta, ou le score de certitude gaussien), jamais une opinion locale.
+The degree of certainty used to judge "extreme" is the posterior probability itself (`P(rate > threshold)` via
+Beta, or the Gaussian certainty score), never a local opinion.
 
-### 7. Seuils dynamiques selon l'état du réseau — déterministes, bornés, lissés
+### 7. Dynamic thresholds depending on the state of the network — deterministic, bounded, smoothed
 
-Les seuils de déclenchement (ce qui compte comme « extrême », ce qui ouvre ou resserre un quota) se
-régulent selon l'état du réseau : un réseau en défense (taux de litige élevé, chute du nombre de
-vérificateurs actifs) resserre ; un réseau appauvri (peu de workers, peu de vérificateurs) relâche.
+The trigger thresholds (what counts as "extreme", what opens or tightens a quota) are regulated by the state of the
+network: a network under defense (high dispute rate, drop in active verifiers) tightens; a depleted network (few
+workers, few verifiers) relaxes.
 
-Conditions retenues :
+Conditions adopted:
 
-- **L'état du réseau est lui-même une fonction déterministe du journal** (jamais une mesure locale),
-  construite sur des signaux difficiles à manipuler artificiellement (taux de litige **rapporté au
-  nombre de vérificateurs actifs**, pas un simple compte d'événements).
-- **Régulation de base linéaire bornée (clamp)**, avec plancher et plafond fixes codés en dur par
-  catégorie, complétée si besoin par une **sigmoïde en table figée** (virgule fixe) quand une
-  transition plus lisse est utile. Toute forme à base d'exponentielle passe par une table figée,
-  jamais `f64::exp` en direct.
-- Un **lissage temporel** (pas de saut brutal d'un tour à l'autre) est obligatoire.
+- **The network state is itself a deterministic function of the ledger** (never a local measurement), built on
+  signals that are hard to manipulate artificially (dispute rate **relative to the number of active verifiers**,
+  not a simple count of events).
+- **Basic linear regulation, bounded (clamp)**, with a floor and a ceiling hard-coded per category, completed if
+  needed by a **sigmoid in a fixed table** (fixed-point) when a smoother transition is useful. Any form based on an
+  exponential goes through a fixed table, never `f64::exp` directly.
+- **Temporal smoothing** (no abrupt jump from one round to the next) is mandatory.
 
-### 8. Démarrage d'un agent neuf : probation puis exploration contrôlée
+### 8. Bootstrapping a new agent: probation, then controlled exploration
 
-Un agent sans historique reste en probation (un seul claim actif, comme l'actuel `max_parallel` de
-`sil-reputation`). Passé le nombre minimal d'évaluations (§ 6), son quota et son poids dans les tirages
-s'ouvrent progressivement. L'exploration de sa spécialisation (quelles dimensions il sert bien) suit
-un bandit de type Thompson : il reçoit, de temps en temps, des claims hors de son profil appris pour
-mettre à jour sa postérieure sans l'affamer ni le favoriser indéfiniment sur un seul profil.
+An agent without history stays in probation (a single active claim, like the current `max_parallel` of
+`sil-reputation`). Once the minimum number of evaluations (§ 6) is reached, its quota and its weight in the draws
+open progressively. The exploration of its specialization (which dimensions it serves well) follows a Thompson-style
+bandit: from time to time it receives claims outside its learned profile, to update its posterior without starving it
+or favoring it indefinitely on a single profile.
 
-### 9. Attribution des claims : n loteries indépendantes, pas une course
+### 9. Claim assignment: n independent lotteries, not a race
 
-Chaque claim subit son propre tirage indépendant — il n'y a **pas** de course entre claims à
-départager par un tiers ni par une loterie adversariale unique. Pour un claim donné :
+Each claim undergoes its own independent draw — there is **no** race between claims to be settled by a third party nor
+by a single adversarial lottery. For a given claim:
 
 ```
-accepté si hash(graine_slot ‖ claim_id) < p(score)
+accepted if hash(slot_seed ‖ claim_id) < p(score)
 ```
 
-- **Graine** : un slot Solana postérieur à l'émission du claim (ADR 0009). Personne ne la choisit ;
-  un tiers tireur a été écarté (il ajoute un point de confiance — censure possible par omission —
-  sans rien apporter que la graine de slot ne donne déjà).
-- **`p(score)`** : construit à partir de la postérieure (§ 6), avec un **plancher fixe** laissant une
-  chance non nulle au plus petit agent (évite qu'un score bas n'exclue totalement, ce qui
-  contredirait le principe « prior sauf extrême »).
-- **Plusieurs claims acceptés sur le même fragment** : le premier accepté dans l'ordre total
-  (`issued_at_ms, id`, ADR 0005) prend le fragment ; les autres restent éligibles au tirage suivant
-  pour une autre tentative.
-- **Liveness** : `p` croît avec le temps d'attente du fragment, jusqu'à 1 après une durée fixe, pour
-  qu'un fragment ne reste jamais bloqué faute de tirage favorable.
+- **Seed**: a Solana slot posterior to the issue of the claim (ADR 0009). Nobody chooses it; a third-party drawer was
+  rejected (it adds a point of trust — censorship by omission — without contributing anything the slot seed does not
+  already give).
+- **`p(score)`**: built from the posterior (§ 6), with a **fixed floor** leaving a non-zero chance to the smallest
+  agent (so that a low score does not exclude it entirely, which would contradict the principle "prior unless
+  extreme").
+- **Several accepted claims on the same fragment**: the first accepted in total order (`issued_at_ms, id`, ADR 0005)
+  takes the fragment; the others stay eligible for the next draw for another attempt.
+- **Liveness**: `p` grows with the waiting time of the fragment, reaching 1 after a fixed duration, so that a fragment
+  is never blocked for lack of a favorable draw.
 
-### 10. Identification et ciblage des fragments (parallélisme sans collision)
+### 10. Identifying and targeting fragments (parallelism without collision)
 
-Pour exploiter le parallélisme sans coordinateur ni collisions coûteuses :
+To exploit parallelism without a coordinator and without costly collisions:
 
-- **Ordre de préférence déterministe par worker** : `hash(clé_worker ‖ job ‖ fragment)` trie les
-  fragments ouverts pour ce worker. Des workers distincts visent ainsi, sans se coordonner, des
-  fragments différents en priorité.
-- **Balayage par rang** : un worker inactif sur son fragment préféré (déjà pris, ou refusé par le
-  tirage § 9) passe au suivant de son ordre.
-- Une collision reste possible mais rare, et sans coût : un seul claim gagne par (fragment,
-  tentative), les autres ne payent rien (ADR 0005, déjà en place).
+- **Deterministic preference order per worker**: `hash(worker_key ‖ job ‖ fragment)` sorts the open fragments for this
+  worker. Distinct workers thus aim, without coordinating, at different fragments first.
+- **Rank sweep**: a worker idle on its preferred fragment (already taken, or refused by the draw of § 9) moves to the
+  next one in its order.
+- A collision remains possible but rare, and costless: only one claim wins per (fragment, attempt), the others pay
+  nothing (ADR 0005, already in place).
 
-### 11. Limiter les claims multiples sans coût d'entrée
+### 11. Limiting multiple claims without an entry cost
 
-Un coût fixe par claim est rédhibitoire pour le tout premier claim d'un agent sans historique
-(confirmé en séance). La limite retenue combine, sans jamais exiger de paiement initial :
+A fixed cost per claim is prohibitive for the very first claim of an agent without history (confirmed in session).
+The chosen limit combines, without ever requiring an initial payment:
 
-- **Quota de claims actifs simultanés**, pas seulement par fenêtre temporelle. Un agent neuf en a un
-  seul (probation, § 8). Le quota croît avec la réputation postérieure.
-- **Quota dérivé du diagramme puissance → résultat (§ 5)**, une fois le seuil de confiance (§ 6)
-  atteint :
-  `quota = min(plafond, floor(débit_bas × fenêtre / unités_moyennes_fragment))`, où `débit_bas` est
-  le **quantile bas** (pas la moyenne — un agent chanceux sur une observation ne doit pas obtenir un
-  quota qu'il n'a pas prouvé) du diagramme de cet agent sur cette dimension.
-- **Caution remboursable plutôt qu'un coût** pour les claims au-delà du premier : bloquée au claim,
-  rendue à la vérification réussie. Nulle pour le premier claim d'un agent neuf.
-- Le plafond par tâche déjà existant (`max_parallel`, `sil-reputation`) continue de s'appliquer en
-  plus de ce quota.
+- **Quota of simultaneous active claims**, not only a time window. A new agent has only one (probation, § 8). The
+  quota grows with the posterior reputation.
+- **Quota derived from the power → result diagram (§ 5)**, once the confidence threshold (§ 6) is reached:
+  `quota = min(ceiling, floor(low_throughput × window / average_fragment_units))`, where `low_throughput` is the **low
+  quantile** (not the mean — a lucky agent on one observation must not obtain a quota it has not proven) of this
+  agent's diagram on this dimension.
+- **Refundable bond rather than a cost** for claims beyond the first: locked at the claim, returned on successful
+  verification. Zero for the first claim of a new agent.
+- The existing per-task ceiling (`max_parallel`, `sil-reputation`) continues to apply on top of this quota.
 
-Limite reconnue et non résolue par ce qui précède : une population de clés jetables (sybils) peut
-toujours accumuler des premiers claims gratuits en parallèle sur des identités distinctes. Le quota et
-la probation bornent le dégât par identité, ils ne l'empêchent pas à l'échelle d'une population de
-clés. Traité comme point ouvert (§ Points ouverts).
+Limit acknowledged and not resolved by the above: a population of disposable keys (sybils) can still accumulate free
+first claims in parallel on distinct identities. The quota and the probation bound the damage per identity; they do
+not prevent it at the scale of a key population. Treated as an open point (§ Open points).
 
-## Conséquences
+## Consequences
 
-- **Format** : nouvelles dimensions d'événements signés (sondes/défis de pairs, vecteurs de
-  ressources des jobs). Changement incompatible pour tout nœud qui calcule un score : déploiement
-  simultané requis, comme les ADR 0009/0010/0012.
-- **Dépendance renforcée à l'ADR 0009** : la graine de slot et l'ancrage des durées sont des
-  prérequis directs de ce système (§ 2, § 9). Cet ADR ne peut pas être implémenté avant l'ADR 0009.
-- **Coût de calcul** : les mises à jour bayésiennes et les tables figées ajoutent du calcul par nœud,
-  borné et déterministe (pas de `f64` transcendant en direct).
-- **`sil-reputation` est remplacé** pour tout ce qui gouverne une attribution (claims, quotas,
-  spécialisation). Il peut subsister comme opinion locale pure, sans effet sur l'attribution.
-- Le score de vérificateur on-chain (ADR 0006) et les pénalités (ADR 0008, 0010, 0012) ne changent
-  pas : ils restent la seule voie qui touche l'argent directement.
+- **Format**: new dimensions of signed events (peer probes/challenges, resource vectors of jobs). Incompatible change
+  for any node that computes a score: simultaneous deployment required, as for ADR 0009/0010/0012.
+- **Strengthened dependency on ADR 0009**: the slot seed and the anchoring of durations are direct prerequisites of
+  this system (§ 2, § 9). This ADR cannot be implemented before ADR 0009.
+- **Computation cost**: Bayesian updates and fixed tables add computation per node, bounded and deterministic (no
+  transcendental `f64` directly).
+- **`sil-reputation` is replaced** for everything that governs allocation (claims, quotas, specialization). It can
+  remain as a pure local opinion, with no effect on allocation.
+- The on-chain verifier score (ADR 0006) and the penalties (ADR 0008, 0010, 0012) do not change: they remain the only
+  path that touches money directly.
 
-## Points ouverts
+## Open points
 
-- Nombre minimal d'évaluations avant sortie de probation (§ 6, § 11).
-- Seuil de certitude codé en dur pour « valeur extrême » (§ 6) et pour l'ouverture du quota diagramme
-  (§ 11), par catégorie.
-- Planchers/plafonds par catégorie pour les seuils dynamiques (§ 7), et durée de lissage.
-- Forme exacte de `p(score)` (§ 9) : clamp linéaire ou sigmoïde en table, et son plancher pour le plus
-  petit agent.
-- Durée jusqu'à `p = 1` (liveness, § 9) et durée de la fenêtre du quota diagramme (§ 11).
-- Signaux exacts qui définissent un réseau « défensif » ou « appauvri », par catégorie (§ 7).
-- Vecteur de ressources exact porté par un job (quelles dimensions, quelle granularité) — à définir
-  avec `sil-workload-spec`.
-- Protection anti-sybil à l'échelle d'une population de clés (reconnue non résolue, § 11) : coût
-  d'entrée différé, preuve de travail légère, ou lien à une identité externe — à trancher séparément.
-- Jeu précis de sondes/défis par dimension (réseau, disque, GPU) et leur fréquence.
+- Minimum number of evaluations before leaving probation (§ 6, § 11).
+- Hard-coded certainty threshold for "extreme value" (§ 6) and for opening the diagram quota (§ 11), per category.
+- Floors and ceilings per category for the dynamic thresholds (§ 7), and smoothing duration.
+- Exact form of `p(score)` (§ 9): linear clamp or sigmoid in a table, and its floor for the smallest agent.
+- Duration until `p = 1` (liveness, § 9) and window duration of the diagram quota (§ 11).
+- Exact signals that define a "defensive" or "depleted" network, per category (§ 7).
+- Exact resource vector carried by a job (which dimensions, what granularity) — to be defined with `sil-workload-spec`.
+- Anti-sybil protection at the scale of a key population (acknowledged as unresolved, § 11): deferred entry cost, light
+  proof of work, or a link to an external identity — to be decided separately.
+- Exact set of probes/challenges per dimension (network, disk, GPU) and their frequency.
 
-## Plan d'implémentation
+## Implementation plan
 
-Ordre de dépendance : l'ADR 0009 (ancrage sur slot) est un prérequis dur des phases 3 à 7 (toute
-mesure de durée et toute graine de tirage en dépend). Les phases 1 et 2 sont indépendantes et peuvent
-commencer immédiatement.
+Dependency order: ADR 0009 (slot anchoring) is a hard prerequisite of phases 3 to 7 (every duration measurement and
+every draw seed depends on it). Phases 1 and 2 are independent and can start immediately.
 
-1. **Fondations bayésiennes déterministes** — **fait** : crate `sil-bayes`
-   (`BetaPosterior`, `NormalGammaPosterior`, module `fixed` : `exp_micro`, `ln_micro`, `sqrt_micro`,
-   `phi_micro`, tous en `i128`, aucune fonction transcendante système). Tests de fermeture exacte
-   (Beta(1,1) linéaire, Beta(2,1) quadratique, Beta(a,a) symétrique à 0,5) et de déterminisme.
-2. **Vecteurs de ressources des workloads** — **fait**, avec la simplification du § 3 : champ
-   `resources` dans `contracts/workloads/*.json`, validé et émis par `tools/workloads/generate.mjs`
-   vers `sil-workload-spec::Resources` (Rust), `workloadspec.Resources` (Go) et `WorkloadSpec`
-   (TypeScript, champ `resources`).
-3. **Sondes et défis signés** — nouveau type d'événement de journal (observation d'un pair sur un
-   autre : latence, débit, lecture/écriture disque), signature, règles d'acceptation
-   (indiscernabilité d'un vrai job, fréquence).
-4. **Diagrammes puissance → résultat** — construction par dimension à partir des mesures vérifiées
-   (phases 1 et 3), calcul des quantiles bas, un diagramme par dimension (pas un agrégat unique).
-5. **État du réseau déterministe et seuils dynamiques** — fonction du journal (taux de litige /
-   vérificateurs actifs, etc.), régulation clamp + sigmoïde en table, lissage temporel, bornes
-   codées en dur par catégorie.
-6. **Tirage probabiliste des claims** — `hash(graine_slot ‖ claim_id) < p(score)`, `p` croissant avec
-   l'attente (liveness), intégration dans le flux de claim actuel (ADR 0005) sans tiers tireur.
-7. **Quotas et probation** — quota de claims actifs dérivé du diagramme (quantile bas) une fois le
-   seuil de confiance atteint, caution remboursable au-delà du premier claim, probation à un claim
-   pour un agent neuf, intégration avec `max_parallel` existant.
-8. **Ciblage déterministe des fragments** — ordre de préférence par worker
-   (`hash(clé ‖ job ‖ fragment)`) et balayage par rang côté nœud (`sil-node`).
-9. **Bandit d'exploration (démarrage)** — échantillonnage de Thompson pour proposer, de temps en
-   temps, des claims hors du profil appris d'un agent neuf ou peu spécialisé.
-10. **Retrait de l'usage attributif de `sil-reputation` v1** — l'ancien score scalaire local cesse de
-    peser sur toute attribution ; il peut rester comme opinion d'affichage seulement.
+1. **Deterministic Bayesian foundations** — **done**: crate `sil-bayes` (`BetaPosterior`, `NormalGammaPosterior`,
+   module `fixed`: `exp_micro`, `ln_micro`, `sqrt_micro`, `phi_micro`, all in `i128`, no system transcendental
+   function). Exact closure tests (Beta(1,1) linear, Beta(2,1) quadratic, Beta(a,a) symmetric at 0.5) and determinism
+   tests.
+2. **Resource vectors of workloads** — **done**, with the simplification of § 3: a `resources` field in
+   `contracts/workloads/*.json`, validated and emitted by `tools/workloads/generate.mjs` to
+   `sil-workload-spec::Resources` (Rust), `workloadspec.Resources` (Go) and `WorkloadSpec` (TypeScript, field
+   `resources`).
+3. **Signed probes and challenges** — new ledger event type (a peer's observation of another: latency, throughput,
+   disk read/write), signature, acceptance rules (indistinguishable from a real job, frequency).
+4. **Power → result diagrams** — construction per dimension from verified measurements (phases 1 and 3), computation of
+   the low quantiles, one diagram per dimension (not a single aggregate).
+5. **Deterministic network state and dynamic thresholds** — function of the ledger (dispute rate / active verifiers,
+   etc.), clamp regulation plus sigmoid in a table, temporal smoothing, bounds hard-coded per category.
+6. **Probabilistic claim draw** — `hash(slot_seed ‖ claim_id) < p(score)`, `p` increasing with the waiting time
+   (liveness), integrated into the current claim flow (ADR 0005) without a third-party drawer.
+7. **Quotas and probation** — active-claim quota derived from the diagram (low quantile) once the confidence threshold
+   is reached, refundable bond beyond the first claim, one-claim probation for a new agent, integration with the existing
+   `max_parallel`.
+8. **Deterministic targeting of fragments** — preference order per worker (`hash(key ‖ job ‖ fragment)`) and rank sweep
+   on the node side (`sil-node`).
+9. **Exploration bandit (bootstrapping)** — Thompson sampling to propose, from time to time, claims outside the learned
+   profile of a new or weakly specialized agent.
+10. **Removal of the attributive use of `sil-reputation` v1** — the old local scalar score stops weighing on any
+    allocation; it can remain as a display opinion only.
 
-## Issues associées
+## Related issues
 
-Voir le dépôt GitHub : une issue par phase ci-dessus, préfixée `reputation:`, référençant cet ADR.
+See the GitHub repository: one issue per phase above, prefixed `reputation:`, referencing this ADR.

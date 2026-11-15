@@ -1,64 +1,63 @@
-> **Remplacé par ADR 0007 :** le vote `SoloAccept` et le mode solo sont supprimés.
+> **Superseded by ADR 0007:** the `SoloAccept` vote and the solo mode are removed.
 
-# ADR 0004 : vérification solo (un nœud seul vérifie son propre calcul)
+# ADR 0004: solo verification (a lone node verifies its own computation)
 
-## Contexte
+## Context
 
-Un résultat doit être vérifié par un vérificateur **distinct** du claimant (`verdicts.rs` :
-`the_claimant_cannot_be_its_own_verifier`, et `security.rs` : le claimant ne gonfle pas le certificat
-avec sa propre approbation). Sur un réseau d'un seul nœud, rien ne peut donc finaliser un calcul.
-Le besoin : pouvoir tester et faire tourner le réseau seul, sans affaiblir le cas normal.
+A result must be verified by a verifier **distinct** from the claimant (`verdicts.rs`:
+`the_claimant_cannot_be_its_own_verifier`, and `security.rs`: the claimant cannot inflate the
+certificate with its own approval). On a network of a single node, nothing can therefore finalize a
+computation. The need: be able to test and run the network alone, without weakening the normal case.
 
-## Décision
+## Decision
 
-Un nouveau vote du comité, `SoloAccept { fragment, attempt, offer }`, retient **l'offre de
-vérification du claimant lui-même**. Il n'est valable que si l'offre est un `VerifyOffer` de
-la tentative **émis par le claimant**. Le résultat porte le drapeau `solo` (`VerifierState.solo`).
+A new committee vote, `SoloAccept { fragment, attempt, offer }`, accepts **the claimant's own
+verification offer**. It is valid only if the offer is a `VerifyOffer` of the attempt **issued by the
+claimant**. The result carries the flag `solo` (`VerifierState.solo`).
 
-Chemin, pour une tentative publiée à `t0` :
+Path, for an attempt published at `t0`:
 
-1. le claimant publie son `Submit` ;
-2. le claimant attend `solo_wait_ms` ; si aucun autre vérificateur ne s'est proposé
-   (`open_verifications` vide, hors claimant), il émet son propre `VerifyOffer` ;
-3. le comité, à `t0 + solo_wait_ms`, sans autre offre ni vérificateur retenu, vote `SoloAccept`
-   sur cette offre ;
-4. le claimant vérifie son calcul et publie son `Attest`, comme un vérificateur ordinaire.
+1. the claimant publishes its `Submit`;
+2. the claimant waits `solo_wait_ms`; if no other verifier has offered itself
+   (`open_verifications` empty, excluding the claimant), it issues its own `VerifyOffer`;
+3. at `t0 + solo_wait_ms`, with no other offer and no accepted verifier, the committee votes
+   `SoloAccept` on that offer;
+4. the claimant verifies its computation and publishes its `Attest`, like an ordinary verifier.
 
-Le cas normal ne change pas : `VerifierAccept` ne retient toujours que des offres d'autres
-auteurs que le claimant. `SoloAccept` ne retient que des offres du claimant.
+The normal case does not change: `VerifierAccept` still accepts only offers from authors other than
+the claimant. `SoloAccept` accepts only offers from the claimant.
 
-## Garde-fous
+## Guardrails
 
-- **Désactivé par défaut** (`[testnet] solo_verify = false`).
-- **Refusé avec `[chain]`** : un résultat qui rapporte de l'argent doit être vérifié par un tiers.
-- **Visible** : `solo: true` dans l'état du job. Une interface peut afficher « vérifié par le seul
-  nœud » et le rapport de réputation peut en tenir compte.
-- **Décidé par le comité** : le claimant ne peut pas se retenir lui-même. Un `SoloAccept` émis
-  par un non-membre est refusé à l'insertion (`job.rs`).
-- **Seulement si personne d'autre ne s'est proposé** : tant qu'un autre vérificateur existe, le cas
-  normal s'applique.
+- **Disabled by default** (`[testnet] solo_verify = false`).
+- **Refused with `[chain]`**: a result that pays money must be verified by a third party.
+- **Visible**: `solo: true` in the job state. An interface can show "verified by the only node", and
+  the reputation report can take it into account.
+- **Decided by the committee**: the claimant cannot accept itself. A `SoloAccept` issued by a
+  non-member is refused on insertion (`job.rs`).
+- **Only if nobody else offered**: while another verifier exists, the normal case applies.
 
-## Conséquences
+## Consequences
 
-- Un résultat **solo** n'est pas un résultat contrôlé : le claimant juge son propre calcul. Sur un
-  réseau ouvert, un worker malhonnête peut faire passer un faux résultat s'il est seul ou si les
-  autres vérificateurs restent muets pendant `solo_wait_ms`. C'est acceptable seulement en test.
-- Le comité seul décide de la fenêtre. Un comité qui triche peut retenir un solo prématurément :
-  même confiance que pour les autres votes du comité.
-- Le format des événements existants ne change pas : `SoloAccept` est un variant ajouté.
+- A **solo** result is not a controlled result: the claimant judges its own computation. On an open
+  network, a dishonest worker can get a false result accepted if it is alone or if the other verifiers
+  stay silent during `solo_wait_ms`. This is acceptable only in testing.
+- The committee alone decides the window. A cheating committee can accept a solo result early: same
+  trust as for the other committee votes.
+- The format of existing events does not change: `SoloAccept` is an added variant.
 
-## Alternatives écartées
+## Discarded alternatives
 
-- **Supprimer la règle « pas de self-vérification »** : le claimant approuverait toujours son
-  propre calcul, sans trace. Refusé.
-- **Vérifier « seul sur le réseau » par la présence (gossip)** : non déterministe, non vérifiable
-  par les autres nœuds. Refusé : la décision reste dans le journal signé.
-- **Un nœud sans vérification (accepter sans contrôle)** : pire, le drapeau `solo` le rend visible.
+- **Remove the "no self-verification" rule**: the claimant would always approve its own computation,
+  with no trace. Rejected.
+- **Check "alone on the network" through presence (gossip)**: non-deterministic, not verifiable by
+  other nodes. Rejected: the decision stays in the signed ledger.
+- **A node without verification (accept without checking)**: worse; the `solo` flag makes it visible.
 
-## Vérification
+## Verification
 
-- `sil-ledger` : un `SoloAccept` sur sa propre offre retient le claimant (`solo: true`) ; un
-  `SoloAccept` sur l'offre d'un autre est ignoré.
-- `sil-coordinator` : pas de vote avant le délai ; vote après le délai ; pas de solo si un autre
-  vérificateur s'est proposé ; pas de solo sans `with_solo`.
-- `sil-node` : un nœud seul finalise un job (`a_lone_node_verifies_its_own_result_and_finalizes`).
+- `sil-ledger`: a `SoloAccept` on its own offer accepts the claimant (`solo: true`); a `SoloAccept` on
+  another author's offer is ignored.
+- `sil-coordinator`: no vote before the delay; vote after the delay; no solo if another verifier offered
+  itself; no solo without `with_solo`.
+- `sil-node`: a lone node finalizes a job (`a_lone_node_verifies_its_own_result_and_finalizes`).

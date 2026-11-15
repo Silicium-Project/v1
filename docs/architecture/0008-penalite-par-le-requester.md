@@ -1,42 +1,41 @@
-# ADR 0008 : pénalité signée par le requester
+# ADR 0008: penalty signed by the requester
 
-**Statut :** accepté (demande du 8 novembre 2026, « corrige les limites »).
+**Status:** accepted (request of 8 November 2026, "fix the limits").
 
-## Contexte
+## Context
 
-ADR 0007 a retiré le comité et, avec lui, les pénalités : plus d'autorité pour sanctionner un
-vérificateur qui approuve un résultat faux. Sans sanction, un vérificateur ne perd jamais sa
-réputation, et le gate de réputation (ADR 0006) ne bloque que les clés non enregistrées. La
-protection Sybil est plus faible qu'en V0.
+ADR 0007 removed the committee and, with it, the penalties: no authority remained to sanction a verifier
+that approves a false result. Without sanctions, a verifier never loses its reputation, and the
+reputation gate (ADR 0006) only blocks unregistered keys. Sybil protection is weaker than in V0.
 
-## Décision
+## Decision
 
-Le **requester** du job peut pénaliser un approbateur d'un fragment réglé :
+The **requester** of the job can penalize an approver of a settled fragment:
 
-- Instruction `Penalize(PenaltyArgs { fragment, verifier })`. Le requester signe la transaction : pas
-  de précompilé Ed25519, pas de comité.
-- Règles : la transaction est signée par `terms.requester` ; le vérificateur a approuvé ce fragment
-  (`SettledFragment.approvers`) ; une seule pénalité par (fragment, vérificateur) ; le vérificateur a
-  un compte de réputation.
-- Effet : score − 1 000, plancher 0. Trois pénalités sur trois fragments sortent un vérificateur de
-  l'éligibilité (5 000 → 2 000).
+- Instruction `Penalize(PenaltyArgs { fragment, verifier })`. The requester signs the transaction: no
+  Ed25519 precompile, no committee.
+- Rules: the transaction is signed by `terms.requester`; the verifier approved this fragment
+  (`SettledFragment.approvers`); one penalty per (fragment, verifier); the verifier has a reputation
+  account.
+- Effect: score − 1,000, floor 0. Three penalties on three fragments remove a verifier from eligibility
+  (5,000 → 2,000).
 
-## Pourquoi le requester
+## Why the requester
 
-Il est la seule partie lésée par un résultat faux : il paie le job et reçoit le résultat. Il a donc
-intérêt à sanctionner. Il ne gagne rien à sanctionner un vérificateur honnête.
+It is the only party harmed by a false result: it pays for the job and receives the result. It therefore
+has an interest in sanctioning. It gains nothing by sanctioning an honest verifier.
 
-## Limites
+## Limits
 
-- Le requester peut sanctionner à tort. Un vérificateur honnête peut donc perdre des points. Une
-  contestation par preuve de divergence (recalcul sur chaîne) n'existe pas encore.
-- Un requester complice d'un worker peut laisser passer un résultat faux, sans pénalité.
-- La pénalité est manuelle : le requester doit observer la faute (recalcul hors chaîne) et envoyer
-  la transaction.
+- The requester can sanction wrongly. An honest verifier can therefore lose points. A challenge based on
+  a proof of divergence (recomputation on chain) does not exist yet.
+- A requester colluding with a worker can let a false result pass, without penalty.
+- The penalty is manual: the requester must observe the fault (off-chain recomputation) and send the
+  transaction.
 
-## Conséquences
+## Consequences
 
-- Adaptateur : `penalize_ix` (signée par le requester seul).
-- Programme : instruction `Penalize`, compte de réputation écrit (enregistrement de sa pénalité
-  dans le compte d'escrow : une entrée par approbateur et fragment).
-- Le comité reste absent : seul le requester autorise une pénalité.
+- Adapter: `penalize_ix` (signed by the requester only).
+- Program: instruction `Penalize`, reputation account written (its penalty is recorded in the escrow
+  account: one entry per approver and fragment).
+- The committee stays absent: only the requester authorizes a penalty.

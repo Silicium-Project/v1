@@ -1,34 +1,32 @@
-# ADR 0011 — Analyse des fichiers en WASM sous Windows
+# ADR 0011 — Analysing untrusted files in WASM on Windows
 
-**Statut** : décidée, non implémentée.
+**Status**: decided, not implemented.
 
-## Contexte
+## Context
 
-Sous Linux, le rendu tourne dans une sandbox forte (landlock, limites de ressources,
-`sil-sandbox-launch`). Sous Windows, l'isolation est « best-effort » : seul l'arrêt de l'arbre de
-processus est garanti. Le risque restant est un bug dans l'analyse d'un fichier non fiable (scène
-`.cfg`, image).
+On Linux, rendering runs in a strong sandbox (landlock, resource limits, `sil-sandbox-launch`). On Windows,
+isolation is "best-effort": only the stop of the process tree is guaranteed. The remaining risk is a bug in the
+parsing of an untrusted file (`.cfg` scene, image).
 
-## Décision
+## Decision
 
-Sous Windows, l'analyse des fichiers non fiables s'exécute dans un module WASM, pas dans le processus
-natif. Le module n'a aucun accès au système de fichiers, au réseau ni à l'horloge, et reçoit des
-limites de mémoire et de temps. Un bug d'analyse reste confiné au module.
+On Windows, the parsing of untrusted files runs in a WASM module, not in the native process. The module has no
+access to the file system, the network or the clock, and receives memory and time limits. A parsing bug stays
+confined to the module.
 
-- La crate `sil-render-wasm` porte ce module. Le test `tests/raytracer_parity.rs` vérifie que le
-  résultat WASM est identique au rendu natif.
-- Le nœud Windows appelle le module pour l'analyse, puis passe les données validées au rendu.
-- Linux garde la sandbox existante.
+- The crate `sil-render-wasm` holds this module. The test `tests/raytracer_parity.rs` checks that the WASM result
+  is identical to the native rendering.
+- The Windows node calls the module for parsing, then passes the validated data to rendering.
+- Linux keeps the existing sandbox.
 
-## Conséquences
+## Consequences
 
-- La limite actuelle (« un rendu non vérifié n'est pas isolé sous Windows ») disparaît une fois le
-  module en place pour tous les workloads concernés.
-- Coût : le rendu WASM est plus lent que le natif. La parité de résultat est une condition, pas la
-  vitesse.
-- Le rendu lui-même peut rester natif si seule l'analyse est isolée ; à trancher selon les mesures.
+- The current limit ("an unverified render is not isolated on Windows") disappears once the module is in place for
+  all the workloads concerned.
+- Cost: WASM rendering is slower than native. Result parity is a condition, not speed.
+- Rendering itself can stay native if only parsing is isolated; to be decided from measurements.
 
-## Points ouverts
+## Open points
 
-- Liste des workloads dont l'analyse passe en WASM (`rendu/raytracer`, `image/batch`).
-- Moteur WASM retenu et limites de mémoire et de temps.
+- List of workloads whose parsing moves to WASM (`rendu/raytracer`, `image/batch`).
+- Chosen WASM engine and memory and time limits.

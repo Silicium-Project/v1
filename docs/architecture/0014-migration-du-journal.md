@@ -1,57 +1,52 @@
-# ADR 0014 — Migration du journal entre versions
+# ADR 0014 — Ledger migration between versions
 
-**Statut** : proposée. Aucun code de migration n'existe encore. Décision à valider avant implémentation.
+**Status**: proposed. No migration code exists yet. Decision to be validated before implementation.
 
-## Contexte
+## Context
 
-Le journal (`ledger/seg-*.log`) stocke les événements signés tels quels. Un changement de format
-rend l'ancien journal illisible par la nouvelle version : `encodage non canonique` au démarrage.
-C'est arrivé avec la 1.8 (claims ancrés, verdicts en trame binaire fixe). Les nœuds ont dû être
-remis à zéro, et leur historique local (gains en attente, réputation locale) a été perdu.
+The ledger (`ledger/seg-*.log`) stores signed events as they are. A format change makes the old ledger unreadable
+by the new version: `encodage non canonique` (non-canonical encoding) at start-up. This happened with 1.8 (anchored
+claims, verdicts in a fixed binary frame). The nodes had to be reset, and their local history (pending earnings, local
+reputation) was lost.
 
-Le numéro `EVENT_VERSION` (u8, `crates/sil-ledger/src/event.rs`) existe, mais il ne dit pas comment
-lire les anciennes versions. Aucun décodeur ancien n'est conservé.
+The version number `EVENT_VERSION` (u8, `crates/sil-ledger/src/event.rs`) exists, but it does not say how to read older
+versions. No decoder for an old version is kept.
 
-## Contraintes
+## Constraints
 
-1. **Les événements sont signés.** Une migration ne peut pas re-signer un événement : elle doit
-   conserver les octets d'origine, ou réécrire avec une autorité explicite. Un événement réécrit
-   sans sa signature n'est plus une preuve.
-2. **Les règles changent avec les versions.** Un claim ancré (1.8) n'a pas de sens sous les règles
-   de 1.7 : la fraîcheur se juge à la publication, pas à la relecture.
-3. **Aucune migration automatique au démarrage** (règle de `docs/technical/backup.md`, point 3).
-4. **Sauvegarde vérifiée avant toute migration** (protocole existant, `infra/vps/backup.sh`).
+1. **Events are signed.** A migration cannot re-sign an event: it must keep the original bytes, or rewrite under an
+   explicit authority. An event rewritten without its signature is no longer a proof.
+2. **Rules change between versions.** An anchored claim (1.8) has no meaning under the rules of 1.7: freshness is judged
+   at publication, not on re-reading.
+3. **No automatic migration at start-up** (rule of `docs/technical/backup.md`, point 3).
+4. **Verified backup before any migration** (existing protocol, `infra/vps/backup.sh`).
 
 ## Options
 
-**A. Décodeurs versionnés + outil de migration hors ligne.** Le journal porte un en-tête de version.
-Le nœud garde les décodeurs des versions encore présentes. `silicium-migrate` lit un ancien journal,
-vérifie chaque signature avec son décodeur, et écrit un journal neuf (même contenu, format neuf).
-Les événements dont les règles ont changé sont recopiés comme **historique clos** (marqués, jamais
-rejoués comme claims actifs).
+**A. Versioned decoders + offline migration tool.** The ledger carries a version header. The node keeps the decoders of
+the versions still present. `silicium-migrate` reads an old ledger, verifies each signature with its decoder, and writes
+a new ledger (same content, new format). Events whose rules have changed are copied as **closed history** (marked, never
+replayed as active claims).
 
-**B. Instantané signé.** Le nœud signe un état (réputation, fragments finalisés, règlements en
-attente) à un instant donné et ne garde que l'instantané et les événements après lui. Plus simple à
-faire évoluer, mais la preuve historique est perdue.
+**B. Signed snapshot.** The node signs a state (reputation, finalized fragments, pending settlements) at a given instant
+and keeps only the snapshot and the events after it. Simpler to evolve, but the historical proof is lost.
 
-**C. Reset (situation actuelle).** Acceptable pour un réseau de test, pas pour un réseau réel.
+**C. Reset (current situation).** Acceptable for a test network, not for a real network.
 
-## Décision proposée
+## Proposed decision
 
-Option **A** pour la transition, puis **B** comme format de fond une fois la réputation et les
-règlements stabilisés.
+Option **A** for the transition, then **B** as the long-term format once reputation and settlements are stable.
 
-Règles :
-- l'en-tête du journal porte `format_version` ; un nœud refuse un journal dont la version lui est
-  inconnue, avec un message qui renvoie vers `silicium-migrate` ;
-- `silicium-migrate` n'écrit jamais sur l'original : il crée un dossier `ledger.v<N>` à côté et
-  affiche les sommes avant et après ;
-- chaque migration est précédée d'une sauvegarde vérifiée ;
-- les décodeurs des anciennes versions sont gelés (tests de non-régression sur des fichiers réels,
-  sous `crates/sil-ledger/tests/fixtures/`).
+Rules:
+- the ledger header carries `format_version`; a node refuses a ledger whose version it does not know, with a message
+  pointing to `silicium-migrate`;
+- `silicium-migrate` never writes over the original: it creates a `ledger.v<N>` directory next to it and prints the
+  checksums before and after;
+- every migration is preceded by a verified backup;
+- the decoders of old versions are frozen (regression tests on real files, under `crates/sil-ledger/tests/fixtures/`).
 
-## Conséquences
+## Consequences
 
-- Les nœuds gardent leur identité (`node.seed`) et leur historique signé pendant une mise à jour.
-- Coût : maintenir des décodeurs gelés, et des fixtures par version.
-- Le nombre de versions à migrer doit rester borné (une précédente, pas plus).
+- Nodes keep their identity (`node.seed`) and their signed history during an update.
+- Cost: maintaining frozen decoders and per-version fixtures.
+- The number of versions to migrate must stay bounded (the previous one, no more).

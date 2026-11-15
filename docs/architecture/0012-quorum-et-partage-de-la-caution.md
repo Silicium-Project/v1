@@ -1,88 +1,82 @@
-# ADR 0012 — Vote du quorum, pénalité de la minorité et partage de la caution
+# ADR 0012 — Quorum vote, minority penalty and sharing of the bond
 
-**Statut** : implémentée côté chaîne (`sil-chain-core`, programme, adaptateur). La preuve est le
-verdict déjà signé par chaque vérificateur (`Domain::Attestation`), reconstruit on-chain dans un
-format binaire fixe (`attestation_frame`, identique à `sil_attest::verdict_message`). Contraire =
-approuver un autre résultat, ou rejeter le résultat réglé avec sa preuve. Le nœud n'a rien de
-plus à produire.
+**Status**: implemented on the chain side (`sil-chain-core`, program, adapter). The proof is the verdict already
+signed by each verifier (`Domain::Attestation`), rebuilt on-chain in a fixed binary format (`attestation_frame`,
+identical to `sil_attest::verdict_message`). Contrary = approving another result, or rejecting the settled result
+with its proof. The node has nothing more to produce.
 
-Envoi : le nœud détecte les verdicts contraires des vérificateurs retenus (`penalty_claims`, sur la
-tentative finalisée), les met en file (`PenaltyBox`, sil-settlement) quand le règlement est confirmé,
-et les envoie via `Chain::penalize`. Seul un nœud qui paie les frais envoie. La file n'est pas
-sauvegardée : elle est reconstruite depuis le journal à chaque tour. Les verdicts tolérance
-(embedding) sont couverts : ils ont leur propre trame (`tolerance_frame`, domaine
-`sil/v1/attestation-tolerance`), et seuls ceux dont le modèle et le runtime sont ceux du job comptent. Complète l'ADR 0010 et remplace la pénalité signée par le
-requester (ADR 0008). Aujourd'hui le code confisque la caution sur la seule signature du requester et
-la verse au requester.
+Sending: the node detects the contrary verdicts of the selected verifiers (`penalty_claims`, on the finalized
+attempt), queues them (`PenaltyBox`, sil-settlement) once the settlement is confirmed, and sends them through
+`Chain::penalize`. Only a node that pays the fees sends. The queue is not persisted: it is rebuilt from the ledger
+on every round. Tolerance verdicts (embedding) are covered: they have their own frame (`tolerance_frame`, domain
+`sil/v1/attestation-tolerance`), and only those whose model and runtime match the job's count. This complements
+ADR 0010 and replaces the penalty signed by the requester (ADR 0008). Today the code confiscates the bond on the
+requester's signature alone and pays it to the requester.
 
-## Flux
+## Flow
 
-1. Le requester soumet une tâche sur le site. Il ouvre l'escrow et dépose les fonds.
-2. Les workers récupèrent les fragments, calculent et publient leurs résultats.
-3. Un quorum de `k` vérificateurs vérifie chaque fragment et vote. Les votes sont des événements
-   signés du journal ; le quorum reste hors chaîne.
-4. Le résultat retenu est celui de la majorité. Les approbateurs de la majorité signent le règlement,
-   qui est on-chain.
-5. Un vérificateur qui a voté l'inverse de la majorité est considéré malveillant. Il est puni.
-6. Si aucun vérificateur ne s'est trompé, personne ne touche la caution : chaque vérificateur la
-   récupère à l'échéance (ADR 0010 : 20 règlements ou 24 h après son dernier vote).
+1. The requester submits a task on the website. It opens the escrow and deposits the funds.
+2. Workers pick up the fragments, compute, and publish their results.
+3. A quorum of `k` verifiers checks each fragment and votes. Votes are signed events of the ledger; the quorum
+   itself stays off-chain.
+4. The accepted result is the majority's. The majority's approvers sign the settlement, which is on-chain.
+5. A verifier that voted against the majority is considered malicious. It is penalized.
+6. If no verifier was wrong, nobody touches the bond: each verifier recovers it at its deadline (ADR 0010: 20
+   settlements or 24 h after its last vote).
 
-## Décision proposée
+## Proposed decision
 
-### 1. Pénalité de la minorité
+### 1. Minority penalty
 
-Un vérificateur qui a voté contre la majorité sur un fragment perd de la réputation (ADR 0008) et la
-caution de ce fragment : la part de sa réserve égale à 50 % de la récompense de vérificateur de ce
-fragment, plafonnée à sa réserve actuelle (ADR 0010).
+A verifier that voted against the majority on a fragment loses reputation (ADR 0008) and the bond of that
+fragment: the part of its reserve equal to 50% of that fragment's verifier reward, capped at its current reserve
+(ADR 0010).
 
-### 2. Partage de la caution confisquée
+### 2. Sharing of the confiscated bond
 
-- **70 %** au requester.
-- **30 %** partagés à parts égales entre les membres du quorum qui ont voté avec la majorité.
-- Sans vérificateur malveillant, rien n'est confisqué.
+- **70%** to the requester.
+- **30%** shared equally among the quorum members who voted with the majority.
+- Without a malicious verifier, nothing is confiscated.
 
-### 3. Preuve
+### 3. Proof
 
-Le quorum étant hors chaîne, la preuve vient de la transaction de pénalité :
+The quorum being off-chain, the proof comes from the penalty transaction:
 
-- **Majorité** : la liste des approbateurs réglés est déjà on-chain. Elle donne les bénéficiaires des
-  30 %, sans rien ajouter.
-- **Minorité** : la transaction joint la signature du vote du fautif sur un résultat différent du
-  résultat réglé, pour le même job, fragment et tentative. Le programme la vérifie avec le
-  précompilé Ed25519, comme pour un règlement. Le fautif a signé lui-même ce vote : personne ne peut
-  le fabriquer à sa place.
-- **Qui décide** : le quorum. La pénalité découle de la signature du vote contraire à la majorité, pas
-  d'une décision du requester. Le requester n'a aucun pouvoir de pénalité. La transaction peut être
-  envoyée par n'importe qui, mais le programme n'applique la pénalité que si la preuve de vote
-  contraire est valide. Un seul envoi par (fragment, vérificateur).
+- **Majority**: the list of settled approvers is already on-chain. It gives the beneficiaries of the 30%, with
+  nothing added.
+- **Minority**: the transaction attaches the signature of the offender's vote on a result different from the
+  settled result, for the same job, fragment and attempt. The program verifies it with the Ed25519 precompile,
+  as for a settlement. The offender signed that vote itself: nobody can forge it on its behalf.
+- **Who decides**: the quorum. The penalty follows from the signature of the vote contrary to the majority, not
+  from a decision of the requester. The requester has no penalty power. Anyone can send the transaction, but the
+  program applies the penalty only if the proof of contrary vote is valid. A single submission per (fragment,
+  verifier).
 
-### 4. Taille du quorum `k`
+### 4. Size of the quorum `k`
 
-`k` est toujours impair. Ainsi une majorité stricte existe toujours : elle vaut `(k+1)/2` votes, et
-il n'y a jamais d'égalité.
+`k` is always odd. A strict majority therefore always exists: it is `(k+1)/2` votes, and there is never a tie.
 
-`k` dépend de la valeur de la tâche et du nombre de vérificateurs disponibles. Règle par défaut :
-`k = plus grand impair ≤ min(max(k_valeur, k_min), k_dispo, 15)`, c'est-à-dire la plus grande
-exigence, plafonnée par les vérificateurs disponibles, et ramenée à un nombre impair. Le plafond est
-15 : 16 est pair. Variante à trancher : pondérer par la réputation.
+`k` depends on the value of the task and on the number of available verifiers. Default rule:
+`k = largest odd number ≤ min(max(k_value, k_min), k_available, 15)`, that is, the highest requirement, capped
+by the available verifiers, and rounded down to an odd number. The cap is 15: 16 is even. Variant to decide:
+weighting by reputation.
 
-## Conséquences
+## Consequences
 
-- **Pas de preuve de sybil à fournir sur la majorité** : seuls des vérificateurs ayant signé le
-  règlement reçoivent les 30 %. Un requester ne peut pas fabriquer le vote d'un tiers.
-- **Format** : nouveau message signé de vote (domaine propre, à définir) et nouvelle forme de
-  `Penalize` (signature du vote fautif jointe). Le compte d'escrow ne change pas.
-- **Fin du pouvoir unilatéral du requester** : il ne peut plus confisquer sans vote contraire signé.
-- **Le requester n'est pénalisé en rien** s'il n'y a pas de fautif : la caution revient au
-  vérificateur.
-- Déploiement incompatible, comme l'ADR 0010.
+- **No sybil proof needed for the majority**: only verifiers that signed the settlement receive the 30%. A
+  requester cannot fabricate a third party's vote.
+- **Format**: a new signed vote message (its own domain, to be defined) and a new form of `Penalize` (signature of
+  the offending vote attached). The escrow account does not change.
+- **End of the requester's unilateral power**: it can no longer confiscate without a signed contrary vote.
+- **The requester is penalized in nothing** if there is no offender: the bond goes back to the verifier.
+- Incompatible deployment, as in ADR 0010.
 
-## Points ouverts
+## Open points
 
-- Majorité : `(k+1)/2` votes identiques (acquis, k impair). Plus d'égalité à traiter.
-- Un vérificateur qui ne vote pas du tout n'est pas visé.
-- Un vote signé qui n'a pas été publié dans le journal avant le règlement : à quelle condition il
-  compte comme « contre ».
-- Message signé du vote et domaine de signature.
-- Valeur de `k_min` et fonction `k_valeur`.
-- Fenêtre de dépôt de la preuve : au plus tard avant la libération de la réserve (ADR 0010).
+- Majority: `(k+1)/2` identical votes (settled, k odd). No more ties to handle.
+- A verifier that does not vote at all is not targeted.
+- A signed vote that was not published in the ledger before settlement: under which condition it counts as
+  "against".
+- Signed vote message and signing domain.
+- Value of `k_min` and the function `k_value`.
+- Window for submitting the proof: at the latest before the release of the reserve (ADR 0010).

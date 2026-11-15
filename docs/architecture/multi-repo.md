@@ -1,9 +1,10 @@
-# ADR — Dépôts indépendants (v1)
+# ADR — Independent repositories (v1)
 
-Le monorepo v1 est remplacé par un méta-dépôt public et des composants épinglés par SHA.
+The v1 monorepo is replaced by a public meta-repository and components pinned by SHA.
 
-- Le méta-dépôt porte l'architecture, les ADR, `components.lock.json` et `.gitmodules`.
-- Chaque composant a son dépôt, son historique et sa CI. Le réseau est public ; les autres composants sont privés.
-- Une mise à jour de composant : PR dans le composant, puis PR dans le méta-dépôt qui met à jour le SHA
-  (gitlink et `components.lock.json` ensemble).
-- Aucun secret, clé de déploiement, certificat de signature ni `node.seed` ne se trouve dans un dépôt.
+- The meta-repository holds the architecture, the ADRs, `components.lock.json` and `.gitmodules`.
+- Each component has its own repository, its own history and its own CI. The network is public; the other components
+  are private.
+- A component update: a pull request in the component, then a pull request in the meta-repository that updates the SHA
+  (gitlink and `components.lock.json` together).
+- No secret, deployment key, signing certificate or `node.seed` belongs in any repository.

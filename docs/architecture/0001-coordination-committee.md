@@ -1,25 +1,24 @@
-# ADR 0001 — Comité de coordination par job
+# ADR 0001 — Per-job coordination committee
 
-**Statut :** remplacé par ADR 0007 (comité supprimé).
+**Status:** superseded by ADR 0007 (committee removed).
 
-## Contexte
-V0 : un publisher unique par tâche (point de défaillance, finalisation sans preuve de quorum).
+## Context
+V0: a single publisher per task (single point of failure; finalization without proof of quorum).
 
-## Décision
-Le requester signe un `JobSpec` listant n coordinateurs et un seuil m **strictement supérieur
-à n/2**. Une décision (claim retenu, vérificateur retenu, finalisation) existe quand m membres
-distincts ont émis le même vote : chaque vote est un événement ordinaire de la chaîne du
-membre (pas de signature agrégée). La majorité stricte rend deux décisions contradictoires
-impossibles. Pas de BFT global.
+## Decision
+The requester signs a `JobSpec` listing n coordinators and a threshold m **strictly greater than
+n/2**. A decision (claim accepted, verifier accepted, finalization) exists when m distinct members
+have emitted the same vote: each vote is an ordinary event on the member's own chain (no aggregated
+signature). The strict majority makes two contradictory decisions impossible. No global BFT.
 
-**Mise à jour (phase 2)** : la rotation d'époque prévue initialement n'est pas implémentée.
-La liveness exige m membres joignables ; en partition l'attente est sûre. La rotation reste
-à étudier avec la phase 4 (coordinateur).
+**Update (phase 2)**: the epoch rotation planned at first is not implemented. Liveness requires m
+reachable members; under partition, waiting is safe. Rotation remains to be studied with phase 4
+(coordinator).
 
 ## Alternatives
-- Publisher unique + reprise manuelle : simple, SPOF.
-- Consensus global (BFT) : lourd, inutile pour des jobs indépendants.
+- Single publisher with manual recovery: simple, but a single point of failure.
+- Global consensus (BFT): heavy, unnecessary for independent jobs.
 
-## Conséquences
-Plus de messages par job ; en partition, l'attente est sûre (jamais de finalisation forcée).
-Valeurs de (n, m) à fixer par mesure en phase 4.
+## Consequences
+More messages per job. Under partition, waiting is safe (never a forced finalization).
+The values of (n, m) must be set by measurement in phase 4.
