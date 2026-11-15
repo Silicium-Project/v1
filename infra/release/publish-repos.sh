@@ -65,4 +65,7 @@ gpg --batch --verify "$work/apt/dists/stable/Release.gpg" "$work/apt/dists/stabl
 
 # 7. Upload (no --delete: nothing is removed on the server).
 rsync -a --rsync-path="sudo rsync" "$work/" "$host:$remote_root/"
+if [ -n "${UPDATE_DIR:-}" ]; then
+  rsync -a --rsync-path="sudo rsync" "$UPDATE_DIR/" "$host:$remote_root/update/"
+fi
 echo "dépôts publiés ($SIL_ENV) : $remote_root"
