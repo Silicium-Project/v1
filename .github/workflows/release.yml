@@ -12,7 +12,58 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Bloquant : rien n'est construit, signé ni déployé si une suite échoue. Les tests tournent sur les
+  # SHA épinglés dans ce dépôt (mêmes commandes que les CI des composants).
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Réseau - moteurs wasm des tests, format, clippy, tests
+        working-directory: network
+        run: |
+          cargo build -p sil-raytracer --bin sil-raytracer-block --target wasm32-wasip1 --release
+          cargo build -p sil-wl-render --bin sil-render-reference --target wasm32-wasip1
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+      - name: API - vet, format, tests
+        working-directory: services/api
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+      - name: Site - typecheck et tests
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+      - name: Chaîne - vérification de chaque crate
+        working-directory: chain
+        run: |
+          for c in adapter devnet-job e2e node program; do
+            cargo check --manifest-path "$c/Cargo.toml"
+          done
+
   linux-binaries:
+    needs: [tests]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +105,7 @@ jobs:
           retention-days: 7
 
   windows-binaries:
+    needs: [tests]
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
