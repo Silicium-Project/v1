@@ -1,5 +1,37 @@
 {
+  "$schema": "v1/components-lock/1",
   "schema_version": 1,
   "repository": "Silicium-Project/v1",
-  "components": {}
+  "components": {
+    "network": {
+      "repository": "Silicium-Project/v1-network",
+      "path": "network",
+      "commit": "20fe5bd90ca8d21f587610d7260548ac2dba7e2a",
+      "visibility": "private"
+    },
+    "apps/desktop": {
+      "repository": "Silicium-Project/v1-desktop",
+      "path": "apps/desktop",
+      "commit": "0dfaefa81523ebb78385908d4bc2d331888388c8",
+      "visibility": "private"
+    },
+    "apps/web": {
+      "repository": "Silicium-Project/v1-web",
+      "path": "apps/web",
+      "commit": "a2788ba0ad67a70b951ddf414b8b7874df4c9452",
+      "visibility": "private"
+    },
+    "services/api": {
+      "repository": "Silicium-Project/v1-api",
+      "path": "services/api",
+      "commit": "5ccfc693491c28ef4af9ca7972308df7f2ed24f7",
+      "visibility": "private"
+    },
+    "chain": {
+      "repository": "Silicium-Project/v1-chain",
+      "path": "chain",
+      "commit": "023d0f6480909fc6b9859d0b3953924fccfa625a",
+      "visibility": "private"
+    }
+  }
 }
