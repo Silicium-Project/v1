@@ -1,4 +1,4 @@
-# Nœud de simulation b (conteneur). Amorcé sur le VPS. Pas de chaîne : travail sans paiement.
+# Nœud de simulation b (conteneur). Amorcé sur le VPS. Chaîne via relais (même configuration que le bureau).
 data_dir = "/data"
 
 [network]
@@ -10,8 +10,11 @@ enable_mdns = false
 bind = "127.0.0.1"
 port = 8750
 
-[testnet]
-free_work = true
+[chain]
+rpc_url = "https://api.devnet.solana.com"
+program_id = "5nvVoget71j65HtMZmfVJjnwSePDtrG5hzAPpjMbrMkx"
+relay_url = "https://siliciumlabs.org"
+
 
 [log]
 level = "info"
