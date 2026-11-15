@@ -198,7 +198,7 @@ jobs:
           retention-days: 30
 
   windows-installer:
-    needs: [windows-binaries]
+    needs: [windows-binaries, linux-binaries]
     runs-on: windows-2022
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     steps:
@@ -215,6 +215,10 @@ jobs:
         with:
           name: dist-windows-amd64
           path: dist/windows-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-linux-amd64
+          path: dist/linux-amd64
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
