@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 # Sauvegarde des données du VPS Silicium (journal, identité du nœud, base de l'API, configuration).
 #
-# Lecture seule : rien n'est écrit sur le VPS. Les archives sont tirées en flux vers ce poste, dans
-# un dossier horodaté, avec un manifeste SHA-256. Le script échoue si une donnée attendue manque.
+# Lecture seule côté VPS : rien n'est écrit sur le serveur. Les archives sont tirées en flux vers ce
+# poste, vérifiées, puis chiffrées avec une clé publique GPG. Seul le détenteur de la clé privée peut les lire.
 #
-# Usage, depuis la racine du dépôt :
-#   infra/vps/backup.sh utilisateur@hôte [dossier de destination]
-# Clé SSH : SIL_SSH_KEY (défaut ~/.ssh/id_ed25519). Destination par défaut : ~/silicium-backups.
+# Usage, depuis la racine du dépôt, sur le poste (pas dans la CI) :
+#   SIL_BACKUP_RECIPIENT=<empreinte GPG> infra/vps/backup.sh utilisateur@hôte [dossier de destination]
+# Variables : SIL_SSH_KEY (défaut ~/.ssh/id_ed25519), SIL_BACKUP_RECIPIENT (obligatoire, empreinte de la clé
+# publique GPG), destination par défaut ~/silicium-backups.
 #
-# Appelé automatiquement par infra/vps/deploy.sh avant toute modification : pas de déploiement sans
-# sauvegarde réussie.
+# Ce script n'est appelé par aucun déploiement. Avant d'approuver un déploiement de production, lancer
+# une sauvegarde depuis le poste.
 set -euo pipefail
 
 host="${1:?usage : infra/vps/backup.sh utilisateur@hôte [dossier]}"
 root="${2:-$HOME/silicium-backups}"
+recipient="${SIL_BACKUP_RECIPIENT:?SIL_BACKUP_RECIPIENT absent : empreinte de la clé publique GPG}"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dest="$root/vps-$stamp"
 key="${SIL_SSH_KEY:-$HOME/.ssh/id_ed25519}"
@@ -35,7 +37,14 @@ for must in '^node/node\.seed$' '^node/ledger/' '^api/silicium\.db$'; do
   grep -q "$must" "$dest/contenu-donnees.txt" || { echo "absent de la sauvegarde : $must" >&2; exit 1; }
 done
 grep -q '^silicium/node\.toml$' "$dest/contenu-configuration.txt" || { echo "absent : /etc/silicium/node.toml" >&2; exit 1; }
+rm -f "$dest/contenu-donnees.txt" "$dest/contenu-configuration.txt"
 
-(cd "$dest" && sha256sum donnees.tgz configuration.tgz > SHA256SUMS)
+# Chiffrement : seule la clé publique est nécessaire ici. Les versions en clair sont supprimées ensuite.
+for f in donnees.tgz configuration.tgz; do
+  gpg --batch --yes --trust-model always --recipient "$recipient" --encrypt --output "$dest/$f.gpg" "$dest/$f"
+  rm -f "$dest/$f"
+done
+
+(cd "$dest" && sha256sum donnees.tgz.gpg configuration.tgz.gpg > SHA256SUMS)
 (cd "$dest" && sha256sum -c SHA256SUMS >/dev/null)
-echo "sauvegarde vérifiée : $dest"
+echo "sauvegarde chiffrée et vérifiée : $dest"
