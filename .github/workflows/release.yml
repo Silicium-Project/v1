@@ -258,11 +258,15 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           echo "SIL_SSH_KEY=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
           echo "SIL_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
-      - name: Binaires (sauvegarde puis copie)
+      - name: Binaires (copie, sans sauvegarde)
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
         run: bash infra/vps/deploy.sh "$DEPLOY_HOST"
       - name: Site
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: tar -C apps/web/dist -cf - . | ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts "$DEPLOY_HOST" 'sudo tar -C /opt/silicium/web -xf -'
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+        run: |
+          site=/opt/silicium-dev/web; [ "$SIL_ENV" = prod ] && site=/opt/silicium/web
+          tar -C apps/web/dist -cf - . | ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts "$DEPLOY_HOST" "sudo tar -C $site -xf -"
