@@ -19,6 +19,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
@@ -55,6 +60,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
@@ -87,6 +97,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/download-artifact@v4
         with:
           name: dist-linux-amd64
@@ -117,6 +132,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/download-artifact@v4
         with:
           name: dist-windows-amd64
@@ -168,6 +188,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/download-artifact@v4
         with:
           name: packages-linux
@@ -210,6 +235,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - name: Accès aux dépendances privées (cargo)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.COMPONENTS_READ_TOKEN }}
+        run: git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/download-artifact@v4
         with:
           name: dist-linux-amd64
