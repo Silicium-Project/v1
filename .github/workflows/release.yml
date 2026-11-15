@@ -1,0 +1,235 @@
+# Release : dev = site et téléchargements de développement ; main = production (environnement protégé).
+# Les dépôts composants sont privés : le checkout récursif utilise COMPONENTS_READ_TOKEN (lecture seule).
+name: release
+on:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux-binaries:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/api/go.mod
+      - name: Nœud (chain/node)
+        run: |
+          cd chain/node && cargo build --release
+          mkdir -p ../../dist/linux-amd64
+          cp target/release/silicium-node ../../dist/linux-amd64/
+      - name: Raytracer et lanceur d'isolation (network)
+        run: |
+          cd network
+          cargo build --release -p sil-raytracer --bin sil-raytracer-block
+          cargo build --release -p sil-sandbox --bin sil-sandbox-launch
+          cp target/release/sil-raytracer-block target/release/sil-sandbox-launch ../dist/linux-amd64/
+      - name: ONNX Runtime
+        run: python3 tools/runtime/fetch_onnxruntime.py linux dist/linux-amd64
+      - name: API (Go)
+        working-directory: services/api
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../../dist/linux-amd64/silicium-api ./cmd/silicium-api
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-amd64
+          path: dist/linux-amd64/
+          retention-days: 7
+
+  windows-binaries:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - name: Nœud Windows (chain/node)
+        shell: pwsh
+        run: |
+          cd chain/node; cargo build --release
+          New-Item -ItemType Directory -Force ../../dist/windows-amd64 | Out-Null
+          Copy-Item target/release/silicium-node.exe ../../dist/windows-amd64/
+      - name: Moteur de rendu wasm (network)
+        shell: pwsh
+        run: |
+          cd network
+          cargo build --release -p sil-raytracer --bin sil-raytracer-block --target wasm32-wasip1
+          Copy-Item target/wasm32-wasip1/release/sil-raytracer-block.wasm ../dist/windows-amd64/
+      - name: ONNX Runtime
+        shell: pwsh
+        run: python tools/runtime/fetch_onnxruntime.py windows dist/windows-amd64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows-amd64
+          path: dist/windows-amd64/
+          retention-days: 7
+
+  linux-packages:
+    needs: [linux-binaries]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-linux-amd64
+          path: dist/linux-amd64
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Dépendances de paquetage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm rsync
+          chmod +x dist/linux-amd64/silicium-node dist/linux-amd64/silicium-api dist/linux-amd64/sil-raytracer-block dist/linux-amd64/sil-sandbox-launch
+      - name: AppImage, deb, rpm
+        run: bash infra/release/build-linux-desktop.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-linux
+          path: apps/web/public/downloads/*.AppImage
+          retention-days: 30
+
+  windows-installer:
+    needs: [windows-binaries]
+    runs-on: windows-2022
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-windows-amd64
+          path: dist/windows-amd64
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Certificat de signature (production uniquement)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          SIGN_PFX_B64: ${{ secrets.SIGN_PFX_B64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: |
+          $pfx = "$env:RUNNER_TEMP\sign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_PFX_B64))
+          $pw = ConvertTo-SecureString $env:SIGN_PFX_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw | Out-Null
+          Remove-Item $pfx -Force
+          $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          "SIGNTOOL=$($tool.FullName)" | Out-File -Append $env:GITHUB_ENV
+      - name: Installeur NSIS
+        shell: pwsh
+        run: |
+          cd apps/web; npm ci
+          cd ../desktop; npm ci; npm run build
+      - name: Paquets Windows du site
+        shell: pwsh
+        run: |
+          cd apps/web
+          node scripts/copy-node-bundle.mjs
+          node scripts/copy-app-installer.mjs public/downloads/silicium-school-certificate.cer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-windows
+          path: apps/web/public/downloads/*.exe
+          retention-days: 30
+
+  site:
+    needs: [linux-packages, windows-installer]
+    runs-on: ubuntu-24.04
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-linux
+          path: apps/web/public/downloads
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-windows
+          path: apps/web/public/downloads
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-linux-amd64
+          path: dist/linux-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-windows-amd64
+          path: dist/windows-amd64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Site
+        working-directory: apps/web
+        run: |
+          npm ci
+          node scripts/copy-node-bundle.mjs
+          npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: apps/web/dist/
+          retention-days: 30
+
+  deploy:
+    needs: [site, linux-binaries]
+    runs-on: ubuntu-24.04
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-linux-amd64
+          path: dist/linux-amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: apps/web/dist
+      - name: Clé SSH et hôte
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          echo "SIL_SSH_KEY=$HOME/.ssh/deploy_key" >> "$GITHUB_ENV"
+          echo "SIL_SSH_KNOWN_HOSTS=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
+      - name: Binaires (sauvegarde puis copie)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: bash infra/vps/deploy.sh "$DEPLOY_HOST"
+      - name: Site
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: tar -C apps/web/dist -cf - . | ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts "$DEPLOY_HOST" 'sudo tar -C /opt/silicium/web -xf -'
