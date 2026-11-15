@@ -21,6 +21,11 @@ pub const CONTROL_PORT: u16 = 8750;
 /// Network port of the node (the same as in `LISTEN`).
 const NETWORK_PORT: u16 = 4001;
 /// Render engine shipped beside the node (see `apps/desktop/scripts/prepare-sidecars.mjs`).
+/// Windows : le raytracer en WebAssembly (`.wasm`, isolé par construction, voir crates/sil-render-wasm) ;
+/// le moteur natif n'est offert que sous Linux (isolation landlock).
+#[cfg(windows)]
+const RENDER_ENGINE: &str = "sil-raytracer-block.wasm";
+#[cfg(not(windows))]
 const RENDER_ENGINE: &str = "sil-raytracer-block";
 /// Process id of the running node, written when it starts.
 const PID_FILE: &str = "node.pid";
@@ -124,7 +129,7 @@ impl NodeProcess {
         let binary = resolve_binary(std::env::var("SIL_NODE_BIN").ok(), exe_dir.clone())
             .ok_or(NodeError::NoBinary)?;
         // The render engine ships next to the node: without it the node serves sha256 only.
-        let engine = sibling(exe_dir.as_deref(), &exe_name(RENDER_ENGINE));
+        let engine = sibling(exe_dir.as_deref(), RENDER_ENGINE);
 
         fs::create_dir_all(&self.data_dir).map_err(|_| NodeError::Storage)?;
         set_aside_stale_journal(&self.data_dir).map_err(|_| NodeError::Storage)?;
@@ -217,15 +222,26 @@ fn pid_alive(pid: u32) -> bool {
             .output()
             .is_ok_and(|out| String::from_utf8_lossy(&out.stdout).contains(&pid.to_string()))
     } else {
-        Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .status()
-            .is_ok_and(|status| status.success())
+        is_unix_process_id(pid)
+            && Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .status()
+                .is_ok_and(|status| status.success())
     }
+}
+
+/// Unix : `kill` lit un pid négatif ou nul comme un groupe de processus (`-1` = tous les processus
+/// auxquels on peut envoyer un signal). Un pid enregistré hors de `1..=i32::MAX` n'est donc jamais
+/// interrogé ni tué.
+fn is_unix_process_id(pid: u32) -> bool {
+    i32::try_from(pid).is_ok_and(|pid| pid > 0)
 }
 
 /// Ends the process with this id, if it exists.
 fn kill_pid(pid: u32) {
+    if !cfg!(windows) && !is_unix_process_id(pid) {
+        return;
+    }
     let mut command = if cfg!(windows) {
         let mut command = Command::new("taskkill");
         command.args(["/PID", &pid.to_string(), "/F"]);
@@ -315,5 +331,14 @@ mod tests {
         process.stop();
         assert!(!process.wants_to_run());
         assert!(!dir.path().join(PID_FILE).exists());
+    }
+
+    #[test]
+    fn a_process_id_that_kill_reads_as_a_group_is_never_treated_as_a_process() {
+        // `kill -0 4294967295` signals every process (-1): such an id must not count as alive.
+        assert!(!pid_alive(u32::MAX));
+        assert!(!pid_alive(0));
+        assert!(!is_unix_process_id(u32::MAX));
+        assert!(is_unix_process_id(1));
     }
 }

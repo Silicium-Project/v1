@@ -6,6 +6,10 @@
   "bundle": {
     "targets": ["appimage", "deb", "rpm"],
     "externalBin": ["binaries/silicium-node", "binaries/sil-raytracer-block", "binaries/sil-sandbox-launch"],
-    "resources": { "resources/onnxruntime.dll": null, "resources/libonnxruntime.so": "libonnxruntime.so" }
+    "resources": {
+      "resources/onnxruntime.dll": null,
+      "resources/sil-raytracer-block.wasm": null,
+      "resources/libonnxruntime.so": "libonnxruntime.so"
+    }
   }
 }

@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm --prefix ../web run dev:desktop",
     "devUrl": "http://127.0.0.1:5173",
     "beforeBuildCommand": "node scripts/prepare-sidecars.mjs && node scripts/prepare-runtime.mjs && npm --prefix ../web run build:desktop",
-    "beforeBundleCommand": "node scripts/sign.mjs src-tauri/binaries/silicium-node-x86_64-pc-windows-msvc.exe src-tauri/binaries/sil-raytracer-block-x86_64-pc-windows-msvc.exe",
+    "beforeBundleCommand": "node scripts/sign.mjs src-tauri/binaries/silicium-node-x86_64-pc-windows-msvc.exe",
     "frontendDist": "../../web/dist-desktop"
   },
   "app": {
@@ -36,8 +36,11 @@
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/icon.ico", "icons/icon.png"],
-    "externalBin": ["binaries/silicium-node", "binaries/sil-raytracer-block"],
-    "resources": { "resources/onnxruntime.dll": "onnxruntime.dll" },
+    "externalBin": ["binaries/silicium-node"],
+    "resources": {
+      "resources/onnxruntime.dll": "onnxruntime.dll",
+      "resources/sil-raytracer-block.wasm": "sil-raytracer-block.wasm"
+    },
     "windows": {
       "certificateThumbprint": "A58274656DA5B0B0731139D8D0E46D26ECF1B4D4",
       "digestAlgorithm": "sha256",

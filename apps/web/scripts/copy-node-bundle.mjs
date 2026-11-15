@@ -72,9 +72,10 @@ La clé du nœud est créée dans data/node.seed : sauvegardez-la, elle porte vo
   {
     platform: 'windows-x86_64',
     source: join(root, 'dist', 'windows-amd64'),
-    binaries: ['silicium-node.exe', 'sil-raytracer-block.exe', 'onnxruntime.dll'],
+    // Moteur de rendu Windows : WebAssembly (isolé par construction), pas l'exécutable natif.
+    binaries: ['silicium-node.exe', 'sil-raytracer-block.wasm', 'onnxruntime.dll'],
     archive: 'silicium-node-windows-x86_64.zip',
-    engine: './sil-raytracer-block.exe',
+    engine: './sil-raytracer-block.wasm',
     readme: `Nœud Silicium, paquet Windows x86-64.
 
 Démarrer (depuis ce dossier, dans PowerShell) :
