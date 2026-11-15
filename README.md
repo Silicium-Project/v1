@@ -1,70 +1,109 @@
-# Silicium
+# Silicium v1
 
-Calcul distribué vérifiable. Des machines volontaires exécutent des tâches (calcul, embedding,
-rendu), d'autres les vérifient, et le règlement se fait on-chain sur Solana. Aucun résultat n'est
-accepté sans vérification, et aucune machine n'est payée sans avoir travaillé.
+Silicium is a verifiable distributed computing network. Volunteer machines run tasks (computation,
+embeddings, rendering), other machines verify the results, and payments settle on Solana. A result
+is accepted only after verification, and no machine is paid for work it did not do.
 
-## Fonctionnement
+This repository is the **meta-repository**: architecture decisions, the release workflow, the
+packaging and deployment scripts, and the pinned versions of every component. It is public. The
+components are separate repositories, pinned here as git submodules.
 
-1. Un requester publie un job et dépose l'escrow sur Solana.
-2. Le job est découpé en fragments. Un worker réclame un fragment, en l'ancrant à un slot Solana
-   (preuve d'horloge, [ADR 0009](docs/architecture/0009-preuve-d-horloge.md)).
-3. Le worker calcule et publie son résultat.
-4. Des vérificateurs recalculent un échantillon ; le quorum tranche
-   ([ADR 0005](docs/architecture/0005-verifier-quorum.md),
-   [ADR 0012](docs/architecture/0012-quorum-et-partage-de-la-caution.md)).
-5. Le règlement paie les workers et les vérificateurs. Un vérificateur minoritaire perd une part de
-   sa retenue ([ADR 0010](docs/architecture/0010-retenue-sur-recompense-verificateur.md)).
-6. Une réputation bayésienne multidimensionnelle module l'attribution des tâches
-   ([ADR 0013](docs/architecture/0013-reputation-multidimensionnelle-bayesienne.md)).
+## Components
 
-## Composants
-
-Le code est réparti en dépôts indépendants, épinglés par SHA dans
-[`components.lock.json`](components.lock.json).
-
-| Composant | Rôle | Dépôt | Visibilité |
+| Path | Repository | Visibility | Content |
 |---|---|---|---|
-| Réseau | Protocole P2P, ledger signé, nœud, workloads (Rust) | `v1-network` | privé pour l'instant |
-| Bureau | Application Tauri : installe et supervise le nœud (Windows, Linux) | `v1-desktop` | privé |
-| Site | Site public et téléchargements | `v1-web` | privé |
-| API | Comptes et passerelle vers le réseau (Go) | `v1-api` | privé |
-| Chaîne | Programme Solana, scripts de déploiement | `v1-chain` | privé |
+| `network/` | `v1-network` | private (public later) | P2P protocol, signed ledger, node, workloads (Rust workspace) |
+| `apps/desktop/` | `v1-desktop` | private | Tauri desktop app: installs and supervises the node (Windows, Linux) |
+| `apps/web/` | `v1-web` | private | Public website, network status, downloads, job pages (Vue, Vite) |
+| `services/api/` | `v1-api` | private | Accounts, sessions, gateway to the node (Go, SQLite) |
+| `chain/` | `v1-chain` | private | Solana program, chain adapter, devnet tooling (one Cargo workspace per crate) |
+| `infra/` | this repository | public | Packaging script, VPS deploy and backup scripts, systemd units |
+| `tools/` | this repository | public | Runtime fetch script (ONNX Runtime) |
+| `docs/architecture/` | this repository | public | Architecture decision records (ADR) |
 
-Le méta-dépôt (ce dépôt) porte l'architecture, les décisions et la composition.
+`components.lock.json` lists the exact commit of each component. A component change reaches dev or
+production only when its pin is updated in this repository.
 
-## Architecture
+## Clone
 
-Les décisions sont dans [`docs/architecture/`](docs/architecture/) :
+```bash
+git clone --recurse-submodules https://github.com/Silicium-Project/v1.git
+```
 
-- [0001](docs/architecture/0001-coordination-committee.md) à
-  [0008](docs/architecture/0008-penalite-par-le-requester.md) : comité, certificat de finalisation,
-  réputation par portée, vérification, pénalités.
-- [0009](docs/architecture/0009-preuve-d-horloge.md) à
-  [0013](docs/architecture/0013-reputation-multidimensionnelle-bayesienne.md) : preuve d'horloge,
-  retenue, quorum, réputation.
-- [0014](docs/architecture/0014-migration-du-journal.md) : migration du journal entre versions
-  (brouillon).
+Private submodules need read access to the component repositories. Each component builds and tests
+on its own; see its README.
 
-## Statut
+## Branches and environments
 
-Réseau de test : le règlement tourne sur le devnet Solana, avec des jetons de test. Dernière version
-publiée : 1.9.0 (nœud, bureau Windows et Linux).
+- `main` is production. A push to `main` runs the release workflow in the `production` environment.
+- `dev` is integration. A push to `dev` runs the same workflow in the `development` environment.
+- Feature branches start from `dev` and come back by pull request.
 
-## Développement
+| Environment | Site | Node and API |
+|---|---|---|
+| production | https://siliciumlabs.org | `/opt/silicium`; services `silicium-node`, `silicium-api` |
+| development | https://vps-910c1dbc.vps.ovh.net | `/opt/silicium-dev`; services `silicium-node-dev`, `silicium-api-dev` |
 
-- Branches : `main` = production, versionnée par tags ; `dev` = intégration et site de développement ;
-  les branches de travail partent de `dev` et reviennent par pull request.
-- Chaque dépôt a sa CI. Règle commune : au plus 300 lignes par fichier, aucun secret versionné.
-- Les commandes de build et de test sont dans le README de chaque dépôt (par exemple
-  `cargo test --workspace` pour le réseau).
+Both environments run on the same VPS, with separate paths, services, data directories, ports and
+node identities. The development node does not bootstrap from production.
 
-## Sécurité
+## Release workflow
 
-Ne publiez pas de vulnérabilité en issue publique. Contactez les mainteneurs en privé.
-Ne versionnez jamais de clé, de seed (`node.seed`), de token, de certificat de signature ou de
-fichier `.env`.
+`.github/workflows/release.yml` runs on each push to `dev` or `main`:
 
-## Licence
+1. **tests**: format, clippy, `cargo test`, `go test`, `npm test`, and `cargo check` for each chain
+   crate, on the pinned commits. Blocking: no later job runs if a suite fails.
+2. **linux-binaries** and **windows-binaries**: node, raytracer, sandbox launcher, ONNX Runtime, API,
+   WebAssembly render engine.
+3. **linux-packages**: AppImage, `.deb` and `.rpm` (`infra/release/build-linux-desktop.sh`).
+4. **windows-installer**: NSIS installer, signed with the code-signing certificate stored as an
+   environment secret (`SIGN_PFX_B64`, `SIGN_PFX_PASSWORD`).
+5. **site**: website build, with node bundles, installers and checksums in `downloads/`.
+6. **deploy**: `infra/vps/deploy.sh` with `SIL_ENV=prod` (on `main`) or `SIL_ENV=dev` (on `dev`), then
+   the site copied to the matching directory.
 
-MIT (indiqué dans les manifestes du réseau).
+CI does not make backups. Run `infra/vps/backup.sh` from a workstation before approving a production
+deployment. Backups are encrypted to a GPG public key; the private key is kept outside the workstation.
+
+**Not yet enabled:** required reviewers on the `production` environment, and branch protection on
+`main`. Until both are enabled, a push to `main` deploys to production without approval.
+
+### Versions
+
+The version appears in: `apps/desktop/package.json`, `apps/desktop/src-tauri/Cargo.toml`,
+`apps/desktop/src-tauri/tauri.conf.json`, `apps/web/scripts/copy-app-installer.mjs` (`VERSION`), and
+`infra/systemd/silicium-node.service` (`SIL_APP_VERSION`). Update all of them in one commit.
+
+## Package repositories (DNF and APT)
+
+The website install page tells users to add `https://siliciumlabs.org/download/silicium.repo` and
+run `dnf install silicium`. The current state:
+
+- The DNF repository (`/download/dnf/`) and APT repository (`/download/apt/`) are **built by hand** on
+  the VPS and are **out of date**. The DNF repository holds packages from 0.1.2 to 0.1.7. Version 1.9.0
+  is not in it.
+- The DNF repository metadata is signed (`repomd.xml.asc`), and `silicium.repo` sets `repo_gpgcheck=1`.
+- Nothing in the repository generates it. The planned process: CI copies the new `.rpm` and `.deb`
+  files, runs `createrepo_c` and the APT indexing tool, signs the metadata with the release key, and
+  publishes the result under `downloads/`. This is not implemented yet.
+
+Until then, the install page points users to an outdated repository.
+
+## Language
+
+All documentation is in English: READMEs, ADRs, design comments and commit messages. The ADRs in
+`docs/architecture/` (0001 to 0014) are currently in French and need translation.
+
+## Linting
+
+No linter configuration is committed. CI enforces `rustfmt`, `clippy -D warnings`, `gofmt`, `go vet`,
+TypeScript type checking and the test suites. No Markdown linter is set up.
+
+## Security
+
+Report vulnerabilities to the maintainers in private. Do not open a public issue.
+Never commit a key, a seed (`node.seed`), a token, a signing certificate or an `.env` file.
+
+## License
+
+MIT, as declared in the Rust workspace manifests.
