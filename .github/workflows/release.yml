@@ -190,6 +190,7 @@ jobs:
             apps/web/public/downloads/*.AppImage
             apps/web/public/downloads/*.deb
             apps/web/public/downloads/*.rpm
+            apps/web/public/downloads/app-linux.json
           retention-days: 30
 
   windows-installer:
@@ -256,6 +257,8 @@ jobs:
           path: |
             apps/web/public/downloads/*.exe
             apps/web/public/downloads/*.zip
+            apps/web/public/downloads/app.json
+            apps/web/public/downloads/silicium-school-certificate.cer
           retention-days: 30
 
   # DNF and APT repositories: keeps the repository already on the server, adds the new packages, signs the

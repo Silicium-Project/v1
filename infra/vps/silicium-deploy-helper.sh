@@ -77,12 +77,14 @@ case "$action" in
     ;;
   web)
     install -d -m 0755 "$web"
-    tar -C "$web" --no-same-owner -xf -
+    # Modes et propriétaires du dossier de travail du CI ne doivent pas remplacer ceux du serveur (un dossier
+    # 0700 cassait le téléchargement).
+    tar -C "$web" --no-same-owner --no-same-permissions -xf -
     echo "ok site $env_name"
     ;;
   repos)
-    install -d -m 0755 "$download"
-    tar -C "$download" --no-same-owner -xf -
+    install -d -o root -g root -m 0755 "$download"
+    tar -C "$download" --no-same-owner --no-same-permissions -xf -
     echo "ok dépôts $env_name (rien supprimé)"
     ;;
   repos-get)
