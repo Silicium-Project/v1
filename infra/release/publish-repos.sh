@@ -22,15 +22,14 @@ esac
 key="${SIL_SSH_KEY:?SIL_SSH_KEY absent}"
 known="${SIL_SSH_KNOWN_HOSTS:?SIL_SSH_KNOWN_HOSTS absent}"
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -i "$key" -o "UserKnownHostsFile=$known")
-export RSYNC_RSH="ssh ${ssh_opts[*]}"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/dnf/Packages" "$work/apt/pool/main/s/silicium" "$work/apt/dists/stable/main/binary-amd64"
 
-# 1. Current repositories from the server (read-only).
-rsync -a --rsync-path="sudo rsync" "$host:$remote_root/dnf/Packages/" "$work/dnf/Packages/"
-rsync -a --rsync-path="sudo rsync" "$host:$remote_root/apt/pool/" "$work/apt/pool/"
+# 1. Current repositories from the server (read-only, through the deploy helper: the account has no
+# general read access to the web root's packages otherwise).
+ssh "${ssh_opts[@]}" "$host" "sudo /usr/local/sbin/silicium-deploy $SIL_ENV repos-get" | tar -C "$work" -xf -
 
 # 2. New packages.
 shopt -s nullglob
@@ -63,9 +62,10 @@ gpg --batch --armor --export "$fpr" > "$work/silicium-release.asc"
 gpg --batch --verify "$work/dnf/repodata/repomd.xml.asc" "$work/dnf/repodata/repomd.xml"
 gpg --batch --verify "$work/apt/dists/stable/Release.gpg" "$work/apt/dists/stable/Release"
 
-# 7. Upload (no --delete: nothing is removed on the server).
-rsync -a --rsync-path="sudo rsync" "$work/" "$host:$remote_root/"
+# 7. Upload through the helper (it extracts without deleting anything on the server).
 if [ -n "${UPDATE_DIR:-}" ]; then
-  rsync -a --rsync-path="sudo rsync" "$UPDATE_DIR/" "$host:$remote_root/update/"
+  mkdir -p "$work/update"
+  cp -a "$UPDATE_DIR/." "$work/update/"
 fi
+tar -C "$work" -cf - . | ssh "${ssh_opts[@]}" "$host" "sudo /usr/local/sbin/silicium-deploy $SIL_ENV repos"
 echo "dépôts publiés ($SIL_ENV) : $remote_root"

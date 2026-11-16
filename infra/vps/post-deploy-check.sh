@@ -14,7 +14,7 @@ case "${SIL_ENV:-prod}" in
   prod) suffix=""; api_port=8080; base="https://siliciumlabs.org" ;;
   # dev : site joignable seulement par le VPN (10.77.0.1:8443, CA interne de Caddy). Le contrôle se fait
   # donc depuis le serveur, qui est sur le VPN ; le runner de CI ne peut pas l'atteindre.
-  dev) suffix="-dev"; api_port=8081; base="https://10.77.0.1:8443"; ca_root=/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt ;;
+  dev) suffix="-dev"; api_port=8081; base="https://10.77.0.1:8443" ;;
   *) echo "SIL_ENV inconnu : ${SIL_ENV}" >&2; exit 1 ;;
 esac
 opt="/opt/silicium$suffix"
@@ -35,13 +35,13 @@ for bin in silicium-node silicium-api; do
 done
 
 # 3. Local API answers on the server, and the site answers: publicly for prod, from the server over
-# the VPN for dev (the CA root is read as root, it is the one Caddy generated).
+# the VPN for dev (the helper probes with the CA that Caddy generated; the deploy account cannot read it).
 ssh "${ssh_opts[@]}" "$host" "curl -fsS --max-time 10 http://127.0.0.1:$api_port/health > /dev/null"
 echo "ok api locale"
 if [ "$SIL_ENV" = dev ]; then
-  ssh "${ssh_opts[@]}" "$host" "sudo curl -fsS --max-time 20 --cacert $ca_root $base/ > /dev/null"
+  ssh "${ssh_opts[@]}" "$host" "sudo /usr/local/sbin/silicium-deploy dev probe /"
   echo "ok site dev via VPN $base/"
-  ssh "${ssh_opts[@]}" "$host" "sudo curl -fsS --max-time 20 --cacert $ca_root $base/download/apt/dists/stable/InRelease > /dev/null"
+  ssh "${ssh_opts[@]}" "$host" "sudo /usr/local/sbin/silicium-deploy dev probe /download/apt/dists/stable/InRelease"
   echo "ok dépôt APT dev via VPN"
 else
   curl -fsS --max-time 20 -o /dev/null "$base/"

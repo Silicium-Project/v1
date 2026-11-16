@@ -5,6 +5,10 @@
 # /var/lib/silicium-dev et les services *-dev : jamais dans les chemins ou services de prod.
 # Les binaires viennent de dist/linux-amd64/ (compilés localement). Rien n'est compilé sur le VPS.
 #
+# Le compte de déploiement n'a pas de droits root généraux : les fichiers passent sur stdin au helper
+# /usr/local/sbin/silicium-deploy (infra/vps/silicium-deploy-helper.sh), qui valide chaque nom et écrit
+# atomiquement. Le compte ne peut agir que sur SIL_ENV (sudoers : « silicium-deploy <env> * »).
+#
 # Ce script ne sauvegarde pas : la sauvegarde se fait à part, depuis le poste (infra/vps/backup.sh),
 # avant d'approuver un déploiement de production.
 # Il ne déplace, ne renomme et ne supprime jamais le journal ni les données du nœud.
@@ -18,9 +22,8 @@ case "${SIL_ENV:-prod}" in
   dev) suffix="-dev" ;;
   *) echo "SIL_ENV inconnu : ${SIL_ENV} (prod ou dev)" >&2; exit 1 ;;
 esac
-opt="/opt/silicium$suffix"
-etc="/etc/silicium$suffix"
-var="/var/lib/silicium$suffix"
+env_name="${SIL_ENV:-prod}"
+helper="sudo /usr/local/sbin/silicium-deploy $env_name"
 
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
@@ -32,7 +35,7 @@ done
 
 # Unités : celles du dépôt, réécrites pour l'environnement (chemins et noms des services).
 for unit in silicium-api silicium-node; do
-	sed -e "s#/opt/silicium/#$opt/#g; s#/etc/silicium/#$etc/#g; s#/var/lib/silicium/#$var/#g" \
+	sed -e "s#/opt/silicium/#/opt/silicium$suffix/#g; s#/etc/silicium/#/etc/silicium$suffix/#g; s#/var/lib/silicium/#/var/lib/silicium$suffix/#g" \
 		"$root/infra/systemd/$unit.service" > "$stage/$unit$suffix.service"
 done
 
@@ -43,21 +46,16 @@ known="${SIL_SSH_KNOWN_HOSTS:-$HOME/.ssh/known_hosts}"
 test -f "$key" || { echo "clé SSH absente : $key (SIL_SSH_KEY)" >&2; exit 1; }
 # BatchMode : jamais de question interactive (confirmation d'hôte, mot de passe), sinon le déploiement reste bloqué.
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -i "$key" -o "UserKnownHostsFile=$known")
-scp -q "${ssh_opts[@]}" "$stage/silicium-api" "$stage/silicium-node" "$stage/sil-sandbox-launch" "$stage/sil-raytracer-block" \
-	"$stage/libonnxruntime.so" "$stage/silicium-api$suffix.service" "$stage/silicium-node$suffix.service" "$host:/tmp/"
 
-# Écriture atomique : un binaire en cours d'exécution ne peut pas être écrasé sur place.
-ssh "${ssh_opts[@]}" "$host" "set -e
-sudo install -d -m 0755 '$opt/bin'
+# Binaires : un par appel, contenu sur stdin. Le helper écrit à côté puis renomme (pas d'écrasement sur place).
 for bin in silicium-api silicium-node sil-sandbox-launch sil-raytracer-block libonnxruntime.so; do
-	sudo install -m 0755 \"/tmp/\$bin\" '$opt/bin/'\"\$bin\"'.new'
-	sudo mv -f '$opt/bin/'\"\$bin\"'.new' '$opt/bin/'\"\$bin\"
-	rm -f \"/tmp/\$bin\"
+	ssh "${ssh_opts[@]}" "$host" "$helper bin $bin" < "$stage/$bin"
 done
-for unit in silicium-api$suffix silicium-node$suffix; do
-	sudo install -m 0644 \"/tmp/\$unit.service\" \"/etc/systemd/system/\$unit.service\"
-	rm -f \"/tmp/\$unit.service\"
+
+# Unités : contrôlées par le helper (pas de préfixe root, User=silicium, binaire dans $opt/bin).
+for unit in silicium-api silicium-node; do
+	ssh "${ssh_opts[@]}" "$host" "$helper unit $unit" < "$stage/$unit$suffix.service"
 done
-sudo systemctl daemon-reload
-sudo systemctl try-restart silicium-node$suffix.service silicium-api$suffix.service
-echo DEPLOY_OK $suffix"
+
+ssh "${ssh_opts[@]}" "$host" "$helper restart"
+echo "DEPLOY_OK $suffix"
