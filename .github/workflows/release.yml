@@ -437,6 +437,8 @@ jobs:
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          # No checkout in this job: gh must be told the repository (it otherwise looks for a git checkout).
+          GH_REPO: ${{ github.repository }}
         run: |
           version=$(ls release | grep -oE 'Silicium_[0-9.]+' | head -1 | sed 's/Silicium_//')
           tag="v$version"
