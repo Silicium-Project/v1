@@ -315,8 +315,9 @@ jobs:
         env:
           SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
         run: |
+          # dev : dépôts sur le VPN, contrôlés par infra/vps/post-deploy-check.sh depuis le serveur.
+          if [ "$SIL_ENV" = dev ]; then echo "REPOS_DEV_VPN (contrôle sur le serveur)"; exit 0; fi
           base=https://siliciumlabs.org
-          [ "$SIL_ENV" = dev ] && base=https://vps-910c1dbc.vps.ovh.net
           curl -fsS "$base/download/dnf/repodata/repomd.xml.asc" > /dev/null
           curl -fsS "$base/download/apt/dists/stable/InRelease" > /dev/null
           curl -fsS "$base/download/update/manifest.json.asc" > /dev/null

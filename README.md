@@ -42,7 +42,7 @@ on its own; see its README.
 | Environment | Site | Node and API |
 |---|---|---|
 | production | https://siliciumlabs.org | `/opt/silicium`; services `silicium-node`, `silicium-api` |
-| development | https://vps-910c1dbc.vps.ovh.net | `/opt/silicium-dev`; services `silicium-node-dev`, `silicium-api-dev` |
+| development | https://10.77.0.1:8443, WireGuard VPN only (`infra/vpn/`) | `/opt/silicium-dev`; services `silicium-node-dev`, `silicium-api-dev` |
 
 Both environments run on the same VPS, with separate paths, services, data directories, ports and
 node identities. The development node does not bootstrap from production.
