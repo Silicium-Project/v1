@@ -9,6 +9,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# Channel of the desktop builds: the development builds look for updates on the development site (VPN) and
+# every five minutes; production builds on the public site every six hours.
+env:
+  SIL_RELEASE_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
