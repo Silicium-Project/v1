@@ -28,7 +28,7 @@ helper="sudo /usr/local/sbin/silicium-deploy $env_name"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-for file in silicium-api silicium-node sil-sandbox-launch sil-raytracer-block libonnxruntime.so; do
+for file in silicium-api silicium-node sil-sandbox-launch sil-raytracer-block sil-pdf-block.wasm libonnxruntime.so; do
 	test -f "$root/dist/linux-amd64/$file" || { echo "absent : dist/linux-amd64/$file" >&2; exit 1; }
 	cp "$root/dist/linux-amd64/$file" "$stage/"
 done
@@ -48,7 +48,7 @@ test -f "$key" || { echo "clé SSH absente : $key (SIL_SSH_KEY)" >&2; exit 1; }
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -i "$key" -o "UserKnownHostsFile=$known")
 
 # Binaires : un par appel, contenu sur stdin. Le helper écrit à côté puis renomme (pas d'écrasement sur place).
-for bin in silicium-api silicium-node sil-sandbox-launch sil-raytracer-block libonnxruntime.so; do
+for bin in silicium-api silicium-node sil-sandbox-launch sil-raytracer-block sil-pdf-block.wasm libonnxruntime.so; do
 	ssh "${ssh_opts[@]}" "$host" "$helper bin $bin" < "$stage/$bin"
 done
 

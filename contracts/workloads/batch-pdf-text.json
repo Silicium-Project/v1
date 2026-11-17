@@ -1,0 +1,36 @@
+{
+  "schema": "silicium.workload/v1",
+  "id": "batch/pdf-text",
+  "description": "Opérateur pdf-text du workload batch. Une unité = un octet de l'entrée. L'entrée est un lot de documents PDF (conteneur SILBATCH, un PDF par enregistrement). Chaque document donne son texte (toutes les pages, dans l'ordre), extrait dans un module WebAssembly isolé. Un document illisible ou protégé donne un état d'erreur, sans faire échouer le fragment. Chaque fragment est une plage de documents ; un vérificateur refait un échantillon de documents.",
+  "unit": "bytes_input",
+  "label_key": "submit.workloadPdfText",
+  "input": {
+    "params": [],
+    "max_input_bytes": 8388608
+  },
+  "split": {
+    "max_fragments": 16,
+    "target_size": 262144
+  },
+  "terms": {
+    "reward_per_unit": 100,
+    "verifier_reward_per_unit": 10
+  },
+  "verification": {
+    "policy": "sampling",
+    "min_cheat_fraction": 0.2,
+    "target_detection": 0.99
+  },
+  "limits": {
+    "wall_ms": 120000,
+    "memory_bytes": 268435456,
+    "output_bytes": 67108864
+  },
+  "deposit": "supported",
+  "resources": {
+    "compute": 60,
+    "memory": 40,
+    "network": 20,
+    "storage": 30
+  }
+}

@@ -39,7 +39,7 @@ download="$web/download"
 case "$action" in
   bin)
     case "$arg" in
-      silicium-api|silicium-node|sil-sandbox-launch|sil-raytracer-block|libonnxruntime.so) ;;
+      silicium-api|silicium-node|sil-sandbox-launch|sil-raytracer-block|sil-pdf-block.wasm|libonnxruntime.so) ;;
       *) echo "binaire refusé : $arg" >&2; exit 2 ;;
     esac
     install -d -m 0755 "$opt/bin"
