@@ -1,0 +1,34 @@
+{
+  "schema": "silicium.workload/v1",
+  "id": "calcul/sha256",
+  "description": "Une unité = un octet de l'entrée. Chaque fragment est une plage d'octets dont le SHA-256 est publié ; un vérificateur refait le hash de la plage.",
+  "unit": "bytes_input",
+  "label_key": "submit.workloadSha256",
+  "input": {
+    "params": [],
+    "max_input_bytes": 8388608
+  },
+  "split": {
+    "max_fragments": 16,
+    "target_size": 262144
+  },
+  "terms": {
+    "reward_per_unit": 100,
+    "verifier_reward_per_unit": 10
+  },
+  "verification": {
+    "policy": "recompute"
+  },
+  "limits": {
+    "wall_ms": 120000,
+    "memory_bytes": 67108864,
+    "output_bytes": 32
+  },
+  "deposit": "supported",
+  "resources": {
+    "compute": 70,
+    "memory": 10,
+    "network": 20,
+    "storage": 20
+  }
+}
