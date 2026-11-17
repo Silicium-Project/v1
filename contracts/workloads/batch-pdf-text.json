@@ -6,7 +6,7 @@
   "label_key": "submit.workloadPdfText",
   "input": {
     "params": [],
-    "max_input_bytes": 8388608
+    "max_input_bytes": 33554432
   },
   "split": {
     "max_fragments": 16,
