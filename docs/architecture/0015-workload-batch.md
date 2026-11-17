@@ -26,6 +26,9 @@ Replace the data workloads by one workload, `batch`. An operator names the proce
 verification.
 
 - **Job** = `workload: batch`, `operator`, `params`, input container, fragment split, limits, terms.
+- **Parameter schema per operator**: each operator declares the names, types, bounds and defaults of its `params`.
+  The schema is part of the operator's release. The node validates `params` against it before claiming any fragment,
+  and refuses a job whose params do not match (same error path as an unknown operator).
 - **Operator** = a WASM module (for deterministic operators) or a pinned model (for model operators), identified by
   its SHA-256. A node runs only operators it has in its built-in list. Adding an operator is a release.
 - **Verification follows the operator**, not the workload:
@@ -37,17 +40,19 @@ verification.
 - **Existing jobs**: `image/batch` and `embedding/e5-small` keep their current specification and decoders. New jobs
   use `batch`. Nothing is migrated in place (ADR 0014: no rewrite of signed history).
 
-## Open question: one website entry or one per operator
+## Website
 
-The protocol decision above does not depend on this. Two options for the website:
+The protocol does not depend on the website. The website has three parts:
 
-- **A. One entry, operator selector.** One form: input, operator, parameters. The website shows only the operators
-  the node version supports. Less UI to maintain; a new operator appears without a new page.
-- **B. One entry per operator.** A page per operator with its own help and defaults. Clearer for a newcomer, one
-  more page per operator.
+- **One page per operator** (the entry point a user finds and understands): what the operator does, an example,
+  the cost, and a link to submit. Discovery is easier this way.
+- **One submission component, shared by all pages.** It takes the operator and renders the form from that
+  operator's parameter schema. The operator is fixed by the page that opened it. No per-operator form code.
+- **A catalogue** listing the operator pages, grouped by category (image, text, data), so a user who does not know
+  the operator name still finds it.
 
-Recommendation: **A**, with help text per operator. The form is the same for every operator; only the parameters
-change.
+The per-operator pages are content only (text, example, translations fr/en). They cannot diverge from the protocol:
+they show only the operators the connected network version supports.
 
 ## Consequences
 
@@ -64,5 +69,6 @@ change.
 1. Specification: `batch` version, operator field, verification metric per operator. Test vectors in
    `contracts/vectors`.
 2. Port `resize` (exact hash) and `embed` (cosine) as operators; keep the old workloads' tests green.
-3. Website: operator selector (option A), help per operator.
+3. Website: shared submission component driven by the parameter schema; one page per operator; catalogue by
+   category.
 4. Release: old workload ids stay accepted for existing jobs; new submissions use `batch`.
