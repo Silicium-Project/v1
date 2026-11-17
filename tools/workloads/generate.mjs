@@ -27,6 +27,10 @@ const POLICIES = ['recompute', 'sampling', 'sampling_tolerance']
 const DEPOSITS = ['supported', 'unsupported']
 // Paramètres que la spec du job sait porter (ledger `JobSpec.width` / `height`).
 const PARAMS = ['width', 'height']
+// Ce que le site et l'API tirent du descripteur, au lieu de lister des identifiants (bloc `ui`) :
+// le formulaire de soumission, et la forme du résultat (transport par l'API, affichage par le site).
+const UI_INPUTS = ['file', 'scene', 'images', 'documents', 'texts']
+const UI_RESULTS = ['text', 'image', 'files', 'documents', 'embedding', 'classification']
 
 function fail(file, message) {
   throw new Error(`${file} : ${message}`)
@@ -82,6 +86,29 @@ function resources(raw, file) {
   return out
 }
 
+/**
+ * Bloc `ui` : `input` (formulaire de soumission), `options` (le formulaire d'images montre ses options ;
+ * vrai par défaut, refusé hors du formulaire d'images) et `result` (forme du résultat).
+ */
+function ui(raw, file, isImage) {
+  const value = raw.ui
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail(file, 'ui : objet attendu')
+  const unknown = Object.keys(value).filter((key) => !['input', 'options', 'result'].includes(key))
+  if (unknown.length > 0) fail(file, `ui : champ inconnu : ${unknown.join(', ')}`)
+  if (!UI_INPUTS.includes(value.input)) fail(file, `ui.input inconnu : ${value.input}`)
+  if (!UI_RESULTS.includes(value.result)) fail(file, `ui.result inconnu : ${value.result}`)
+  if (value.options !== undefined && typeof value.options !== 'boolean') {
+    fail(file, 'ui.options : booléen attendu')
+  }
+  if (value.options !== undefined && value.input !== 'images') {
+    fail(file, 'ui.options : réservé au formulaire d\'images')
+  }
+  // Une bande de pixels vient d'une scène et rend une image ; rien d'autre ne le fait.
+  if (isImage !== (value.input === 'scene')) fail(file, 'ui.input scene exige l\'unité pixels_band, et inversement')
+  if (isImage !== (value.result === 'image')) fail(file, 'ui.result image exige l\'unité pixels_band, et inversement')
+  return { inputForm: value.input, inputOptions: value.options ?? true, result: value.result }
+}
+
 /** Vérifie un descripteur et le ramène à une forme plate, commune aux trois langages. */
 export function normalize(raw, file) {
   if (raw.schema !== SCHEMA) fail(file, `schéma inconnu : ${raw.schema}`)
@@ -92,6 +119,8 @@ export function normalize(raw, file) {
   if (!UNITS.includes(raw.unit)) fail(file, `unité inconnue : ${raw.unit}`)
   if (typeof raw.label_key !== 'string' || raw.label_key === '') fail(file, 'label_key manquant')
   if (!DEPOSITS.includes(raw.deposit)) fail(file, `deposit inconnu : ${raw.deposit}`)
+  // `closed` : le réseau garde le descripteur (jobs déjà publiés) mais l'API et le site n'ouvrent plus de nouveau job.
+  if (raw.closed !== undefined && typeof raw.closed !== 'boolean') fail(file, 'closed : booléen attendu')
 
   const params = raw.input?.params ?? []
   if (!Array.isArray(params) || params.some((name) => !PARAMS.includes(name))) {
@@ -142,7 +171,9 @@ export function normalize(raw, file) {
     memoryBytes: integer(raw.limits?.memory_bytes, file, 'limits.memory_bytes', 1),
     outputBytes: integer(raw.limits?.output_bytes, file, 'limits.output_bytes', 1),
     depositSupported: raw.deposit === 'supported',
+    closed: raw.closed === true,
     resources: resources(raw, file),
+    ...ui(raw, file, isImage),
   }
 }
 

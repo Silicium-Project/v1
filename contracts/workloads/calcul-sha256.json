@@ -30,5 +30,6 @@
     "memory": 10,
     "network": 20,
     "storage": 20
-  }
+  },
+  "ui": { "input": "file", "result": "text" }
 }

@@ -32,5 +32,6 @@
     "memory": 30,
     "network": 20,
     "storage": 30
-  }
+  },
+  "ui": { "input": "images", "result": "files" }
 }

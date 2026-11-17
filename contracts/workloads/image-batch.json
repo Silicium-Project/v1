@@ -32,5 +32,7 @@
     "memory": 30,
     "network": 20,
     "storage": 30
-  }
+  },
+  "closed": true,
+  "ui": { "input": "images", "result": "files" }
 }

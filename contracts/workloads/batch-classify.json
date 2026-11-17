@@ -1,0 +1,40 @@
+{
+  "schema": "silicium.workload/v1",
+  "id": "batch/classify",
+  "description": "Opérateur classify du workload batch. Une unité = un octet de l'entrée. L'entrée est un lot d'images (conteneur SILBATCH) : chaque image est redimensionnée en 224 x 224, normalisée (moyenne et écart-type ImageNet) puis classée par MobileNetV2 (fp32, 1000 classes ImageNet). Le résultat de chaque image est le vecteur de 1000 scores (f32 little-endian, avant softmax). Vérification par tolérance : un vérificateur recalcule un échantillon d'images et compare chaque vecteur par cosinus.",
+  "unit": "bytes_input",
+  "label_key": "submit.workloadClassify",
+  "input": {
+    "params": [],
+    "max_input_bytes": 8388608
+  },
+  "split": {
+    "max_fragments": 16,
+    "target_size": 262144
+  },
+  "terms": {
+    "reward_per_unit": 100,
+    "verifier_reward_per_unit": 10
+  },
+  "verification": {
+    "policy": "sampling_tolerance",
+    "min_cheat_fraction": 0.1,
+    "target_detection": 0.97,
+    "cos_min": 0.999,
+    "model_sha256": "c0c3f76d93fa3fd6580652a45618618a220fced18babf65774ed169de0432ad5",
+    "ort_version": "1.31.1"
+  },
+  "limits": {
+    "wall_ms": 300000,
+    "memory_bytes": 536870912,
+    "output_bytes": 67108864
+  },
+  "deposit": "supported",
+  "resources": {
+    "compute": 70,
+    "memory": 40,
+    "network": 20,
+    "storage": 30
+  },
+  "ui": { "input": "images", "options": false, "result": "classification" }
+}

@@ -36,5 +36,6 @@
     "memory": 40,
     "network": 10,
     "storage": 30
-  }
+  },
+  "ui": { "input": "scene", "result": "image" }
 }

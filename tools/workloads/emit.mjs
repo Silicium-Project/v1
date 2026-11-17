@@ -94,6 +94,10 @@ export function emitGo(specs) {
     ['MemoryBytes', (s) => String(s.memoryBytes)],
     ['OutputBytes', (s) => String(s.outputBytes)],
     ['DepositSupported', (s) => String(s.depositSupported)],
+    ['Closed', (s) => String(s.closed)],
+    ['InputForm', (s) => quote(s.inputForm)],
+    ['InputOptions', (s) => String(s.inputOptions)],
+    ['Result', (s) => quote(s.result)],
     ['Resources', (s) =>
       `Resources{Compute: ${s.resources.compute}, Memory: ${s.resources.memory}, Network: ${s.resources.network}, Storage: ${s.resources.storage}}`],
   ]
@@ -128,6 +132,10 @@ export function emitTs(specs) {
     "  | { policy: 'sampling_tolerance'; minCheatFraction: number; targetDetection: number; cosMin: number; modelSha256: string; ortVersion: string }",
     '',
   )
+  out.push('/** Formulaire de soumission du workload (bloc `ui.input` du descripteur). */')
+  out.push("export type WorkloadInput = 'file' | 'scene' | 'images' | 'documents' | 'texts'", '')
+  out.push('/** Forme du résultat : transport par l\'API et affichage par le site (bloc `ui.result`). */')
+  out.push("export type WorkloadResult = 'text' | 'image' | 'files' | 'documents' | 'embedding' | 'classification'", '')
   out.push('export interface WorkloadSpec {')
   out.push('  id: string')
   out.push('  unit: WorkloadUnit')
@@ -144,6 +152,12 @@ export function emitTs(specs) {
   out.push('  verification: WorkloadVerification')
   out.push('  limits: { wallMs: number; memoryBytes: number; outputBytes: number }')
   out.push('  depositSupported: boolean')
+  out.push("  /** Descripteur gardé pour les jobs déjà publiés : l'API et le site n'ouvrent plus de nouveau job. */")
+  out.push('  closed: boolean')
+  out.push('  inputForm: WorkloadInput')
+  out.push("  /** Le formulaire d'images montre ses options (format, taille, rotation…). Sans objet hors des images. */")
+  out.push('  inputOptions: boolean')
+  out.push('  result: WorkloadResult')
   out.push('  /** Intensité relative sollicitée (0 à 100), jamais le nom du workload (ADR 0013 §3). */')
   out.push('  resources: { compute: number; memory: number; network: number; storage: number }')
   out.push('}', '')
@@ -174,6 +188,10 @@ export function emitTs(specs) {
       `    limits: { wallMs: ${spec.wallMs}, memoryBytes: ${spec.memoryBytes}, outputBytes: ${spec.outputBytes} },`,
     )
     out.push(`    depositSupported: ${spec.depositSupported},`)
+    out.push(`    closed: ${spec.closed},`)
+    out.push(`    inputForm: ${quote(spec.inputForm)},`)
+    out.push(`    inputOptions: ${spec.inputOptions},`)
+    out.push(`    result: ${quote(spec.result)},`)
     out.push(
       `    resources: { compute: ${spec.resources.compute}, memory: ${spec.resources.memory}, network: ${spec.resources.network}, storage: ${spec.resources.storage} },`,
     )

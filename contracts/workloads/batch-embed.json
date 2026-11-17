@@ -35,5 +35,6 @@
     "memory": 60,
     "network": 20,
     "storage": 40
-  }
+  },
+  "ui": { "input": "texts", "result": "embedding" }
 }

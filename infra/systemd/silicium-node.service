@@ -9,7 +9,7 @@ Type=simple
 User=silicium
 Group=silicium
 WorkingDirectory=/var/lib/silicium/node
-Environment=SIL_APP_VERSION=1.1.1
+Environment=SIL_APP_VERSION=1.1.3
 ExecStart=/opt/silicium/bin/silicium-node --config /etc/silicium/node.toml --roles worker,verifier
 Restart=on-failure
 RestartSec=5
