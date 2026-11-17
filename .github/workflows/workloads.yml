@@ -1,0 +1,23 @@
+# Descriptor drift check: the workload descriptors in contracts/workloads are the single source. The generated
+# files in the component repositories (network, API, web) must match what the generator produces from them.
+name: workloads
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+permissions:
+  contents: read
+
+jobs:
+  generated:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.COMPONENTS_READ_TOKEN }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Generated descriptors are up to date
+        run: node tools/workloads/generate.mjs --check
