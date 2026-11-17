@@ -25,7 +25,7 @@ what nodes accept, so ADR 0014 applies: old specifications stay readable and ver
 Replace the data workloads by one workload, `batch`. An operator names the processing; the operator decides the
 verification.
 
-- **Job** = `workload: batch`, `operator`, `params`, input container, fragment split, limits, terms.
+- **Job** = `workload: batch/<operator>` (e.g. `batch/resize`, `batch/embed`), `params`, input container, fragment split, limits, terms. The operator is part of the identifier: the signed job specification format does not change, and each operator has its own descriptor and tolerance rule.
 - **Parameter schema per operator**: each operator declares the names, types, bounds and defaults of its `params`.
   The schema is part of the operator's release. The node validates `params` against it before claiming any fragment,
   and refuses a job whose params do not match (same error path as an unknown operator).
@@ -38,7 +38,7 @@ verification.
 - **Operators at start**: `resize` (today's `image/batch`), `embed` (today's `embedding/e5-small`). OCR and format
   conversion are later operators, each one a separate release.
 - **Existing jobs**: `image/batch` and `embedding/e5-small` keep their current specification and decoders. New jobs
-  use `batch`. Nothing is migrated in place (ADR 0014: no rewrite of signed history).
+  use `batch`. Nothing is migrated in place (ADR 0014: no rewrite of signed history). New submissions use `batch/resize` and `batch/embed`; `image/batch` and `embedding/e5-small` are closed to new submissions in the website.
 
 ## Website
 
