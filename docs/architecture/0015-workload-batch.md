@@ -1,6 +1,6 @@
 # ADR 0015 — One batch workload with operators
 
-**Status**: proposed. No code change until this ADR is validated.
+**Status**: accepted (validated by the maintainer). Implementation follows the plan below.
 
 ## Context
 
