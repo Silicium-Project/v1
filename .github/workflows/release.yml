@@ -262,11 +262,16 @@ jobs:
           "SIGNTOOL=$($tool.FullName)" | Out-File -Append $env:GITHUB_ENV
       - name: NSIS installer
         shell: pwsh
+        env:
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
         run: |
           cd apps/web; npm ci
-          cd ../desktop; npm ci; npm run build
+          cd ../desktop; npm ci
+          if ($env:SIL_ENV -eq 'dev') { npm run build:dev } else { npm run build }
       - name: Windows packages for the site
         shell: pwsh
+        env:
+          SIL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
         run: |
           cd apps/web
           node scripts/copy-node-bundle.mjs
