@@ -41,7 +41,30 @@ fn check_claim_anchor(anchor_slot: u64, current_slot: u64) -> Result<(), LedgerE
     Ok(())
 }
 
+/// Borne haute de l'ancrage d'un claim reçu par rattrapage : un slot au-delà du slot local, tolérance
+/// comprise, n'existe pas encore. Pas de borne basse : l'historique ancien reste rejouable.
+fn check_synced_anchor(anchor_slot: u64, current_slot: u64) -> Result<(), LedgerError> {
+    if anchor_slot > current_slot.saturating_add(CLAIM_LAG_TOLERANCE_SLOTS) {
+        return Err(LedgerError::InvalidEvent(
+            "claim ancré dans le futur (rattrapage)",
+        ));
+    }
+    Ok(())
+}
+
 impl Shared {
+    /// Reçoit un événement par rattrapage : même règle que `ingest`, plus la borne haute sur
+    /// l'ancrage d'un claim. Sans slot local, pas de claim (ADR 0009) : le trou se comble plus tard.
+    pub(crate) fn ingest_synced(&self, event: Event) -> Result<Receipt, LedgerError> {
+        if let EventBody::Claim { anchor_slot, .. } = event.body {
+            let current = self.chain.current_slot().map_err(|_| {
+                LedgerError::InvalidEvent("claim sans slot local (chaîne indisponible)")
+            })?;
+            check_synced_anchor(anchor_slot, current)?;
+        }
+        self.ingest(event)
+    }
+
     /// Reçoit un événement reçu en direct (gossip ou API) : même règle que `ingest`, plus la borne
     /// sur l'âge, et pour un claim, la borne sur l'ancrage (ADR 0009).
     pub(crate) fn ingest_live(&self, event: Event) -> Result<Receipt, LedgerError> {
@@ -142,5 +165,17 @@ mod anchor_tests {
     fn a_small_lag_of_the_local_rpc_is_tolerated_but_not_a_large_one() {
         assert!(check_claim_anchor(1_000 + CLAIM_LAG_TOLERANCE_SLOTS, 1_000).is_ok());
         assert!(check_claim_anchor(1_000 + CLAIM_LAG_TOLERANCE_SLOTS + 1, 1_000).is_err());
+    }
+
+    #[test]
+    fn a_synced_claim_anchored_in_the_future_is_refused() {
+        assert!(check_synced_anchor(1_000 + CLAIM_LAG_TOLERANCE_SLOTS + 1, 1_000).is_err());
+        assert!(check_synced_anchor(u64::MAX, 1_000).is_err());
+    }
+
+    #[test]
+    fn a_synced_claim_from_old_history_is_kept() {
+        assert!(check_synced_anchor(1, 1_000_000).is_ok());
+        assert!(check_synced_anchor(1_000 + CLAIM_LAG_TOLERANCE_SLOTS, 1_000).is_ok());
     }
 }

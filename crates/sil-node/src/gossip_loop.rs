@@ -107,7 +107,7 @@ async fn fill_gaps(shared: &Arc<Shared>) {
             }
             for bytes in events {
                 if let Ok(event) = Event::from_bytes(&bytes, 64 * 1024) {
-                    let _ = shared.ingest(event);
+                    let _ = shared.ingest_synced(event);
                 }
             }
             break;
@@ -155,7 +155,7 @@ async fn sync_jobs(shared: &Arc<Shared>) {
             let received = events.len();
             for bytes in events {
                 if let Ok(event) = Event::from_bytes(&bytes, 64 * 1024) {
-                    let _ = shared.ingest(event);
+                    let _ = shared.ingest_synced(event);
                 }
             }
             let mut work = lock(&shared.work);

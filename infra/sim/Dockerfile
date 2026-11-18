@@ -7,7 +7,7 @@ RUN useradd --system --home-dir /data --shell /usr/sbin/nologin silicium \
  && mkdir -p /data && chown silicium:silicium /data
 
 COPY silicium-node /usr/local/bin/silicium-node
-COPY sil-raytracer-block sil-sandbox-launch /usr/local/bin/
+COPY sil-raytracer-block sil-sandbox-launch sil-pdf-block.wasm /usr/local/bin/
 # Runtime ONNX (embedding) : cherché dans ../lib/Silicium à côté du binaire (cli.rs, runtime_library).
 RUN mkdir -p /usr/local/lib/Silicium
 COPY libonnxruntime.so /usr/local/lib/Silicium/libonnxruntime.so
