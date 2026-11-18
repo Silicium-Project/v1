@@ -1,0 +1,36 @@
+{
+  "schema": "silicium.workload/v1",
+  "id": "ia/agents",
+  "description": "Une tâche est confiée à deux à quatre sous-agents spécialisés. Chaque fragment exécute une inférence générative indépendante avec un modèle du catalogue IA, puis les réponses sont réunies dans l'ordre des agents.",
+  "unit": "bytes_input",
+  "label_key": "submit.workloadAgents",
+  "input": {
+    "params": [],
+    "max_input_bytes": 32768
+  },
+  "split": {
+    "max_fragments": 4,
+    "target_size": 8192
+  },
+  "terms": {
+    "reward_per_unit": 100,
+    "verifier_reward_per_unit": 10
+  },
+  "verification": {
+    "policy": "recompute"
+  },
+  "limits": {
+    "wall_ms": 600000,
+    "memory_bytes": 2147483648,
+    "output_bytes": 65536
+  },
+  "deposit": "supported",
+  "resources": {
+    "compute": 95,
+    "memory": 85,
+    "network": 20,
+    "storage": 35
+  },
+  "closed": false,
+  "ui": { "input": "file", "result": "text" }
+}
