@@ -24,7 +24,7 @@
     "services/api": {
       "repository": "Silicium-Project/v1-api",
       "path": "services/api",
-      "commit": "4579399b36d68b1875870e70e471b6865697c853",
+      "commit": "d5224ac6d0aac59ac8faa86314a044105c1b28e5",
       "visibility": "private"
     },
     "chain": {
