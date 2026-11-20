@@ -43,6 +43,7 @@ export function emitRust(specs) {
     out.push(`    block_rows: ${spec.blockRows},`)
     out.push(`    max_fragments: ${spec.maxFragments},`)
     out.push(`    target_size: ${spec.targetSize},`)
+    out.push(`    split_strategy: ${quote(spec.splitStrategy)},`)
     out.push(`    reward_per_unit: ${spec.rewardPerUnit},`)
     out.push(`    verifier_reward_per_unit: ${spec.verifierRewardPerUnit},`)
     out.push(...verification)
@@ -82,6 +83,7 @@ export function emitGo(specs) {
     ['BlockRows', (s) => String(s.blockRows)],
     ['MaxFragments', (s) => String(s.maxFragments)],
     ['TargetSize', (s) => String(s.targetSize)],
+    ['SplitStrategy', (s) => quote(s.splitStrategy)],
     ['RewardPerUnit', (s) => String(s.rewardPerUnit)],
     ['VerifierRewardPerUnit', (s) => String(s.verifierRewardPerUnit)],
     ['Policy', (s) => quote(s.policy)],
@@ -133,9 +135,9 @@ export function emitTs(specs) {
     '',
   )
   out.push('/** Formulaire de soumission du workload (bloc `ui.input` du descripteur). */')
-  out.push("export type WorkloadInput = 'file' | 'scene' | 'images' | 'documents' | 'texts'", '')
+  out.push("export type WorkloadInput = 'file' | 'scene' | 'images' | 'documents' | 'texts' | 'chat'", '')
   out.push('/** Forme du résultat : transport par l\'API et affichage par le site (bloc `ui.result`). */')
-  out.push("export type WorkloadResult = 'text' | 'image' | 'files' | 'documents' | 'embedding' | 'classification'", '')
+  out.push("export type WorkloadResult = 'text' | 'image' | 'files' | 'documents' | 'embedding' | 'classification' | 'chat'", '')
   out.push('export interface WorkloadSpec {')
   out.push('  id: string')
   out.push('  unit: WorkloadUnit')
@@ -147,6 +149,7 @@ export function emitTs(specs) {
   out.push('  blockRows: number')
   out.push('  maxFragments: number')
   out.push('  targetSize: number')
+  out.push("  splitStrategy: 'input_size' | 'workers'")
   out.push('  rewardPerUnit: number')
   out.push('  verifierRewardPerUnit: number')
   out.push('  verification: WorkloadVerification')
@@ -181,6 +184,7 @@ export function emitTs(specs) {
     out.push(`    blockRows: ${spec.blockRows},`)
     out.push(`    maxFragments: ${spec.maxFragments},`)
     out.push(`    targetSize: ${spec.targetSize},`)
+    out.push(`    splitStrategy: ${quote(spec.splitStrategy)},`)
     out.push(`    rewardPerUnit: ${spec.rewardPerUnit},`)
     out.push(`    verifierRewardPerUnit: ${spec.verifierRewardPerUnit},`)
     out.push(`    verification: ${verification},`)

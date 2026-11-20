@@ -23,14 +23,15 @@ const outputs = {
 
 const SCHEMA = 'silicium.workload/v1'
 const UNITS = ['bytes_input', 'pixels_band']
+const SPLIT_STRATEGIES = ['input_size', 'workers']
 const POLICIES = ['recompute', 'sampling', 'sampling_tolerance']
 const DEPOSITS = ['supported', 'unsupported']
 // Paramètres que la spec du job sait porter (ledger `JobSpec.width` / `height`).
 const PARAMS = ['width', 'height']
 // Ce que le site et l'API tirent du descripteur, au lieu de lister des identifiants (bloc `ui`) :
 // le formulaire de soumission, et la forme du résultat (transport par l'API, affichage par le site).
-const UI_INPUTS = ['file', 'scene', 'images', 'documents', 'texts']
-const UI_RESULTS = ['text', 'image', 'files', 'documents', 'embedding', 'classification']
+const UI_INPUTS = ['file', 'scene', 'images', 'documents', 'texts', 'chat']
+const UI_RESULTS = ['text', 'image', 'files', 'documents', 'embedding', 'classification', 'chat']
 
 function fail(file, message) {
   throw new Error(`${file} : ${message}`)
@@ -144,6 +145,11 @@ export function normalize(raw, file) {
     fail(file, 'politique recompute sans paramètres')
   }
 
+  const splitStrategy = raw.split?.strategy ?? 'input_size'
+  if (!SPLIT_STRATEGIES.includes(splitStrategy)) {
+    fail(file, `split.strategy inconnue : ${splitStrategy}`)
+  }
+
   return {
     id: raw.id,
     unit: raw.unit,
@@ -155,6 +161,7 @@ export function normalize(raw, file) {
     blockRows,
     maxFragments: integer(raw.split?.max_fragments, file, 'split.max_fragments', 1),
     targetSize: integer(raw.split?.target_size, file, 'split.target_size', 1),
+    splitStrategy,
     rewardPerUnit: integer(raw.terms?.reward_per_unit, file, 'terms.reward_per_unit'),
     verifierRewardPerUnit: integer(
       raw.terms?.verifier_reward_per_unit,

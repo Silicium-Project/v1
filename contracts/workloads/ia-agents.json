@@ -31,6 +31,6 @@
     "network": 20,
     "storage": 35
   },
-  "closed": false,
+  "closed": true,
   "ui": { "input": "file", "result": "text" }
 }
