@@ -23,7 +23,7 @@ DOWNLOADS="$ROOT/apps/web/public/downloads"
 for name in node npm cargo rsync python3 rpmbuild rpm; do
   command -v "$name" >/dev/null || { echo "absent du PATH : $name" >&2; exit 1; }
 done
-for file in silicium-node sil-raytracer-block sil-sandbox-launch libonnxruntime.so; do
+for file in silicium-node sil-raytracer-block.wasm sil-pdf-block.wasm libonnxruntime.so; do
   test -f "$ROOT/dist/linux-amd64/$file" || { echo "absent : dist/linux-amd64/$file" >&2; exit 1; }
 done
 
@@ -52,8 +52,9 @@ for file in "$DEB_SRC" "$RPM_SRC" "$APP_SRC"; do
   test -f "$file" || { echo "paquet absent après build : $file" >&2; exit 1; }
 done
 
-# Le lanceur d'isolation doit être dans le paquet : le nœud le cherche à côté de lui (cli.rs).
-CONTENT=("silicium-node" "sil-raytracer-block" "sil-sandbox-launch" "libonnxruntime.so")
+# Le moteur de rendu et le module pdf sont des WebAssembly posés dans lib/Silicium (node_process.rs,
+# node_registry.rs les y cherchent) ; le nœud et le runtime ONNX sont dans le paquet.
+CONTENT=("silicium-node" "sil-raytracer-block.wasm" "sil-pdf-block.wasm" "libonnxruntime.so")
 echo "== contrôle du contenu du .deb"
 LISTING="$(mktemp)"
 trap 'rm -f "$LISTING"' EXIT
