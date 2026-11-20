@@ -80,6 +80,7 @@ export function emitRust(specs) {
   const out = [
     `// ${GENERATED}`,
     '',
+    '#[path = "generated_ai.rs"]',
     'mod generated_ai;',
     'pub use generated_ai::*;',
     '',
