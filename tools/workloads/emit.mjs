@@ -7,9 +7,8 @@ const quote = (text) => JSON.stringify(text)
 const float = (value) => (Number.isInteger(value) ? value.toFixed(1) : String(value))
 const constName = (id) => id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
 
-export function emitRust(specs) {
+function rustSpecs(specs) {
   const out = []
-  out.push(`// ${GENERATED}`, '', 'use crate::{Limits, Resources, Spec, Unit, Verification};', '')
   for (const spec of specs) {
     const unit = spec.unit === 'bytes_input' ? 'Unit::BytesInput' : 'Unit::PixelsBand'
     const verification =
@@ -43,6 +42,7 @@ export function emitRust(specs) {
     out.push(`    block_rows: ${spec.blockRows},`)
     out.push(`    max_fragments: ${spec.maxFragments},`)
     out.push(`    target_size: ${spec.targetSize},`)
+    out.push(`    split_strategy: ${quote(spec.splitStrategy)},`)
     out.push(`    reward_per_unit: ${spec.rewardPerUnit},`)
     out.push(`    verifier_reward_per_unit: ${spec.verifierRewardPerUnit},`)
     out.push(...verification)
@@ -60,6 +60,11 @@ export function emitRust(specs) {
     out.push('    },')
     out.push('};', '')
   }
+  return out
+}
+
+function rustAll(specs) {
+  const out = []
   const names = specs.map((spec) => constName(spec.id))
   out.push('/// Tous les descripteurs, triés par identifiant.')
   // Format rustfmt (voir ci-dessous).
@@ -67,6 +72,35 @@ export function emitRust(specs) {
   // rustfmt : tableau sur une ligne si son contenu tient en 60 colonnes (array_width par défaut).
   if (names.join(', ').length <= 60) out.push(oneLine, '')
   else out.push('pub const ALL: &[Spec] = &[', ...names.map((name) => `    ${name},`), '];', '')
+  return out
+}
+
+export function emitRust(specs) {
+  const coreSpecs = specs.filter((spec) => !spec.id.startsWith('ia/'))
+  const out = [
+    `// ${GENERATED}`,
+    '',
+    '#[path = "generated_ai.rs"]',
+    'mod generated_ai;',
+    'pub use generated_ai::*;',
+    '',
+    'use crate::{Limits, Resources, Spec, Unit, Verification};',
+    '',
+    ...rustSpecs(coreSpecs),
+    ...rustAll(specs),
+  ]
+  return out.join('\n')
+}
+
+export function emitRustAI(specs) {
+  const aiSpecs = specs.filter((spec) => spec.id.startsWith('ia/'))
+  const out = [
+    `// ${GENERATED}`,
+    '',
+    'use crate::{Limits, Resources, Spec, Unit, Verification};',
+    '',
+    ...rustSpecs(aiSpecs),
+  ]
   return out.join('\n')
 }
 
@@ -82,6 +116,7 @@ export function emitGo(specs) {
     ['BlockRows', (s) => String(s.blockRows)],
     ['MaxFragments', (s) => String(s.maxFragments)],
     ['TargetSize', (s) => String(s.targetSize)],
+    ['SplitStrategy', (s) => quote(s.splitStrategy)],
     ['RewardPerUnit', (s) => String(s.rewardPerUnit)],
     ['VerifierRewardPerUnit', (s) => String(s.verifierRewardPerUnit)],
     ['Policy', (s) => quote(s.policy)],
@@ -133,9 +168,9 @@ export function emitTs(specs) {
     '',
   )
   out.push('/** Formulaire de soumission du workload (bloc `ui.input` du descripteur). */')
-  out.push("export type WorkloadInput = 'file' | 'scene' | 'images' | 'documents' | 'texts'", '')
+  out.push("export type WorkloadInput = 'file' | 'scene' | 'images' | 'documents' | 'texts' | 'chat'", '')
   out.push('/** Forme du résultat : transport par l\'API et affichage par le site (bloc `ui.result`). */')
-  out.push("export type WorkloadResult = 'text' | 'image' | 'files' | 'documents' | 'embedding' | 'classification'", '')
+  out.push("export type WorkloadResult = 'text' | 'image' | 'files' | 'documents' | 'embedding' | 'classification' | 'chat'", '')
   out.push('export interface WorkloadSpec {')
   out.push('  id: string')
   out.push('  unit: WorkloadUnit')
@@ -147,6 +182,7 @@ export function emitTs(specs) {
   out.push('  blockRows: number')
   out.push('  maxFragments: number')
   out.push('  targetSize: number')
+  out.push("  splitStrategy: 'input_size' | 'workers'")
   out.push('  rewardPerUnit: number')
   out.push('  verifierRewardPerUnit: number')
   out.push('  verification: WorkloadVerification')
@@ -181,6 +217,7 @@ export function emitTs(specs) {
     out.push(`    blockRows: ${spec.blockRows},`)
     out.push(`    maxFragments: ${spec.maxFragments},`)
     out.push(`    targetSize: ${spec.targetSize},`)
+    out.push(`    splitStrategy: ${quote(spec.splitStrategy)},`)
     out.push(`    rewardPerUnit: ${spec.rewardPerUnit},`)
     out.push(`    verifierRewardPerUnit: ${spec.verifierRewardPerUnit},`)
     out.push(`    verification: ${verification},`)

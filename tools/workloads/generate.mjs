@@ -10,27 +10,29 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { emitGo, emitRust, emitTs } from './emit.mjs'
+import { emitGo, emitRust, emitRustAI, emitTs } from './emit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const source = join(root, 'contracts', 'workloads')
 // Chemins des dépôts composants : sous-modules par défaut, surchargeables (SIL_NETWORK_DIR, SIL_API_DIR, SIL_WEB_DIR).
 const outputs = {
   rust: join(process.env.SIL_NETWORK_DIR ?? join(root, 'network'), 'sil-workload-spec', 'src', 'generated.rs'),
+  rustAI: join(process.env.SIL_NETWORK_DIR ?? join(root, 'network'), 'sil-workload-spec', 'src', 'generated_ai.rs'),
   go: join(process.env.SIL_API_DIR ?? join(root, 'services', 'api'), 'internal', 'workloadspec', 'generated.go'),
   ts: join(process.env.SIL_WEB_DIR ?? join(root, 'apps', 'web'), 'src', 'workloads', 'generated.ts'),
 }
 
 const SCHEMA = 'silicium.workload/v1'
 const UNITS = ['bytes_input', 'pixels_band']
+const SPLIT_STRATEGIES = ['input_size', 'workers']
 const POLICIES = ['recompute', 'sampling', 'sampling_tolerance']
 const DEPOSITS = ['supported', 'unsupported']
 // Paramètres que la spec du job sait porter (ledger `JobSpec.width` / `height`).
 const PARAMS = ['width', 'height']
 // Ce que le site et l'API tirent du descripteur, au lieu de lister des identifiants (bloc `ui`) :
 // le formulaire de soumission, et la forme du résultat (transport par l'API, affichage par le site).
-const UI_INPUTS = ['file', 'scene', 'images', 'documents', 'texts']
-const UI_RESULTS = ['text', 'image', 'files', 'documents', 'embedding', 'classification']
+const UI_INPUTS = ['file', 'scene', 'images', 'documents', 'texts', 'chat']
+const UI_RESULTS = ['text', 'image', 'files', 'documents', 'embedding', 'classification', 'chat']
 
 function fail(file, message) {
   throw new Error(`${file} : ${message}`)
@@ -144,6 +146,11 @@ export function normalize(raw, file) {
     fail(file, 'politique recompute sans paramètres')
   }
 
+  const splitStrategy = raw.split?.strategy ?? 'input_size'
+  if (!SPLIT_STRATEGIES.includes(splitStrategy)) {
+    fail(file, `split.strategy inconnue : ${splitStrategy}`)
+  }
+
   return {
     id: raw.id,
     unit: raw.unit,
@@ -155,6 +162,7 @@ export function normalize(raw, file) {
     blockRows,
     maxFragments: integer(raw.split?.max_fragments, file, 'split.max_fragments', 1),
     targetSize: integer(raw.split?.target_size, file, 'split.target_size', 1),
+    splitStrategy,
     rewardPerUnit: integer(raw.terms?.reward_per_unit, file, 'terms.reward_per_unit'),
     verifierRewardPerUnit: integer(
       raw.terms?.verifier_reward_per_unit,
@@ -198,6 +206,7 @@ function main() {
   const specs = loadSpecs()
   const generated = {
     rust: emitRust(specs),
+    rustAI: emitRustAI(specs),
     go: emitGo(specs),
     ts: emitTs(specs),
   }
