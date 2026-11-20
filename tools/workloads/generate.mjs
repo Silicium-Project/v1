@@ -10,13 +10,14 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { emitGo, emitRust, emitTs } from './emit.mjs'
+import { emitGo, emitRust, emitRustAI, emitTs } from './emit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const source = join(root, 'contracts', 'workloads')
 // Chemins des dépôts composants : sous-modules par défaut, surchargeables (SIL_NETWORK_DIR, SIL_API_DIR, SIL_WEB_DIR).
 const outputs = {
   rust: join(process.env.SIL_NETWORK_DIR ?? join(root, 'network'), 'sil-workload-spec', 'src', 'generated.rs'),
+  rustAI: join(process.env.SIL_NETWORK_DIR ?? join(root, 'network'), 'sil-workload-spec', 'src', 'generated_ai.rs'),
   go: join(process.env.SIL_API_DIR ?? join(root, 'services', 'api'), 'internal', 'workloadspec', 'generated.go'),
   ts: join(process.env.SIL_WEB_DIR ?? join(root, 'apps', 'web'), 'src', 'workloads', 'generated.ts'),
 }
@@ -205,6 +206,7 @@ function main() {
   const specs = loadSpecs()
   const generated = {
     rust: emitRust(specs),
+    rustAI: emitRustAI(specs),
     go: emitGo(specs),
     ts: emitTs(specs),
   }

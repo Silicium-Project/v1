@@ -7,9 +7,8 @@ const quote = (text) => JSON.stringify(text)
 const float = (value) => (Number.isInteger(value) ? value.toFixed(1) : String(value))
 const constName = (id) => id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')
 
-export function emitRust(specs) {
+function rustSpecs(specs) {
   const out = []
-  out.push(`// ${GENERATED}`, '', 'use crate::{Limits, Resources, Spec, Unit, Verification};', '')
   for (const spec of specs) {
     const unit = spec.unit === 'bytes_input' ? 'Unit::BytesInput' : 'Unit::PixelsBand'
     const verification =
@@ -61,6 +60,11 @@ export function emitRust(specs) {
     out.push('    },')
     out.push('};', '')
   }
+  return out
+}
+
+function rustAll(specs) {
+  const out = []
   const names = specs.map((spec) => constName(spec.id))
   out.push('/// Tous les descripteurs, triés par identifiant.')
   // Format rustfmt (voir ci-dessous).
@@ -68,6 +72,34 @@ export function emitRust(specs) {
   // rustfmt : tableau sur une ligne si son contenu tient en 60 colonnes (array_width par défaut).
   if (names.join(', ').length <= 60) out.push(oneLine, '')
   else out.push('pub const ALL: &[Spec] = &[', ...names.map((name) => `    ${name},`), '];', '')
+  return out
+}
+
+export function emitRust(specs) {
+  const coreSpecs = specs.filter((spec) => !spec.id.startsWith('ia/'))
+  const out = [
+    `// ${GENERATED}`,
+    '',
+    'mod generated_ai;',
+    'pub use generated_ai::*;',
+    '',
+    'use crate::{Limits, Resources, Spec, Unit, Verification};',
+    '',
+    ...rustSpecs(coreSpecs),
+    ...rustAll(specs),
+  ]
+  return out.join('\n')
+}
+
+export function emitRustAI(specs) {
+  const aiSpecs = specs.filter((spec) => spec.id.startsWith('ia/'))
+  const out = [
+    `// ${GENERATED}`,
+    '',
+    'use crate::{Limits, Resources, Spec, Unit, Verification};',
+    '',
+    ...rustSpecs(aiSpecs),
+  ]
   return out.join('\n')
 }
 
