@@ -6,7 +6,7 @@
     "network": {
       "repository": "Silicium-Project/v1-network",
       "path": "network",
-      "commit": "f0b46a4e08ac4598543b5a1ae3e91b96c5f19509",
+      "commit": "00cbcf3dbf31d30a1d1109283829febc252c350f",
       "visibility": "private"
     },
     "apps/desktop": {
@@ -18,13 +18,13 @@
     "apps/web": {
       "repository": "Silicium-Project/v1-web",
       "path": "apps/web",
-      "commit": "ba8c3a63bca046a4b51eac78376c2785ce073fa8",
+      "commit": "fafa33e85bf150c1b959efb967343f2b1507258c",
       "visibility": "private"
     },
     "services/api": {
       "repository": "Silicium-Project/v1-api",
       "path": "services/api",
-      "commit": "581cc601b6cc1b80bcc6b626cdc12f4532811e90",
+      "commit": "8d7b75b2cc5e0239b31a27a26a5c0b5d18ce6213",
       "visibility": "private"
     },
     "chain": {

@@ -80,7 +80,10 @@ https://$WG_ADDR:$DEV_SITE_PORT {
 	bind $WG_ADDR
 	tls internal
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:$DEV_API_PORT
+	# Adresse réelle du client pour les limites de débit de l'API (header_up remplace la valeur du client).
+	reverse_proxy 127.0.0.1:$DEV_API_PORT {
+		header_up X-Real-IP {remote_host}
+	}
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		-Server
