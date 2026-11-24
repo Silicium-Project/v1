@@ -18,7 +18,7 @@
     "apps/web": {
       "repository": "Silicium-Project/v1-web",
       "path": "apps/web",
-      "commit": "83215e1503572f8da9f6985498e56afd94c17313",
+      "commit": "8fbefa9c28f0d965052e688c52865c8e0ce7d62e",
       "visibility": "private"
     },
     "services/api": {
