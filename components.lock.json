@@ -6,13 +6,13 @@
     "network": {
       "repository": "Silicium-Project/v1-network",
       "path": "network",
-      "commit": "6da59f67ba1f5f197cd14fac71f0b711f3fa5e9c",
+      "commit": "f6b288b03a9e8c09cd9dee9fb8d9c16497562b3b",
       "visibility": "private"
     },
     "apps/desktop": {
       "repository": "Silicium-Project/v1-desktop",
       "path": "apps/desktop",
-      "commit": "4460d391ac425d7238c066c6ae15cd19bb4a7d26",
+      "commit": "5794cfcfbb1a0e04eea5a59e89a23d2752e472df",
       "visibility": "private"
     },
     "apps/web": {
