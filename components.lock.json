@@ -30,7 +30,7 @@
     "chain": {
       "repository": "Silicium-Project/v1-chain",
       "path": "chain",
-      "commit": "d3679c5e4f6b56082344c26548bebf7924d5fc53",
+      "commit": "e97aff8205adfebdd5affd648d3dd1b62a5f190e",
       "visibility": "private"
     }
   }
