@@ -12,19 +12,19 @@
     "apps/desktop": {
       "repository": "Silicium-Project/v1-desktop",
       "path": "apps/desktop",
-      "commit": "b3f76ce778044332908282351631eb4657b95e5d",
+      "commit": "726c85a8df01322d26012bbc550016a52338a7dc",
       "visibility": "private"
     },
     "apps/web": {
       "repository": "Silicium-Project/v1-web",
       "path": "apps/web",
-      "commit": "560a2819db0f16eb653e9505d0ba1c05b2c54d9f",
+      "commit": "092793dcf225fbc73f1b5e8c25815c4e73a587a8",
       "visibility": "private"
     },
     "services/api": {
       "repository": "Silicium-Project/v1-api",
       "path": "services/api",
-      "commit": "7b09957e532430b86284c7e27119351ded78cc90",
+      "commit": "690350e896efb7983c07e3bf5e8a7d7abc2a2f19",
       "visibility": "private"
     },
     "chain": {
