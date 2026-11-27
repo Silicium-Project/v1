@@ -52,7 +52,13 @@ echo "== dépendances web et bureau (Linux)"
 echo "== build Tauri (deb, rpm et AppImage) : $TARGET"
 # Les sorties précédentes sont retirées : sinon un ancien paquet d'une autre version serait pris.
 rm -rf "$TARGET/release/bundle"
-(cd "$WORK/apps/desktop" && CARGO_TARGET_DIR="$TARGET" npm run build -- --config "$CONF")
+# Prod : pas de --config. Avec --config explicite, tauri ne retire pas onnxruntime.dll du paquet Linux
+# (tauri.linux.conf.json) et le build échoue (« resource path resources/onnxruntime.dll doesn't exist »).
+if [ "$CHANNEL" = "prod" ]; then
+  (cd "$WORK/apps/desktop" && CARGO_TARGET_DIR="$TARGET" npm run build)
+else
+  (cd "$WORK/apps/desktop" && CARGO_TARGET_DIR="$TARGET" npm run build -- --config "$CONF")
+fi
 
 BUNDLE="$TARGET/release/bundle"
 # Le nom de fichier suit productName (« Silicium » ou « Silicium Dev ») : on prend le seul paquet de chaque sorte.
