@@ -12,7 +12,7 @@
     "apps/desktop": {
       "repository": "Silicium-Project/v1-desktop",
       "path": "apps/desktop",
-      "commit": "466ad8b7705a9208960d8bcc3e599525517c1602",
+      "commit": "8a1d4e458e247e10647950e3c838dc2d1b5e8ed7",
       "visibility": "private"
     },
     "apps/web": {
