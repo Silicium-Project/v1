@@ -101,9 +101,17 @@ done
 
 echo "== publication dans $OUT_REL"
 mkdir -p "$DOWNLOADS"
-DEB="$(basename "$DEB_SRC")"
-APP="$(basename "$APP_SRC")"
-RPM="$(basename "$RPM_SRC")"
+# Noms de fichiers : prod inchangé (Silicium_…) ; dev sans espace (« Silicium Dev » donnerait un espace
+# brut dans l'index apt, que apt ne sait pas suivre).
+if [ "$CHANNEL" = "dev" ]; then
+  DEB="${PKG}_${VERSION}_amd64.deb"
+  APP="${PKG}_${VERSION}_amd64.AppImage"
+  RPM="${PKG}-${VERSION}-1.x86_64.rpm"
+else
+  DEB="$(basename "$DEB_SRC")"
+  APP="$(basename "$APP_SRC")"
+  RPM="$(basename "$RPM_SRC")"
+fi
 cp "$DEB_SRC" "$DOWNLOADS/$DEB"
 cp "$APP_SRC" "$DOWNLOADS/$APP"
 cp "$RPM_SRC" "$DOWNLOADS/$RPM"
