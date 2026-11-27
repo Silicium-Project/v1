@@ -6,7 +6,7 @@
     "network": {
       "repository": "Silicium-Project/v1-network",
       "path": "network",
-      "commit": "56b0f019cd0da1817500ba4bd9c7abf83b072c8f",
+      "commit": "ad0039e117ccbf26e2f3df987ba9a7b7d58318c7",
       "visibility": "private"
     },
     "apps/desktop": {
@@ -30,7 +30,7 @@
     "chain": {
       "repository": "Silicium-Project/v1-chain",
       "path": "chain",
-      "commit": "2a8956f6719f538a3613d3e860d5cb917cddab89",
+      "commit": "32c5d1fd21fb918407fd1d21f428a83c8bad0f87",
       "visibility": "private"
     }
   }
