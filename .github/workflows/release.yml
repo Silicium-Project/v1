@@ -225,6 +225,18 @@ jobs:
             apps/web/public/downloads/*.rpm
             apps/web/public/downloads/app-linux.json
           retention-days: 30
+      # Dev : paquets « silicium-dev » (dist/linux-dev), construits après le prod et envoyés à part.
+      - name: AppImage, deb, rpm (dev)
+        if: github.ref != 'refs/heads/main'
+        run: bash infra/release/build-linux-desktop.sh dev
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.ref != 'refs/heads/main'
+        with:
+          name: packages-linux-dev
+          path: |
+            dist/linux-dev/*.deb
+            dist/linux-dev/*.rpm
+          retention-days: 30
 
   windows-installer:
     needs: [windows-binaries, linux-binaries]
@@ -345,6 +357,14 @@ jobs:
           echo "version: $version"
           bash infra/release/publish-update-manifest.sh "$version" "$SIL_ENV" "$RUNNER_TEMP/update" packages packages-win
           echo "UPDATE_DIR=$RUNNER_TEMP/update" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: github.ref != 'refs/heads/main'
+        with:
+          name: packages-linux-dev
+          path: packages-dev
+      - name: Dev packages into the repositories (deb, rpm only)
+        if: github.ref != 'refs/heads/main'
+        run: find packages-dev -maxdepth 1 \( -name '*.deb' -o -name '*.rpm' \) -exec cp -f {} packages/ \;
       - name: Publish repositories
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}

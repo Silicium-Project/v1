@@ -24,8 +24,11 @@ known="${SIL_SSH_KNOWN_HOSTS:?SIL_SSH_KNOWN_HOSTS absent}"
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -i "$key" -o "UserKnownHostsFile=$known")
 
 work="$(mktemp -d)"
+# Le dossier de travail est envoyé tel quel (tar) puis extrait en root sur le serveur : son mode doit
+# être 755. mktemp le crée en 700, et la racine web download/ devenait root:700 : l'API ne lisait plus les dépôts.
+chmod 755 "$work"
 trap 'rm -rf "$work"' EXIT
-mkdir -p "$work/dnf/Packages" "$work/apt/pool/main/s/silicium" "$work/apt/dists/stable/main/binary-amd64"
+mkdir -p "$work/dnf/Packages" "$work/apt/pool/main/s" "$work/apt/dists/stable/main/binary-amd64"
 
 # 1. Current repositories from the server (read-only, through the deploy helper: the account has no
 # general read access to the web root's packages otherwise).
@@ -36,7 +39,12 @@ shopt -s nullglob
 rpms=("$packages"/*.rpm); debs=("$packages"/*.deb)
 (( ${#rpms[@]} + ${#debs[@]} > 0 )) || { echo "aucun paquet dans $packages" >&2; exit 1; }
 if (( ${#rpms[@]} )); then cp -f "${rpms[@]}" "$work/dnf/Packages/"; fi
-if (( ${#debs[@]} )); then cp -f "${debs[@]}" "$work/apt/pool/main/s/silicium/"; fi
+# Le pool est rangé par nom de paquet : « silicium » (prod) et « silicium-dev » (dev) ont chacun le leur.
+for deb in "${debs[@]}"; do
+  name="$(dpkg-deb -f "$deb" Package)"
+  mkdir -p "$work/apt/pool/main/s/$name"
+  cp -f "$deb" "$work/apt/pool/main/s/$name/"
+done
 
 # 3. DNF metadata, signed (repomd.xml.asc, as the existing repository).
 createrepo_c --quiet "$work/dnf"
